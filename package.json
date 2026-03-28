@@ -1,0 +1,33 @@
+{
+  "name": "game",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "tsc && node dist/index.js",
+    "build": "tsc",
+    "build:pages": "node scripts/build-pages.mjs",
+    "watch": "tsc -w --preserveWatchOutput",
+    "dev:server": "node dev-server.mjs",
+    "dev:web": "concurrently -k \"npm:watch\" \"npm:dev:server\"",
+    "serve": "tsc && npx serve",
+    "serve:pages": "npx serve docs",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "concurrently": "^9.2.0",
+    "esbuild": "^0.25.9",
+    "eslint": "^9.39.2",
+    "prettier": "^3.7.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "pixi.js": "^8.15.0"
+  }
+}

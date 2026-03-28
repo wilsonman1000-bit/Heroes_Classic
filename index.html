@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>My Web Page</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        button, .btn, .village-btn, .btn-medieval,
+        input[type=button], input[type=submit],
+        a.button, a.btn {
+            background: linear-gradient(135deg, #bfa76a 0%, #7c5c2a 100%);
+            color: #fffbe6;
+            border: 2px solid #5a4321;
+            border-radius: 10px;
+            font-family: 'Cinzel', 'Georgia', serif;
+            font-size: 1.08em;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 8px rgba(60,40,10,0.18);
+            padding: 10px 28px;
+            margin: 6px 0;
+            cursor: pointer;
+            transition: background 0.2s;
+            text-shadow: 0 1px 2px #3a2a10;
+            text-decoration: none;
+            display: inline-block;
+        }
+        button:hover, .btn:hover, .village-btn:hover, .btn-medieval:hover,
+        input[type=button]:hover, input[type=submit]:hover,
+        a.button:hover, a.btn:hover {
+            background: linear-gradient(135deg, #e2c88f 0%, #a07b3b 100%);
+            color: #fffbe6;
+        }
+
+        body {
+            background: #222;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            margin-top: 60px;
+        }
+        .logo {
+            width: 320px;
+            max-width: 80vw;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px #000a;
+        }
+        /* .btn style is handled globally above */
+    </style>
+
+    <!-- PixiJS runtime (global `window.PIXI`) served from node_modules by dev-server.mjs -->
+    <script src="node_modules/pixi.js/dist/pixi.min.js"></script>
+
+    <script type="module" src="dist/index.web.js"></script>
+</head>
+
+<body>
+    <div id="app"></div>
+    <!-- Conteneur pour la scène de combat -->
+    <div id="battle-container" style="width: 100%; height: 400px; background-color: #f0f0f0; display: flex; justify-content: center; align-items: center;"></div>
+    <script>
+        // Defensive: only attach if elements exist (some screens create them dynamically)
+        const villageBtn = document.getElementById('villageBtn');
+        if (villageBtn) {
+            villageBtn.onclick = function () {
+                const logo = document.querySelector('.logo');
+                const title = document.querySelector('h1');
+                if (logo) logo.src = 'https://images.unsplash.com/photo-1464983953574-0892a716854b?auto=format&fit=crop&w=800&q=80';
+                if (title) title.textContent = 'Bienvenue au village !';
+            };
+        }
+    </script>
+</body>
+
+</html>
+

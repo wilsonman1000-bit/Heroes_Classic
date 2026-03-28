@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b3e5fc"/>
+      <stop offset="1" stop-color="#4fc3f7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Moon -->
+  <path d="M44 10c-6.2 2.5-9.2 9.5-6.7 15.7S46.8 35 53 32.5c-2.2 6-8.1 10.3-15 10.3-8.8 0-16-7.2-16-16 0-7 4.6-13.1 11.3-15.2 3.6-1.1 7.5-.9 10.7.4z" fill="#ffe082"/>
+
+  <!-- Zzz -->
+  <path d="M14 16h10l-10 8h10" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+  <path d="M12 26h8l-8 6h8" fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+
+  <!-- Pillow/bed -->
+  <rect x="10" y="38" width="44" height="14" rx="7" fill="url(#g)" stroke="#0b2a3a" stroke-opacity="0.18"/>
+  <rect x="14" y="40" width="12" height="10" rx="5" fill="#e1f5fe" opacity="0.95"/>
+  <path d="M12 52h40" stroke="#0b2a3a" stroke-opacity="0.22" stroke-width="3" stroke-linecap="round"/>
+</svg>

@@ -243,9 +243,30 @@ export function showBoutique(options: { onBack?: () => void } = {}) {
     type ShopCategory = 'all' | 'consumable' | 'equipment' | 'other';
     let category: ShopCategory = 'all';
 
-    // Items en boutique (prix = 50)
+    // Items en boutique
 
-    const shopItems: Array<{ create: () => any; price: number; category: Exclude<ShopCategory, 'all'> }> = [
+    type ShopEntry =
+        | {
+              kind?: 'item';
+              create: () => any;
+              price: number;
+              category: Exclude<ShopCategory, 'all'>;
+          }
+        | {
+              kind: 'resource';
+              resourceKey: 'wood' | 'fer' | 'herb' | 'cuir';
+              create: () => any;
+              price: number;
+              category: Exclude<ShopCategory, 'all'>;
+          };
+
+    const shopItems: ShopEntry[] = [
+        // Matières premières (10 or / unité)
+        { kind: 'resource', resourceKey: 'wood', create: () => ({ id: 'res_wood', name: 'Bois', description: 'Matière première (+1 bois)' }), price: 10, category: 'other' },
+        { kind: 'resource', resourceKey: 'fer', create: () => ({ id: 'res_fer', name: 'Fer', description: 'Matière première (+1 fer)' }), price: 10, category: 'other' },
+        { kind: 'resource', resourceKey: 'herb', create: () => ({ id: 'res_herb', name: 'Herbe', description: 'Matière première (+1 herbe)' }), price: 10, category: 'other' },
+        { kind: 'resource', resourceKey: 'cuir', create: () => ({ id: 'res_cuir', name: 'Cuir', description: 'Matière première (+1 cuir)' }), price: 10, category: 'other' },
+
         { create: () => new Consumable('potion_small', 'Potion de soin', 'Soigne 50 PV', 'heal', 50), price: 50, category: 'consumable' },
         { create: () => new Consumable('mana_small', 'Potion de mana', 'Restaure 30 mana', 'mana', 30), price: 30, category: 'consumable' },
         { create: () => new Consumable('pomme', 'Pomme', 'Restaure 10 PV', 'heal', 10), price: 8, category: 'consumable' },
@@ -331,8 +352,16 @@ export function showBoutique(options: { onBack?: () => void } = {}) {
                 if (hero.gold >= shopEntry.price) {
                     hero.gold -= shopEntry.price;
                     const bought = shopEntry.create();
-                    hero.addItem(bought);
-                    alert(`Achat réussi : ${bought.name} (-${shopEntry.price} or)`);
+
+                    if ((shopEntry as any).kind === 'resource') {
+                        const key = (shopEntry as any).resourceKey as 'wood' | 'fer' | 'herb' | 'cuir';
+                        const cur = Math.max(0, Math.floor(Number((hero as any)[key] ?? 0)));
+                        (hero as any)[key] = cur + 1;
+                        alert(`Achat réussi : ${(bought as any)?.name ?? 'Ressource'} (+1) (-${shopEntry.price} or)`);
+                    } else {
+                        hero.addItem(bought);
+                        alert(`Achat réussi : ${bought.name} (-${shopEntry.price} or)`);
+                    }
                     render();
                 } else {
                     alert('Pas assez d\'or !');

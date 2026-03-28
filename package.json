@@ -7,6 +7,7 @@
     "start": "tsc && node dist/index.js",
     "build": "tsc",
     "build:pages": "node scripts/build-pages.mjs",
+    "deploy:pages": "node scripts/deploy-pages.mjs",
     "watch": "tsc -w --preserveWatchOutput",
     "dev:server": "node dev-server.mjs",
     "dev:web": "concurrently -k \"npm:watch\" \"npm:dev:server\"",

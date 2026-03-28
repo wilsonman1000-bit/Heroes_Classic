@@ -870,7 +870,38 @@ export function ensureTacticalStyles(): void {
 
         /* Deployment UI */
         .deployment-banner { box-shadow: 0 4px 18px rgba(0,0,0,0.6); }
-        .tile.deployment-allowed { outline: 2px dashed rgba(255,215,85,0.95); background: linear-gradient(90deg, rgba(255,230,140,0.06), rgba(255,215,85,0.02)); }
+        /* Placement (début de combat): surlignage discret, sans outline carré jaune pointillé */
+        .tile.deployment-allowed {
+            outline: 2px solid rgba(255,217,101,0.45);
+            outline-offset: -2px;
+            background: rgba(255,217,101,0.06);
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+        }
+
+        /* En vue iso, dessiner un diamant (ne pas utiliser l'outline carré). */
+        .tactical-grid.iso .tile.deployment-allowed {
+            outline: none;
+            outline-offset: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+        .tactical-grid.iso .tile.deployment-allowed::before {
+            display: block;
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: var(--isoTileW, 64px);
+            height: var(--isoTileH, 32px);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+            -webkit-clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+            background: rgba(255,217,101,0.22);
+            border: 2px solid rgba(255,217,101,0.50);
+            box-shadow: inset 0 10px 26px rgba(255,217,101,0.10);
+            z-index: 1;
+        }
         /* Poison: noir */
         .unit-sprite-effbadge.dot.poison {
             color: rgba(0,0,0,0.95);

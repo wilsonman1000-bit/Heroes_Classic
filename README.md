@@ -42,7 +42,11 @@ Après quelques secondes/minutes, ton jeu sera accessible à:
 
 À chaque changement:
 
-- `npm run build:pages`
-- `git add docs`
-- `git commit -m "Update pages build"`
-- `git push`
+- Option simple (1 commande):
+	- `npm.cmd run deploy:pages`
+
+- Option manuelle:
+	- `npm.cmd run build:pages`
+	- `git add docs`
+	- `git commit -m "Update pages build"`
+	- `git push`

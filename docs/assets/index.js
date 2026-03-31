@@ -399,7 +399,7 @@ var init_item = __esm({
         }
         if (this.effect === "gold") {
           target.gold = target.gold + this.amount;
-          return `${target.name} gagne ${this.amount} or gr\xE2ce \xE0 ${this.name}.`;
+          return `${target.name} gagne ${this.amount} argent gr\xE2ce \xE0 ${this.name}.`;
         }
         if (this.effect === "buff") {
           target.activeEffects.push({ type: "buff", amount: this.amount, remainingTurns: 3 });
@@ -879,6 +879,7 @@ __export(party_web_exports, {
   getPartyMembers: () => getPartyMembers,
   getSelectedPartyIndex: () => getSelectedPartyIndex,
   listPartySkills: () => listPartySkills,
+  resetPartyRuntime: () => resetPartyRuntime,
   setSelectedPartyIndex: () => setSelectedPartyIndex
 });
 function setSelectedPartyIndex(idx) {
@@ -1091,6 +1092,11 @@ function getPartyMembers() {
 }
 function getPartyMember(idx) {
   return getPartyMembers()[idx];
+}
+function resetPartyRuntime() {
+  party = null;
+  selectedPartyIndex = 0;
+  delete hero.__partyProgress;
 }
 function getPartyClassLabel(p2) {
   const cls = String(p2.characterClass ?? "").toLowerCase();
@@ -2131,7 +2137,7 @@ function applyRewards(hero2, rewards, log) {
   if (xp)
     parts.push(`+${xp} XP`);
   if (gold)
-    parts.push(`+${gold} or`);
+    parts.push(`+${gold} argent`);
   if (wood)
     parts.push(`+${wood} bois`);
   if (herb)
@@ -2554,12 +2560,16 @@ function getItemIconSrc(item) {
     return direct;
   const id = String(item?.id ?? "").toLowerCase();
   const name = String(item?.name ?? "").toLowerCase();
+  if (id === "argent_resource" || id === "gold_resource" || name === "argent")
+    return "ImagesRPG/imagesobjets/argent.png";
   if (id === "pomme" || name === "pomme")
     return "ImagesRPG/imagesobjets/pomme.png";
   if (id === "potion_small" || name === "potion de soin")
     return "ImagesRPG/imagesobjets/potionsoin.png";
   if (id === "mana_small" || name.includes("potion de mana"))
     return "ImagesRPG/imagesobjets/potion_violet.png";
+  if (id === "sword_wood" || name.includes("\xE9p\xE9e en bois") || name.includes("epee en bois"))
+    return "ImagesRPG/imagesobjets/epee_en_bois.png";
   if (id === "sword_bronze" || id === "sword_fer" || name.includes("\xE9p\xE9e de bronze") || name.includes("epee de bronze") || name.includes("\xE9p\xE9e de fer") || name.includes("epee de fer"))
     return "ImagesRPG/imagesobjets/epee_fer.png";
   if (id === "dague_fer" || name.includes("dague de fer"))
@@ -2607,22 +2617,42 @@ var init_itemIcons_web = __esm({
 function escapeAttr(value) {
   return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
+function createCurrencyInventoryItem(hero2) {
+  const amount = Math.max(0, Math.floor(Number(hero2?.gold ?? 0)));
+  return {
+    id: "argent_resource",
+    name: "Argent",
+    description: "Monnaie du groupe.",
+    stackable: true,
+    quantity: amount
+  };
+}
+function buildCurrencyInventoryRow(hero2) {
+  const currencyItem = createCurrencyInventoryItem(hero2);
+  const amount = Math.max(0, Math.floor(Number(currencyItem.quantity ?? 0)));
+  const icon = renderItemIconHtml(currencyItem, { size: 51 });
+  return `
+        <li data-inv-row="currency-gold" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;cursor:pointer;user-select:none;border-radius:10px;padding:6px 8px;">
+            <div style="flex:1;">
+                <div style="display:flex;align-items:center;gap:8px;">${icon}<span style="margin-left:2px;opacity:0.95;font-weight:900;">x${amount}</span></div>
+            </div>
+            <div data-inv-actions="currency-gold" style="white-space:nowrap;display:none;gap:8px;align-items:flex-start;"></div>
+        </li>
+    `;
+}
 function renderInventory(hero2, opts = {}) {
   const { showGold = true, showWood = true, transferFromPartyIdx, transferTargets = [] } = opts;
   let html = "";
-  if (showGold || showWood) {
+  if (showWood) {
     html += '<p style="margin:6px 0;">';
-    if (showGold)
-      html += `<b>Or :</b> ${hero2.gold}`;
-    if (showGold && showWood)
-      html += " &nbsp; ";
     if (showWood)
       html += `<b>Bois :</b> ${hero2.wood ?? 0}`;
     html += "</p>";
   }
   html += `<div class="inventory-items" style="margin-top:8px; color:#ddd; font-size:0.95em;">
-        ${hero2.inventory.length === 0 ? `<em>Aucun objet</em>` : `
+        ${(showGold ? 1 : 0) + hero2.inventory.length === 0 ? `<em>Aucun objet</em>` : `
             <ul style="list-style:none;padding:0;margin:0;">
+                ${showGold ? buildCurrencyInventoryRow(hero2) : ""}
                 ${hero2.inventory.map((it, idx) => {
     const qty = Math.max(1, Math.floor(Number(it?.quantity ?? 1)));
     const showQty = Boolean(it?.stackable) && qty > 1;
@@ -2879,7 +2909,7 @@ function openHistoryModal(hero2, onClose) {
                                         <div style="display:flex;align-items:center;gap:10px;">${icon}</div>
                                         <div style="color:#aaa;font-size:0.9em;">Vendu le jour ${formatGold(h2.day)}</div>
                                     </div>
-                                    <div style="white-space:nowrap;font-weight:900;">${formatGold(h2.price)} or</div>
+                                    <div style="white-space:nowrap;font-weight:900;">${formatGold(h2.price)} argent</div>
                                 </div>
                             `;
   }).join("")}
@@ -2950,7 +2980,7 @@ function openInventorySellModal(hero2, slotIndex, onDone) {
       return `
                                             <button class="btn" data-sel-inv="${idx}" title="${escapeHtml(title)}" style="text-align:left;display:flex;align-items:center;justify-content:space-between;gap:10px;${isSelected ? "outline:2px solid rgba(255,235,59,0.8);" : ""}">
                                                 <span style="display:flex;align-items:center;gap:10px;">${icon}${qtyHtml}</span>
-                                                <span style="opacity:0.8;">\u2248 ${formatGold(baseP)} or</span>
+                                                <span style="opacity:0.8;">\u2248 ${formatGold(baseP)} argent</span>
                                             </button>
                                         `;
     }).join("")}
@@ -2972,7 +3002,7 @@ function openInventorySellModal(hero2, slotIndex, onDone) {
       return `
                                     <button class="btn" data-sel-eq="${escapeHtml(String(slot))}" title="${escapeHtml(title)}" style="text-align:left;display:flex;align-items:center;justify-content:space-between;gap:10px;${isSelected ? "outline:2px solid rgba(255,235,59,0.8);" : ""}">
                                         <span style="display:flex;align-items:center;gap:10px;">${icon} <span style="opacity:0.75;">(${escapeHtml(String(slot))})</span></span>
-                                        <span style="opacity:0.8;">\u2248 ${formatGold(baseP)} or</span>
+                                        <span style="opacity:0.8;">\u2248 ${formatGold(baseP)} argent</span>
                                     </button>
                                 `;
     }).join("")}
@@ -2999,11 +3029,11 @@ function openInventorySellModal(hero2, slotIndex, onDone) {
                             <input id="marketQtyInput" type="number" min="1" max="${qtyMax}" step="1" value="${qty}" style="width:110px;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.18);background:rgba(0,0,0,0.28);color:#fff;" />
                             <div style="color:#aaa;">(disponible: ${qtyMax})</div>
                         </div>
-                        <div style="margin-top:8px;color:#ddd;">Total : <b id="marketTotalValue">${total > 0 ? `${formatGold(total)} or` : "\u2014"}</b></div>
+                        <div style="margin-top:8px;color:#ddd;">Total : <b id="marketTotalValue">${total > 0 ? `${formatGold(total)} argent` : "\u2014"}</b></div>
                     ` : ""}
 
                     <div id="marketFeeArea" style="margin-top:10px;color:#bbb;font-size:0.92em;">
-                        Taxe de d\xE9p\xF4t : <b id="marketFeeValue">${fee ? `${formatGold(fee)} or` : "\u2014"}</b> (5% du total)
+                        Taxe de d\xE9p\xF4t : <b id="marketFeeValue">${fee ? `${formatGold(fee)} argent` : "\u2014"}</b> (5% du total)
                         <span id="marketChanceArea">${selectedItem && chosen > 0 ? `<br>Chance estim\xE9e de vente aujourd'hui : <b id="marketChanceValue">${formatPct(chance)}</b>` : ""}</span>
                     </div>
 
@@ -3013,7 +3043,7 @@ function openInventorySellModal(hero2, slotIndex, onDone) {
                     </div>
 
                     <div style="margin-top:12px;color:#aaa;font-size:0.9em;">
-                        Or actuel : <b>${formatGold(hero2.gold)}</b>
+                        Argent actuel : <b>${formatGold(hero2.gold)}</b>
                     </div>
                 </div>
             </div>
@@ -3062,12 +3092,12 @@ function openInventorySellModal(hero2, slotIndex, onDone) {
       const total = curItem && chosen > 0 ? chosen * qty : 0;
       const newFee = total > 0 ? Math.max(1, Math.floor(total * 0.05)) : 0;
       if (feeValue)
-        feeValue.textContent = newFee ? `${formatGold(newFee)} or` : "\u2014";
+        feeValue.textContent = newFee ? `${formatGold(newFee)} argent` : "\u2014";
       const curBase = curItem ? estimateBasePrice(curItem) : 0;
       if (chanceArea)
         chanceArea.innerHTML = curItem && chosen > 0 ? `<br>Chance estim\xE9e de vente aujourd'hui : <b id="marketChanceValue">${formatPct(estimateSellChance(curBase, chosen))}</b>` : "";
       if (totalValue)
-        totalValue.textContent = total > 0 ? `${formatGold(total)} or` : "\u2014";
+        totalValue.textContent = total > 0 ? `${formatGold(total)} argent` : "\u2014";
       if (confirmBtn)
         confirmBtn.disabled = !(curItem && chosen > 0);
     });
@@ -3082,9 +3112,9 @@ function openInventorySellModal(hero2, slotIndex, onDone) {
       const totalValue = root.querySelector("#marketTotalValue");
       const newFee = total > 0 ? Math.max(1, Math.floor(total * 0.05)) : 0;
       if (feeValue)
-        feeValue.textContent = newFee ? `${formatGold(newFee)} or` : "\u2014";
+        feeValue.textContent = newFee ? `${formatGold(newFee)} argent` : "\u2014";
       if (totalValue)
-        totalValue.textContent = total > 0 ? `${formatGold(total)} or` : "\u2014";
+        totalValue.textContent = total > 0 ? `${formatGold(total)} argent` : "\u2014";
     });
     root.querySelector("#marketSuggestBtn")?.addEventListener("click", () => {
       const item = getSelectedItem();
@@ -3109,11 +3139,11 @@ function openInventorySellModal(hero2, slotIndex, onDone) {
       }
       const fee = Math.max(1, Math.floor(totalPrice * 0.05));
       if (clampInt2(hero2.gold, 0) < fee) {
-        showTemporaryMessage(`Pas assez d'or pour la taxe (${fee} or).`, 3e3);
+        showTemporaryMessage(`Pas assez d'argent pour la taxe (${fee} argent).`, 3e3);
         return;
       }
       hero2.gold = clampInt2(hero2.gold, 0) - fee;
-      showTemporaryMessage(`Taxe pay\xE9e : -${fee} or (5%)`, 2800);
+      showTemporaryMessage(`Taxe pay\xE9e : -${fee} argent (5%)`, 2800);
       let moved = null;
       if (selection?.kind === "inventory") {
         const src = (hero2.inventory ?? [])[selection.index];
@@ -3202,7 +3232,7 @@ function showMarche(options) {
     const icon = renderItemIconHtml(slot.item, { size: 57 });
     const qty = slot?.item ? getStackQty(slot.item) : 1;
     const total = clampInt2(slot.price, 0) * qty;
-    const priceTxt = qty > 1 ? `${formatGold(slot.price)} or (unit\xE9) \u2014 total ${formatGold(total)} or` : `${formatGold(slot.price)} or`;
+    const priceTxt = qty > 1 ? `${formatGold(slot.price)} argent (unit\xE9) \u2014 total ${formatGold(total)} argent` : `${formatGold(slot.price)} argent`;
     return `
             <div style="background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.10);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;">
                 <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
@@ -3256,11 +3286,11 @@ function showMarche(options) {
                 <div>
                     <div style="background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.10);border-radius:12px;padding:12px;">
                         <div style="font-weight:900;margin-bottom:8px;">Argent \xE0 collecter</div>
-                        <div style="font-size:1.2em;font-weight:900;">${formatGold(market.pendingGold)} or</div>
+                        <div style="font-size:1.2em;font-weight:900;">${formatGold(market.pendingGold)} argent</div>
                         <button class="btn" id="marketCollectBtn" ${market.pendingGold > 0 ? "" : "disabled"} style="margin-top:10px;min-width:160px;">Collecter</button>
 
                         <div style="margin-top:14px;color:#ddd;">
-                            <div><b>Votre or :</b> ${formatGold(hero2.gold)}</div>
+                            <div><b>Votre argent :</b> ${formatGold(hero2.gold)}</div>
                         </div>
                     </div>
 
@@ -3291,7 +3321,7 @@ function showMarche(options) {
     const icon = u2?.item ? renderItemIconHtml(u2.item, { size: 51 }) : "";
     const qty = u2?.item ? getStackQty(u2.item) : 1;
     const total = clampInt2(u2.price, 0) * qty;
-    const priceTxt = qty > 1 ? `${formatGold(u2.price)} or (unit\xE9) \u2014 total ${formatGold(total)} or` : `${formatGold(u2.price)} or`;
+    const priceTxt = qty > 1 ? `${formatGold(u2.price)} argent (unit\xE9) \u2014 total ${formatGold(total)} argent` : `${formatGold(u2.price)} argent`;
     return `
                                     <div style="background:rgba(0,0,0,0.20);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px;display:flex;justify-content:space-between;gap:12px;align-items:center;">
                                         <div>
@@ -3347,7 +3377,7 @@ function showMarche(options) {
       return;
     hero2.gold = clampInt2(hero2.gold, 0) + amt;
     market.pendingGold = 0;
-    showTemporaryMessage(`+${amt} or collect\xE9s.`, 2600);
+    showTemporaryMessage(`+${amt} argent collect\xE9s.`, 2600);
     rerender();
   });
   document.getElementById("marketHistoryBtn")?.addEventListener("click", () => {
@@ -3637,7 +3667,7 @@ var init_game = __esm({
           if (winner === this.hero) {
             this.hero.gainXP(mechant.xpReward);
             this.hero.gold += mechant.goldReward;
-            console.log(this.hero.name + ` gagne ${mechant.goldReward} pi\xE8ces d'or ! Total: ${this.hero.gold}`);
+            console.log(this.hero.name + ` gagne ${mechant.goldReward} argent ! Total: ${this.hero.gold}`);
             const nextChoices = [
               new Choice("C", "Encha\xEEner un autre combat (gobelin +1 niveau)"),
               new Choice("V", "Retourner au village")
@@ -3657,7 +3687,7 @@ var init_game = __esm({
       async goRest() {
         while (true) {
           const villageMenu = new Home([
-            new Choice("A", "Dormir \xE0 l'auberge (plein PV et mana, co\xFBte 30 or)"),
+            new Choice("A", "Dormir \xE0 l'auberge (plein PV et mana, co\xFBte 30 argent)"),
             new Choice("E", "R\xE9soudre une \xE9nigme (+200 XP si r\xE9ussite)"),
             new Choice("S", "Apprendre des comp\xE9tences"),
             new Choice("T", "S'entra\xEEner contre un ma\xEEtre"),
@@ -3672,10 +3702,10 @@ var init_game = __esm({
               this.hero.pv = this.hero.maxPv;
               this.hero.currentMana = this.hero.maxMana;
               advanceGameTimeHours(this.hero, 12, { reason: "auberge_sleep" });
-              console.log("Vous dormez \xE0 l'auberge et r\xE9cup\xE9rez tous vos PV et mana. Or restant: " + this.hero.gold);
+              console.log("Vous dormez \xE0 l'auberge et r\xE9cup\xE9rez tous vos PV et mana. Argent restant: " + this.hero.gold);
               console.log("PV: " + this.hero.pv + "/" + this.hero.maxPv + ", Mana: " + this.hero.currentMana + "/" + this.hero.maxMana);
             } else {
-              console.log("Vous n'avez pas assez d'or (30 n\xE9cessaires, vous avez " + this.hero.gold + ").");
+              console.log("Vous n'avez pas assez d'argent (30 n\xE9cessaires, vous avez " + this.hero.gold + ").");
             }
           } else if (response.key == "E") {
             const riddle = "Quel est l'animal qui a quatre pattes le matin, deux \xE0 midi et trois le soir ?";
@@ -3710,7 +3740,7 @@ var init_game = __esm({
             if (winner === this.hero) {
               this.hero.gainXP(master.xpReward);
               this.hero.gold += master.goldReward;
-              console.log(`Entra\xEEnement termin\xE9 avec succ\xE8s ! Vous gagnez ${master.xpReward} XP et ${master.goldReward} or.`);
+              console.log(`Entra\xEEnement termin\xE9 avec succ\xE8s ! Vous gagnez ${master.xpReward} XP et ${master.goldReward} argent.`);
             } else {
               console.log("Vous avez perdu l'entra\xEEnement. Aucun XP gagn\xE9.");
             }
@@ -4637,7 +4667,7 @@ function showCombat(enemyLevel = hero.level, options = {}) {
       if (enemy.pv <= 0) {
         const { xp, gold, bonusPct } = computeVictoryRewards();
         const bonusTxt = bonusPct > 0 ? ` (Bonus combo +${bonusPct}%)` : "";
-        message += `<br>Victoire ! Vous gagnez ${xp} XP et ${gold} or.${bonusTxt}`;
+        message += `<br>Victoire ! Vous gagnez ${xp} XP et ${gold} argent.${bonusTxt}`;
         applyVictoryRewards();
         render();
         return;
@@ -4736,8 +4766,22 @@ function showCombat(enemyLevel = hero.level, options = {}) {
                     </div>
                 `;
     }).join("");
-    const invLines = hero.inventory.length === 0 ? `<em>Aucun objet</em>` : `
+    const currencyItem = createCurrencyInventoryItem(hero);
+    const currencyLine = `
+            <li style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-radius:10px;background:rgba(255,255,255,0.05);padding:6px 8px;">
+                <div style="flex:1;display:flex;align-items:center;gap:8px;">
+                    ${renderItemIconHtml(currencyItem, { size: 51 })}
+                    <div>
+                        <div style="font-weight:600;color:#fff;">Argent</div>
+                        <div style="font-size:0.9em;color:#ddd;">x${Math.max(0, Math.floor(Number(hero.gold ?? 0)))}</div>
+                    </div>
+                </div>
+                <div style="white-space:nowrap;"></div>
+            </li>
+        `;
+    const invLines = hero.inventory.length === 0 ? `<ul id="combatEndInventoryBlock" style="list-style:none;padding:0;margin:0;">${currencyLine}</ul>` : `
                 <ul id="combatEndInventoryBlock" style="list-style:none;padding:0;margin:0;">
+                    ${currencyLine}
                     ${hero.inventory.map((it, idx) => {
       const isSelected = selectedEndInvIdx === idx;
       return `
@@ -4764,7 +4808,6 @@ function showCombat(enemyLevel = hero.level, options = {}) {
                 <div style="min-width:320px; max-width:520px; flex:1; padding:10px 12px; background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.08); border-radius:10px; text-align:left;">
                     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
                         <div style="font-weight:700;">Inventaire</div>
-                        <div style="color:#ddd;"><b>Or :</b> ${hero.gold}</div>
                     </div>
                     <div style="margin-top:8px; color:#ddd; font-size:0.95em;">${invLines}</div>
                 </div>
@@ -4784,7 +4827,7 @@ function showCombat(enemyLevel = hero.level, options = {}) {
     const bonusTxt = bonusPct > 0 ? ` (Bonus combo +${bonusPct}%)` : "";
     const woodTxt = wood > 0 ? ` et ${wood} bois` : "";
     const herbTxt = herb > 0 ? ` et ${herb} herbes` : "";
-    pushHistory(history, turn, `Victoire ! Vous gagnez ${xp} XP et ${gold} or${woodTxt}${herbTxt}.${bonusTxt}`);
+    pushHistory(history, turn, `Victoire ! Vous gagnez ${xp} XP et ${gold} argent${woodTxt}${herbTxt}.${bonusTxt}`);
     hero.gainXP ? hero.gainXP(xp) : hero.currentXP += xp;
     hero.gold += gold;
     hero.wood = (hero.wood ?? 0) + wood;
@@ -5055,7 +5098,7 @@ function showCombat(enemyLevel = hero.level, options = {}) {
     if (enemy.pv <= 0) {
       const { xp, gold, bonusPct } = computeVictoryRewards();
       const bonusTxt = bonusPct > 0 ? ` (Bonus combo +${bonusPct}%)` : "";
-      message += `<br>Victoire ! Vous gagnez ${xp} XP et ${gold} or.${bonusTxt}`;
+      message += `<br>Victoire ! Vous gagnez ${xp} XP et ${gold} argent.${bonusTxt}`;
       applyVictoryRewards();
       isResolvingPlayerAction = false;
       render();
@@ -5102,6 +5145,8 @@ var init_combat_web = __esm({
     init_battleTurn_web();
     init_history_web();
     init_skillUi_web();
+    init_ui();
+    init_itemIcons_web();
   }
 });
 
@@ -74687,7 +74732,7 @@ function showTacticalSkirmish(options = {}) {
       hero.herb = Math.max(0, Math.floor(Number(hero.herb ?? 0) + herb));
     const woodTxt = wood > 0 ? ` et ${wood} bois` : "";
     const herbTxt = herb > 0 ? ` et ${herb} herbes` : "";
-    const text = `R\xE9compenses: +${xp} XP, +${gold} or${woodTxt}${herbTxt}.`;
+    const text = `R\xE9compenses: +${xp} XP, +${gold} argent${woodTxt}${herbTxt}.`;
     state2.log.unshift(text);
     try {
       showTemporaryMessage(`Victoire ! ${text}`, 4e3);
@@ -74770,7 +74815,7 @@ function showTacticalSkirmish(options = {}) {
     }
     if (kind === "goldX2") {
       hero.gold = Math.max(0, Math.floor((hero.gold ?? 0) + baseGold));
-      const t3 = `Tr\xE9sor: or x2 (+${baseGold}).`;
+      const t3 = `Tr\xE9sor: argent x2 (+${baseGold}).`;
       state2.log.unshift(t3);
       return t3;
     }
@@ -75117,13 +75162,22 @@ function showTacticalSkirmish(options = {}) {
                         </div>
                     `;
       }).join("");
+      const currencyItem = createCurrencyInventoryItem(hero);
+      const currencyRow = `
+                <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);user-select:none;">
+                    <div style="min-width:0;">
+                        <div style="display:flex;align-items:center;gap:8px;">${renderItemIconHtml(currencyItem, { size: 51 })}<span style="margin-left:2px;opacity:0.95;font-weight:900;">x${gold}</span></div>
+                    </div>
+                    <div style="white-space:nowrap;display:flex;gap:8px;align-items:center;"></div>
+                </div>
+            `;
       return `
                 <div style="font-weight:700;margin-bottom:6px;">Inventaire</div>
                 <div class="tactical-log" id="tacticalInventoryBlock">
-                    <div class="line">Or: ${gold}</div>
                     <div class="line">Bois: ${wood}</div>
                     <div class="line">Herbes: ${herb}</div>
                     ${canUseCampfire ? `<div class="line" style="margin:6px 0 8px 0;"><button class="btn" id="useCampfireBtn" style="min-width:180px;">Utiliser Feu de camp (${campfireCount})</button></div>` : ""}
+                    ${currencyRow}
                     ${inv.length ? itemsHtml : '<div class="line" style="opacity:0.8;">(vide)</div>'}
                 </div>
             `;
@@ -75891,6 +75945,7 @@ var init_skirmish_web = __esm({
     init_input_web();
     init_utils_web();
     init_itemIcons_web();
+    init_ui();
     init_characterSprites_web();
     init_pixiBootstrap_web();
     init_tacticalOverlay_web();
@@ -80181,9 +80236,19 @@ function showMaisonDeplacement(options) {
         }).join("");
       };
       const renderInventoryRows = () => {
+        const gold = Math.max(0, Math.floor(Number(hero?.gold ?? 0)));
+        const currencyItem = createCurrencyInventoryItem(hero);
+        const currencyRow = `
+					<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;background:rgba(255,255,255,0.04);padding:10px;border-radius:10px;margin-bottom:6px;">
+						<div style="flex:1;">
+							<div style="display:flex;align-items:center;gap:8px;">${renderItemIconHtml(currencyItem, { size: 51 })}<span style="margin-left:8px;opacity:0.95;font-weight:900;">x${gold}</span></div>
+						</div>
+						<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;"><span style="color:#777;font-size:12px;">\u2014</span></div>
+					</div>
+				`;
         if (!inv.length)
-          return '<div style="color:#bbb;">Inventaire vide.</div>';
-        return inv.map((item, idx) => {
+          return currencyRow;
+        return currencyRow + inv.map((item, idx) => {
           const baseName = String(item?.name ?? "Objet");
           const q = Math.max(1, Math.floor(Number(item?.quantity ?? 1)));
           const showQty = Boolean(item?.stackable) && q > 1;
@@ -80420,7 +80485,7 @@ function showMaisonDeplacement(options) {
             const res = advanceGameDay(hero, { reason: "sleep" });
             const market = res.market;
             if (market && market.soldCount > 0) {
-              showTemporaryMessage(`Jour ${res.day} \u2014 Ventes: ${market.soldCount} objet(s) (+${market.soldTotal} or \xE0 collecter).`, 4200);
+              showTemporaryMessage(`Jour ${res.day} \u2014 Ventes: ${market.soldCount} objet(s) (+${market.soldTotal} argent \xE0 collecter).`, 4200);
             } else {
               showTemporaryMessage(`Jour ${res.day} \u2014 Aucune vente aujourd'hui.`, 2800);
             }
@@ -80518,6 +80583,8 @@ var init_houseMovement_web = __esm({
     init_competences_web();
     init_daySystem_web();
     init_characterSprites_web();
+    init_ui();
+    init_itemIcons_web();
     spriteForClass = (characterClass) => {
       const cls = String(characterClass ?? "").toLowerCase();
       if (cls === "mage")
@@ -81174,6 +81241,15 @@ function addVirtue(actor, key2, delta) {
   const next = clamp0100(cur + (Number.isFinite(d2) ? d2 : 0));
   actor[key2] = next;
   return next;
+}
+function addHonneur(actor, delta) {
+  return addVirtue(actor, "honneur", delta);
+}
+function addLiberte(actor, delta) {
+  return addVirtue(actor, "liberte", delta);
+}
+function addHumanite(actor, delta) {
+  return addVirtue(actor, "humanite", delta);
 }
 var init_virtues = __esm({
   "dist/virtues.js"() {
@@ -82339,7 +82415,7 @@ function renderFiche(idx, options) {
                     <p><b>Mana :</b> ${p2.currentMana} / ${p2.effectiveMaxMana}</p>
                     <p><b>R\xE9g\xE9n\xE9ration mana :</b> ${p2.manaRegenPerTurn + p2.getPassiveManaRegenPerTurnBonus()} /tour <small style="color:#777;">(base ${p2.manaRegenPerTurn}${p2.getPassiveManaRegenPerTurnBonus() ? " + " + p2.getPassiveManaRegenPerTurnBonus() : ""})</small></p>
                     <p><b>Attaque :</b> ${p2.effectiveAttack} <small style="color:#777;">(base ${p2.baseAttack} + eq ${Object.values(p2.equipment).reduce((s2, eq) => s2 + (eq?.attackBonus || 0), 0)})</small></p>
-                    <p><b>Or :</b> ${p2.gold}</p>
+                    <p><b>Argent :</b> ${p2.gold}</p>
                     <p><b>Points de comp\xE9tence :</b> ${p2.skillPoints}</p>
                     <p><b>Points de caract\xE9ristique :</b> ${p2.characteristicPoints ?? 0}</p>
                 </div>
@@ -83193,9 +83269,19 @@ function showPlateauMapRenderer(opts) {
         }).join("");
       };
       const renderInventoryRows = () => {
+        const gold = Math.max(0, Math.floor(Number(hero2?.gold ?? 0)));
+        const currencyItem = createCurrencyInventoryItem(hero2);
+        const currencyRow = `
+					<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;background:rgba(255,255,255,0.04);padding:10px;border-radius:10px;margin-bottom:6px;user-select:none;">
+						<div style="flex:1;">
+							<div style="display:flex;align-items:center;gap:8px;">${renderItemIconHtml(currencyItem, { size: 51 })}<span style="margin-left:2px;opacity:0.95;font-weight:900;">x${gold}</span></div>
+						</div>
+						<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;min-width:180px;"></div>
+					</div>
+				`;
         if (!inv.length)
-          return '<div style="color:#bbb;">Inventaire vide.</div>';
-        return inv.map((item, idx) => {
+          return currencyRow;
+        return currencyRow + inv.map((item, idx) => {
           const isSelected = selectedInvIdx === idx;
           const q = Math.max(1, Math.floor(Number(item?.quantity ?? 1)));
           const showQty = Boolean(item?.stackable) && q > 1;
@@ -84329,6 +84415,7 @@ var init_mapRenderer_web = __esm({
     init_worldMapPixi_web();
     init_dialogueManager_web();
     init_daySystem_web();
+    init_ui();
     GRID_ID = "plateauWorldGrid";
     DEFAULT_RANDOM_ENCOUNTER_CHANCE = 0.05;
     sleep2 = (ms) => new Promise((r2) => setTimeout(r2, ms));
@@ -84698,6 +84785,18 @@ function showForestWorldMaps(options) {
     // inside the renderer and per-map meta (only for exceptional cases).
   });
 }
+function showBoaravenWorldMap(options) {
+  const world = new WorldManager();
+  world.registerMaps(FOREST_MAPS);
+  const mapId = options.startMapId ?? "village_y0x1";
+  const entry = options.startEntry ?? { x: 4, y: 4 };
+  showPlateauMapRenderer({
+    world,
+    onBack: options.onBack,
+    start: { mapId, entry },
+    movement: { stepMs: 220 }
+  });
+}
 var init_worldMap_web = __esm({
   "dist/world/worldMap.web.js"() {
     "use strict";
@@ -84783,8 +84882,22 @@ function showEntrainement() {
                     </div>
                 `;
     }).join("");
-    const invLines = hero.inventory.length === 0 ? `<em>Aucun objet</em>` : `
+    const currencyItem = createCurrencyInventoryItem(hero);
+    const currencyLine = `
+            <li style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-radius:10px;background:rgba(255,255,255,0.05);padding:6px 8px;">
+                <div style="flex:1;display:flex;align-items:center;gap:8px;">
+                    ${renderItemIconHtml(currencyItem, { size: 51 })}
+                    <div>
+                        <div style="font-weight:600;color:#fff;">Argent</div>
+                        <div style="font-size:0.9em;color:#ddd;">x${Math.max(0, Math.floor(Number(hero.gold ?? 0)))}</div>
+                    </div>
+                </div>
+                <div style="white-space:nowrap;"></div>
+            </li>
+        `;
+    const invLines = hero.inventory.length === 0 ? `<ul id="trainingEndInventoryBlock" style="list-style:none;padding:0;margin:0;">${currencyLine}</ul>` : `
                 <ul id="trainingEndInventoryBlock" style="list-style:none;padding:0;margin:0;">
+                    ${currencyLine}
                     ${hero.inventory.map((it, idx) => {
       const isSelected = selectedEndInvIdx === idx;
       return `
@@ -84811,7 +84924,6 @@ function showEntrainement() {
                 <div style="min-width:320px; max-width:520px; flex:1; padding:10px 12px; background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.08); border-radius:10px; text-align:left;">
                     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
                         <div style="font-weight:700;">Inventaire</div>
-                        <div style="color:#ddd;"><b>Or :</b> ${hero.gold}</div>
                     </div>
                     <div style="margin-top:8px; color:#ddd; font-size:0.95em;">${invLines}</div>
                 </div>
@@ -85052,8 +85164,8 @@ function showEntrainement() {
     if (enemy.pv <= 0) {
       const wood = Number(enemy.woodReward ?? 0);
       const woodTxt = wood > 0 ? ` et ${wood} bois` : "";
-      message += `<br>Victoire ! Vous gagnez ${enemy.xpReward} XP et ${enemy.goldReward} or${woodTxt}.`;
-      pushHistory(history, turn, `Victoire ! Vous gagnez ${enemy.xpReward} XP et ${enemy.goldReward} or${woodTxt}.`);
+      message += `<br>Victoire ! Vous gagnez ${enemy.xpReward} XP et ${enemy.goldReward} argent${woodTxt}.`;
+      pushHistory(history, turn, `Victoire ! Vous gagnez ${enemy.xpReward} XP et ${enemy.goldReward} argent${woodTxt}.`);
       hero.gainXP ? hero.gainXP(enemy.xpReward) : hero.currentXP += enemy.xpReward;
       hero.gold += enemy.goldReward;
       hero.wood = (hero.wood ?? 0) + wood;
@@ -85073,8 +85185,8 @@ function showEntrainement() {
       if (enemy.pv <= 0) {
         const wood = Number(enemy.woodReward ?? 0);
         const woodTxt = wood > 0 ? ` et ${wood} bois` : "";
-        message += `<br>Victoire ! Vous gagnez ${enemy.xpReward} XP et ${enemy.goldReward} or${woodTxt}.`;
-        pushHistory(history, turn, `Victoire ! Vous gagnez ${enemy.xpReward} XP et ${enemy.goldReward} or${woodTxt}.`);
+        message += `<br>Victoire ! Vous gagnez ${enemy.xpReward} XP et ${enemy.goldReward} argent${woodTxt}.`;
+        pushHistory(history, turn, `Victoire ! Vous gagnez ${enemy.xpReward} XP et ${enemy.goldReward} argent${woodTxt}.`);
         hero.gainXP ? hero.gainXP(enemy.xpReward) : hero.currentXP += enemy.xpReward;
         hero.gold += enemy.goldReward;
         hero.wood = (hero.wood ?? 0) + wood;
@@ -85160,6 +85272,8 @@ var init_entrainement_web = __esm({
     init_battleTurn_web();
     init_history_web();
     init_skillUi_web();
+    init_ui();
+    init_itemIcons_web();
   }
 });
 
@@ -85244,7 +85358,7 @@ function showVillage() {
             <div style="display:flex; gap:10px; align-items:center; justify-content:space-between;">
                 ${party2.map((p2) => renderPartyPlateauTile(p2)).join("")}
             </div>
-            <p style="margin:10px 0 6px 0;">Or <b>${hero.gold}</b></p>
+            <p style="margin:10px 0 6px 0;">Argent <b>${hero.gold}</b></p>
             <div style="font-size:0.95em;color:#ddd;margin-top:6px;margin-bottom:6px;">
                 <div>Bois: <b>${hero.wood ?? 0}</b></div>
                 <div>Herbes: <b>${hero.herb ?? 0}</b></div>
@@ -85308,7 +85422,7 @@ function showAuberge(opts) {
 
         <div class="centered-content">
             <h1>Auberge</h1>
-            <p>Restaurez tous vos PV et mana pour 30 or.</p>
+            <p>Restaurez tous vos PV et mana pour 30 argent.</p>
         </div>
         <button class="btn" id="restBtn" style="position:fixed; left:40%; bottom:30px; transform:translateX(-50%); z-index:10;">Se reposer</button>
         <button class="btn" id="retourVillageBtn" style="position:fixed; left:60%; bottom:30px; transform:translateX(-50%); z-index:10;">Retour village</button>
@@ -85332,13 +85446,13 @@ function showAuberge(opts) {
         const market = timeRes.market;
         const fromH = String(before.hour).padStart(2, "0");
         const toH = String(timeRes.hour).padStart(2, "0");
-        const extra = timeRes.daysAdvanced > 0 ? market && market.soldCount > 0 ? ` \u2014 Ventes: ${market.soldCount} (+${market.soldTotal} or \xE0 collecter)` : " \u2014 Aucune vente" : "";
+        const extra = timeRes.daysAdvanced > 0 ? market && market.soldCount > 0 ? ` \u2014 Ventes: ${market.soldCount} (+${market.soldTotal} argent \xE0 collecter)` : " \u2014 Aucune vente" : "";
         showTemporaryMessage(`Sommeil 12h: Jour ${before.day} ${fromH}h \u2192 Jour ${timeRes.day} ${toH}h${extra}`, 5200);
       } catch (e2) {
       }
       showAuberge(opts);
     } else {
-      alert("Pas assez d'or !");
+      alert("Pas assez d'argent !");
     }
   });
   document.getElementById("retourVillageBtn")?.addEventListener("click", () => {
@@ -85360,7 +85474,7 @@ function showBoutique(options = {}) {
     return;
   let category = "all";
   const shopItems = [
-    // Matières premières (10 or / unité)
+    // Matières premières (10 argent / unité)
     { kind: "resource", resourceKey: "wood", create: () => ({ id: "res_wood", name: "Bois", description: "Mati\xE8re premi\xE8re (+1 bois)" }), price: 10, category: "other" },
     { kind: "resource", resourceKey: "fer", create: () => ({ id: "res_fer", name: "Fer", description: "Mati\xE8re premi\xE8re (+1 fer)" }), price: 10, category: "other" },
     { kind: "resource", resourceKey: "herb", create: () => ({ id: "res_herb", name: "Herbe", description: "Mati\xE8re premi\xE8re (+1 herbe)" }), price: 10, category: "other" },
@@ -85409,7 +85523,7 @@ function showBoutique(options = {}) {
                                                     <div style="width:44px;display:flex;justify-content:center;">${icon}</div>
                                                 </div>
                                                 <div style="text-align:right;white-space:nowrap;">
-                                                    <div style="font-weight:700;">${s2.price} or</div>
+                                                    <div style="font-weight:700;">${s2.price} argent</div>
                                                     <button class="btn" data-shop-idx="${s2.idx}" style="margin-top:8px;min-width:120px;">Acheter</button>
                                                 </div>
                                             </div>
@@ -85444,14 +85558,14 @@ function showBoutique(options = {}) {
             const key2 = shopEntry.resourceKey;
             const cur = Math.max(0, Math.floor(Number(hero[key2] ?? 0)));
             hero[key2] = cur + 1;
-            alert(`Achat r\xE9ussi : ${bought?.name ?? "Ressource"} (+1) (-${shopEntry.price} or)`);
+            alert(`Achat r\xE9ussi : ${bought?.name ?? "Ressource"} (+1) (-${shopEntry.price} argent)`);
           } else {
             hero.addItem(bought);
-            alert(`Achat r\xE9ussi : ${bought.name} (-${shopEntry.price} or)`);
+            alert(`Achat r\xE9ussi : ${bought.name} (-${shopEntry.price} argent)`);
           }
           render();
         } else {
-          alert("Pas assez d'or !");
+          alert("Pas assez d'argent !");
         }
       });
     });
@@ -85783,7 +85897,7 @@ function showPersonnage() {
                     <p><b>Mana :</b> ${hero.currentMana} / ${hero.effectiveMaxMana}</p>
                     <p><b>R\xE9g\xE9n\xE9ration mana :</b> ${hero.manaRegenPerTurn + hero.getPassiveManaRegenPerTurnBonus()} /tour <small style="color:#777;">(base ${hero.manaRegenPerTurn}${hero.getPassiveManaRegenPerTurnBonus() ? " + " + hero.getPassiveManaRegenPerTurnBonus() : ""})</small></p>
                     <p><b>Attaque :</b> ${hero.effectiveAttack} <small style="color:#777;">(base ${hero.baseAttack} + eq ${Object.values(hero.equipment).reduce((s2, eq) => s2 + (eq?.attackBonus || 0), 0)})</small></p>
-                    <p><b>Or :</b> ${hero.gold}</p>
+                    <p><b>Argent :</b> ${hero.gold}</p>
                     <p><b>Points de comp\xE9tence :</b> ${hero.skillPoints}</p>
                     <p><b>Points de caract\xE9ristique :</b> ${hero.characteristicPoints ?? 0}</p>
                 </div>
@@ -86421,45 +86535,71 @@ function applySaveData(hero2, save) {
   if (market)
     hero2.market = market;
 }
-function readSaveFromStorage() {
+function normalizeSaveSlot(slot = 1) {
+  const value = Math.floor(Number(slot || 1));
+  if (!Number.isFinite(value))
+    return 1;
+  return Math.max(1, Math.min(SAVE_SLOT_COUNT, value));
+}
+function getSaveStorageKey(slot = 1) {
+  return `${SAVE_STORAGE_KEY_PREFIX}.${normalizeSaveSlot(slot)}`;
+}
+function parseSaveData(raw) {
+  if (!raw)
+    return null;
+  const parsed = safeJsonParse(raw);
+  if (!parsed || typeof parsed !== "object")
+    return null;
+  const data = parsed;
+  if (data.version !== SAVE_VERSION)
+    return null;
+  if (!data.hero)
+    return null;
+  return data;
+}
+function readSaveFromStorage(slot = 1) {
   try {
-    const raw = localStorage.getItem(SAVE_STORAGE_KEY);
-    if (!raw)
-      return null;
-    const parsed = safeJsonParse(raw);
-    if (!parsed || typeof parsed !== "object")
-      return null;
-    const data = parsed;
-    if (data.version !== SAVE_VERSION)
-      return null;
-    if (!data.hero)
-      return null;
-    return data;
+    const normalizedSlot = normalizeSaveSlot(slot);
+    const slotData = parseSaveData(localStorage.getItem(getSaveStorageKey(normalizedSlot)));
+    if (slotData)
+      return slotData;
+    if (normalizedSlot === 1)
+      return parseSaveData(localStorage.getItem(SAVE_STORAGE_KEY));
+    return null;
   } catch {
     return null;
   }
 }
-function hasBrowserSave() {
-  return readSaveFromStorage() !== null;
+function buildBrowserSaveMeta(slot, data) {
+  return {
+    slot,
+    createdAt: String(data.createdAt ?? ""),
+    heroName: String(data.hero?.name ?? "Heros").trim() || "Heros",
+    level: Math.max(1, clampInt5(data.hero?.level ?? 1, 1))
+  };
 }
-function getBrowserSaveMeta() {
-  const data = readSaveFromStorage();
-  if (!data)
-    return null;
-  return { createdAt: data.createdAt };
+function listBrowserSaveSlots() {
+  return Array.from({ length: SAVE_SLOT_COUNT }, (_, index) => {
+    const slot = index + 1;
+    const data = readSaveFromStorage(slot);
+    return { slot, meta: data ? buildBrowserSaveMeta(slot, data) : null };
+  });
 }
-function saveGameToBrowser(hero2) {
+function saveGameToBrowser(hero2, slot = 1) {
   try {
+    const normalizedSlot = normalizeSaveSlot(slot);
     const data = buildSaveData(hero2);
-    localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(data));
+    localStorage.setItem(getSaveStorageKey(normalizedSlot), JSON.stringify(data));
+    if (normalizedSlot === 1)
+      localStorage.removeItem(SAVE_STORAGE_KEY);
     return { ok: true };
   } catch (e2) {
     const msg = e2 instanceof Error ? e2.message : "Erreur inconnue";
     return { ok: false, error: msg };
   }
 }
-function loadGameFromBrowser(hero2) {
-  const data = readSaveFromStorage();
+function loadGameFromBrowser(hero2, slot = 1) {
+  const data = readSaveFromStorage(slot);
   if (!data)
     return { ok: false, error: "Aucune sauvegarde trouv\xE9e." };
   try {
@@ -86470,9 +86610,12 @@ function loadGameFromBrowser(hero2) {
     return { ok: false, error: msg };
   }
 }
-function deleteBrowserSave() {
+function deleteBrowserSave(slot = 1) {
   try {
-    localStorage.removeItem(SAVE_STORAGE_KEY);
+    const normalizedSlot = normalizeSaveSlot(slot);
+    localStorage.removeItem(getSaveStorageKey(normalizedSlot));
+    if (normalizedSlot === 1)
+      localStorage.removeItem(SAVE_STORAGE_KEY);
     return { ok: true };
   } catch (e2) {
     const msg = e2 instanceof Error ? e2.message : "Erreur inconnue";
@@ -86482,8 +86625,9 @@ function deleteBrowserSave() {
 function exportSaveAsString(hero2) {
   return JSON.stringify(buildSaveData(hero2), null, 2);
 }
-function importSaveFromString(hero2, text) {
+function importSaveFromString(hero2, text, slot = 1) {
   try {
+    const normalizedSlot = normalizeSaveSlot(slot);
     const parsed = safeJsonParse(text);
     if (!parsed || typeof parsed !== "object")
       return { ok: false, error: "JSON invalide." };
@@ -86493,14 +86637,16 @@ function importSaveFromString(hero2, text) {
     if (!data.hero)
       return { ok: false, error: "Sauvegarde invalide (hero manquant)." };
     applySaveData(hero2, data);
-    localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(data));
+    localStorage.setItem(getSaveStorageKey(normalizedSlot), JSON.stringify(data));
+    if (normalizedSlot === 1)
+      localStorage.removeItem(SAVE_STORAGE_KEY);
     return { ok: true };
   } catch (e2) {
     const msg = e2 instanceof Error ? e2.message : "Erreur inconnue";
     return { ok: false, error: msg };
   }
 }
-var SAVE_STORAGE_KEY, SAVE_VERSION;
+var SAVE_STORAGE_KEY, SAVE_STORAGE_KEY_PREFIX, SAVE_VERSION, SAVE_SLOT_COUNT;
 var init_save_web = __esm({
   "dist/save.web.js"() {
     "use strict";
@@ -86508,11 +86654,429 @@ var init_save_web = __esm({
     init_skill();
     init_item();
     SAVE_STORAGE_KEY = "rpg.save.v1";
+    SAVE_STORAGE_KEY_PREFIX = "rpg.save.slot.v1";
     SAVE_VERSION = 1;
+    SAVE_SLOT_COUNT = 3;
+  }
+});
+
+// dist/newGame.web.js
+function renderBondLabel(bond) {
+  if (bond === "freres")
+    return "Trois freres";
+  if (bond === "amis")
+    return "Trois amis";
+  if (bond === "prodiges")
+    return "Trois prodiges choisis par le village";
+  return "Lien non choisi";
+}
+function renderLeaderLabel(leader) {
+  if (leader === "guerrier")
+    return "Le guerrier";
+  if (leader === "voleur")
+    return "Le voleur";
+  if (leader === "mage")
+    return "Le mage";
+  return "Chef non choisi";
+}
+function renderGiftLabel(gift) {
+  if (gift === "gold")
+    return "150 argent pour le depart";
+  if (gift === "skill-points")
+    return "1 point de competence pour chaque personnage";
+  return "Don non choisi";
+}
+function resetHeroForNewGame() {
+  hero.pv = 0;
+  hero.maxPv = 0;
+  hero.baseAttack = 0;
+  hero.maxMana = 0;
+  hero.currentMana = 0;
+  hero.manaRegenPerTurn = 20;
+  hero.level = 1;
+  hero.currentXP = 0;
+  hero.gold = 50;
+  hero.wood = 0;
+  hero.herb = 0;
+  hero.cuir = 0;
+  hero.fer = 0;
+  hero.skillPoints = 0;
+  hero.characteristicPoints = 0;
+  hero.skills = [
+    createSkill("basic_attack"),
+    createSkill("block"),
+    createSkill("mana_gain"),
+    createSkill("missile_magique")
+  ];
+  hero.passiveSkills = [];
+  hero.activeEffects = [];
+  hero.skillCooldowns = {};
+  hero.inventory = [];
+  hero.equipment = { weapon: void 0, armor: void 0, ring: void 0 };
+  hero.actionPointsMax = 2;
+  hero.actionPoints = 2;
+  hero.characterClass = "guerrier";
+  hero.characteristics = { ...BASE_CHARACTERISTICS };
+  hero.learnedSkillIds = [];
+  hero.specializationPoints = { guerrier: 0, mage: 0, voleur: 0 };
+  hero.honneur = 0;
+  hero.liberte = 0;
+  hero.humanite = 0;
+  hero.titles = ["Mendiant"];
+  hero.quests = {};
+  hero.enigmes = {};
+  hero.market = void 0;
+  hero.marketDay = 1;
+  hero.day = 1;
+  hero.hour = 0;
+  hero.__worldEncounterDefeats = {};
+  hero.__partyBond = void 0;
+  hero.__partyLeader = void 0;
+  hero.__startingGift = void 0;
+  hero.__partyProgress = void 0;
+  hero.syncDerivedStatsFromCharacteristics({ fillResources: true });
+}
+function applyCreationChoices(state2) {
+  resetHeroForNewGame();
+  resetPartyRuntime();
+  hero.__partyBond = state2.bond;
+  hero.__partyLeader = state2.leader;
+  hero.__startingGift = state2.gift;
+  if (state2.leader === "guerrier")
+    addHonneur(hero, 10);
+  if (state2.leader === "voleur")
+    addLiberte(hero, 10);
+  if (state2.leader === "mage")
+    addHumanite(hero, 10);
+  if (state2.gift === "gold") {
+    hero.gold = 150;
+  }
+  const members = getPartyMembers();
+  if (state2.gift === "skill-points") {
+    for (const member of members) {
+      member.skillPoints = Math.max(0, Math.floor(Number(member.skillPoints ?? 0))) + 1;
+    }
+  }
+  if (state2.leader === "mage")
+    setSelectedPartyIndex(1);
+  else if (state2.leader === "voleur")
+    setSelectedPartyIndex(2);
+  else
+    setSelectedPartyIndex(0);
+  ensureTitles(hero);
+  const game2 = window.game;
+  if (game2) {
+    game2.hero = hero;
+    game2.questManager = new QuestManager(hero, QUEST_DEFS);
+  }
+}
+function buildCreationScript(state2, options) {
+  return {
+    id: "new_game_character_creation",
+    start: "intro",
+    nodes: {
+      intro: {
+        id: "intro",
+        speaker: "Le chroniqueur",
+        side: "left",
+        text: "La route vers Boaraven s ouvre devant vous. Avant votre premier pas, une derniere question demeure : qui etes-vous, vraiment ?",
+        choices: [{ text: "Nous sommes prets.", next: "bond" }]
+      },
+      bond: {
+        id: "bond",
+        speaker: "Le chroniqueur",
+        side: "left",
+        text: "Quel lien unit les trois aventuriers de votre groupe ?",
+        choicesLayout: "grid-3",
+        choices: [
+          {
+            text: "3 Fr\xE8res",
+            onSelect: () => {
+              state2.bond = "freres";
+            },
+            next: "leader"
+          },
+          {
+            text: "3 Amis",
+            onSelect: () => {
+              state2.bond = "amis";
+            },
+            next: "leader"
+          },
+          {
+            text: "3 Prodiges choisis par le village",
+            onSelect: () => {
+              state2.bond = "prodiges";
+            },
+            next: "leader"
+          }
+        ]
+      },
+      leader: {
+        id: "leader",
+        speaker: "Le chroniqueur",
+        side: "left",
+        text: "Qui porte la voix du groupe au moment du depart ?",
+        choicesLayout: "grid-3",
+        choices: [
+          {
+            text: "Le guerrier (+10 Honneur)",
+            onSelect: () => {
+              state2.leader = "guerrier";
+            },
+            next: "gift"
+          },
+          {
+            text: "Le voleur (+10 Liberte)",
+            onSelect: () => {
+              state2.leader = "voleur";
+            },
+            next: "gift"
+          },
+          {
+            text: "Le mage (+10 Humanite)",
+            onSelect: () => {
+              state2.leader = "mage";
+            },
+            next: "gift"
+          }
+        ]
+      },
+      gift: {
+        id: "gift",
+        speaker: "L'ancien du village",
+        side: "right",
+        text: "Que vous a t on confie pour votre depart ?",
+        choices: [
+          {
+            text: "150 argent",
+            onSelect: () => {
+              state2.gift = "gold";
+            },
+            next: "final"
+          },
+          {
+            text: "1 point de competence pour chaque personnage",
+            onSelect: () => {
+              state2.gift = "skill-points";
+            },
+            next: "final"
+          }
+        ]
+      },
+      final: {
+        id: "final",
+        speaker: "Le chroniqueur",
+        side: "left",
+        text: `${renderBondLabel(state2.bond)}. ${renderLeaderLabel(state2.leader)} guidera la compagnie. Pour le depart : ${renderGiftLabel(state2.gift)}.
+
+Les portes s ouvrent. Boaraven vous attend.`,
+        choices: [
+          {
+            text: "Entrer dans Boaraven",
+            onSelect: () => {
+              applyCreationChoices(state2);
+              window.setTimeout(() => {
+                showBoaravenWorldMap({ onBack: options.onBackAfterStart ?? options.onCancel ?? (() => {
+                }) });
+              }, 0);
+            }
+          }
+        ]
+      }
+    }
+  };
+}
+function showNewGameCreation(options = {}) {
+  const app2 = document.getElementById("app");
+  if (!app2)
+    return;
+  const state2 = {
+    bond: null,
+    leader: null,
+    gift: null
+  };
+  app2.innerHTML = `
+        <img src="ImagesRPG/imagesfond/fond_saint_michel.avif" class="background" alt="Creation de personnage">
+        <div class="centered-content" style="max-width:min(860px, 92vw);">
+            <div style="background:rgba(8,10,18,0.70);border:1px solid rgba(255,255,255,0.16);border-radius:20px;padding:28px 24px;box-shadow:0 24px 70px rgba(0,0,0,0.45);backdrop-filter:blur(5px);">
+                <div style="font-size:0.95em;letter-spacing:0.28em;text-transform:uppercase;color:rgba(255,230,170,0.86);margin-bottom:10px;">Nouvelle partie</div>
+                <h1 style="margin:0 0 10px 0;font-family:'Cinzel','Georgia',serif;">Creation du groupe</h1>
+                <p style="margin:0 auto 14px auto;max-width:680px;line-height:1.6;color:#f2eee4;">
+                    Une seule fois, avant votre premier voyage, le destin du groupe se fixe. Les choix faits ici definiront l origine de la compagnie et l elan de son depart.
+                </p>
+                <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:18px;">
+                    <button class="btn" id="startCharacterCreationBtn" style="min-width:240px;">Commencer la creation</button>
+                    <button class="btn" id="cancelCharacterCreationBtn" style="min-width:220px;">Retour accueil</button>
+                </div>
+                <div style="margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.10);color:#d9d1bc;font-size:0.95em;line-height:1.6;">
+                    <div><b>Questions prevues :</b> lien du groupe, chef de la compagnie, don de depart.</div>
+                    <div><b>Arrivee :</b> la carte de Boaraven, directement apres le dernier choix.</div>
+                </div>
+            </div>
+        </div>
+    `;
+  const launchDialogue = () => {
+    startDialogue(buildCreationScript(state2, options), {
+      hero,
+      questManager: window.game?.questManager
+    });
+  };
+  document.getElementById("startCharacterCreationBtn")?.addEventListener("click", launchDialogue);
+  document.getElementById("cancelCharacterCreationBtn")?.addEventListener("click", () => {
+    dialogueManager.close();
+    options.onCancel?.();
+  });
+}
+var BASE_CHARACTERISTICS;
+var init_newGame_web = __esm({
+  "dist/newGame.web.js"() {
+    "use strict";
+    init_index_web();
+    init_skillLibrary();
+    init_dialogueManager_web();
+    init_party_web();
+    init_questManager();
+    init_quests();
+    init_virtues();
+    init_titles();
+    init_worldMap_web();
+    BASE_CHARACTERISTICS = {
+      force: 10,
+      sante: 10,
+      energie: 40,
+      vitesse: 2,
+      magie: 10,
+      critique: 0,
+      defense: 0
+    };
   }
 });
 
 // dist/accueil.web.js
+function formatSaveDate(value) {
+  if (!value)
+    return "date inconnue";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "date inconnue" : date.toLocaleString();
+}
+function buildSaveSlotSummaryHtml(meta) {
+  if (!meta)
+    return '<div style="color:#aaa;">Emplacement vide</div>';
+  return `
+        <div style="font-weight:800;color:#fff;">${meta.heroName}</div>
+        <div style="font-size:0.92em;color:#ddd;">Niveau ${meta.level}</div>
+        <div style="font-size:0.88em;color:#bbb;">${formatSaveDate(meta.createdAt)}</div>
+    `;
+}
+function openSaveSlotsModal() {
+  const overlay = document.createElement("div");
+  overlay.style.cssText = [
+    "position:fixed",
+    "inset:0",
+    "background:rgba(0,0,0,0.72)",
+    "z-index:1200",
+    "display:flex",
+    "align-items:center",
+    "justify-content:center",
+    "padding:16px"
+  ].join(";");
+  const panel = document.createElement("div");
+  panel.style.cssText = [
+    "width:min(960px, 96vw)",
+    "max-height:88vh",
+    "overflow:auto",
+    "background:rgba(10,10,18,0.96)",
+    "border:1px solid rgba(255,255,255,0.14)",
+    "border-radius:16px",
+    "box-shadow:0 24px 80px rgba(0,0,0,0.5)",
+    "padding:18px",
+    "color:#fff"
+  ].join(";");
+  const close = () => {
+    overlay.remove();
+    showAccueil();
+  };
+  const render = () => {
+    const slots = listBrowserSaveSlots();
+    panel.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;">
+                <div>
+                    <div style="font-size:1.2em;font-weight:900;">Sauvegardes</div>
+                    <div style="color:#bbb;font-size:0.95em;">Choisis un emplacement pour sauvegarder, charger ou supprimer.</div>
+                </div>
+                <button class="btn" id="closeSaveSlotsModalBtn" style="min-width:96px;">Fermer</button>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;">
+                ${slots.map(({ slot, meta }) => `
+                        <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:12px;">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+                                <div>
+                                    <div style="font-size:1.05em;font-weight:900;">Emplacement ${slot}</div>
+                                    ${buildSaveSlotSummaryHtml(meta)}
+                                </div>
+                            </div>
+                            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                                <button class="btn" data-save-slot="${slot}" style="min-width:110px;">Sauvegarder</button>
+                                <button class="btn" data-load-slot="${slot}" style="min-width:110px;" ${meta ? "" : "disabled"}>Charger</button>
+                                <button class="btn" data-delete-slot="${slot}" style="min-width:110px;" ${meta ? "" : "disabled"}>Supprimer</button>
+                            </div>
+                        </div>
+                    `).join("")}
+            </div>
+        `;
+    panel.querySelector("#closeSaveSlotsModalBtn")?.addEventListener("click", close);
+    panel.querySelectorAll("[data-save-slot]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const slot = Number(btn.getAttribute("data-save-slot"));
+        const meta = slots.find((entry) => entry.slot === slot)?.meta ?? null;
+        if (meta && !window.confirm(`\xC9craser l'emplacement ${slot} ?`))
+          return;
+        const res = saveGameToBrowser(hero, slot);
+        if (!res.ok) {
+          alert("Erreur sauvegarde: " + res.error);
+          return;
+        }
+        render();
+      });
+    });
+    panel.querySelectorAll("[data-load-slot]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const slot = Number(btn.getAttribute("data-load-slot"));
+        const res = loadGameFromBrowser(hero, slot);
+        if (!res.ok) {
+          alert("Erreur chargement: " + res.error);
+          return;
+        }
+        alert(`Sauvegarde charg\xE9e depuis l'emplacement ${slot}.`);
+        close();
+      });
+    });
+    panel.querySelectorAll("[data-delete-slot]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const slot = Number(btn.getAttribute("data-delete-slot"));
+        if (!window.confirm(`Supprimer la sauvegarde de l'emplacement ${slot} ?`))
+          return;
+        const res = deleteBrowserSave(slot);
+        if (!res.ok) {
+          alert("Erreur suppression: " + res.error);
+          return;
+        }
+        render();
+      });
+    });
+  };
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay)
+      close();
+  });
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  render();
+}
+function confirmStartNewGame() {
+  return window.confirm("Attention : si vous continuez, la partie en cours non sauvegardee sera supprimee.\n\nPensez a sauvegarder avant de lancer une nouvelle partie.\n\nContinuer ?");
+}
 function showAccueil() {
   const fuirBtn = document.getElementById("fuirBtn");
   if (fuirBtn && document.body.contains(fuirBtn))
@@ -86529,24 +87093,25 @@ function showAccueil() {
         ` : `
             <div id="playerGreeting" style="margin-bottom:14px;">Bienvenue, <b>${hero.name}</b> !</div>
         `;
-  const saveMeta = getBrowserSaveMeta();
-  const saveInfoHtml = hasBrowserSave() ? `<div style="margin-top:10px;font-size:0.95em;color:#ddd;">Sauvegarde d\xE9tect\xE9e (${saveMeta?.createdAt ? new Date(saveMeta.createdAt).toLocaleString() : "date inconnue"})</div>` : `<div style="margin-top:10px;font-size:0.95em;color:#bbb;">Aucune sauvegarde d\xE9tect\xE9e</div>`;
+  const saveSlots = listBrowserSaveSlots();
+  const usedSlots = saveSlots.filter((entry) => entry.meta).length;
+  const latestSave = saveSlots.filter((entry) => entry.meta).map((entry) => entry.meta).sort((a2, b2) => new Date(b2.createdAt).getTime() - new Date(a2.createdAt).getTime())[0] ?? null;
+  const saveInfoHtml = usedSlots > 0 ? `<div style="margin-top:10px;font-size:0.95em;color:#ddd;">${usedSlots}/${SAVE_SLOT_COUNT} emplacement(s) utilis\xE9(s)${latestSave ? ` \xB7 Derni\xE8re sauvegarde : ${latestSave.heroName}, ${formatSaveDate(latestSave.createdAt)}` : ""}</div>` : `<div style="margin-top:10px;font-size:0.95em;color:#bbb;">Aucune sauvegarde d\xE9tect\xE9e</div>`;
   app2.innerHTML = `
         <img src="ImagesRPG/imagesfond/fondaccueil.png" class="background" alt="Accueil RPG">
         <div class="centered-content">
             <h1>Bienvenue dans le jeu RPG !</h1>
             ${askNameHtml}
+            <button class="btn" id="newGameBtn">Nouvelle partie</button>
             <button class="btn" id="villageBtn">Village</button>
             <button class="btn" id="tacticalBtn">Combat plateau (test)</button>
 
             <div style="margin-top:18px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.08);">
                 <h2 style="margin:0 0 10px 0; font-size:1.15em; font-weight:600;">Sauvegarde</h2>
                 ${saveInfoHtml}
-                <button class="btn" id="saveBtn">Sauvegarder</button>
-                <button class="btn" id="loadBtn">Charger</button>
+                <button class="btn" id="saveSlotsBtn">G\xE9rer les sauvegardes</button>
                 <button class="btn" id="exportBtn">Exporter</button>
                 <button class="btn" id="importBtn">Importer</button>
-                <button class="btn" id="deleteSaveBtn">Supprimer sauvegarde</button>
             </div>
         </div>
     `;
@@ -86572,26 +87137,14 @@ function showAccueil() {
       });
     }
   }
+  document.getElementById("newGameBtn")?.addEventListener("click", () => {
+    if (!confirmStartNewGame())
+      return;
+    showNewGameCreation({ onCancel: showAccueil, onBackAfterStart: showAccueil });
+  });
   document.getElementById("villageBtn")?.addEventListener("click", showVillage);
   document.getElementById("tacticalBtn")?.addEventListener("click", () => showTacticalSkirmish());
-  document.getElementById("saveBtn")?.addEventListener("click", () => {
-    const res = saveGameToBrowser(hero);
-    if (!res.ok) {
-      alert("Erreur sauvegarde: " + res.error);
-      return;
-    }
-    alert("Sauvegarde effectu\xE9e.");
-    showAccueil();
-  });
-  document.getElementById("loadBtn")?.addEventListener("click", () => {
-    const res = loadGameFromBrowser(hero);
-    if (!res.ok) {
-      alert("Erreur chargement: " + res.error);
-      return;
-    }
-    alert("Sauvegarde charg\xE9e.");
-    showAccueil();
-  });
+  document.getElementById("saveSlotsBtn")?.addEventListener("click", openSaveSlotsModal);
   document.getElementById("exportBtn")?.addEventListener("click", async () => {
     const text = exportSaveAsString(hero);
     try {
@@ -86608,24 +87161,20 @@ function showAccueil() {
     const input = window.prompt("Collez votre sauvegarde JSON :");
     if (!input)
       return;
-    const res = importSaveFromString(hero, input);
+    const slotInput = window.prompt(`Importer dans quel emplacement ? (1-${SAVE_SLOT_COUNT})`, "1");
+    if (!slotInput)
+      return;
+    const slot = Number(slotInput);
+    if (!Number.isInteger(slot) || slot < 1 || slot > SAVE_SLOT_COUNT) {
+      alert(`Emplacement invalide. Choisissez un nombre entre 1 et ${SAVE_SLOT_COUNT}.`);
+      return;
+    }
+    const res = importSaveFromString(hero, input, slot);
     if (!res.ok) {
       alert("Erreur import: " + res.error);
       return;
     }
-    alert("Sauvegarde import\xE9e et charg\xE9e.");
-    showAccueil();
-  });
-  document.getElementById("deleteSaveBtn")?.addEventListener("click", () => {
-    const sure = window.confirm("Supprimer la sauvegarde du navigateur ?");
-    if (!sure)
-      return;
-    const res = deleteBrowserSave();
-    if (!res.ok) {
-      alert("Erreur suppression: " + res.error);
-      return;
-    }
-    alert("Sauvegarde supprim\xE9e.");
+    alert(`Sauvegarde import\xE9e dans l'emplacement ${slot} et charg\xE9e.`);
     showAccueil();
   });
 }
@@ -86637,6 +87186,7 @@ var init_accueil_web = __esm({
     init_index_web();
     init_save_web();
     init_tacticalCombat_web();
+    init_newGame_web();
   }
 });
 

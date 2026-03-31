@@ -408,7 +408,7 @@ var init_item = __esm({
         return `${this.name} n'a aucun effet connu.`;
       }
     };
-    EQUIPMENT_SLOTS = ["weapon", "armor", "ring"];
+    EQUIPMENT_SLOTS = ["weapon", "armor", "head", "ring"];
     Equipment = class extends Item {
       constructor(id, name, description, slot, attackBonus = 0, defenseBonus = 0, hpBonus = 0, manaBonus = 0, critBonus = 0) {
         super(id, name, description);
@@ -2574,14 +2574,24 @@ function getItemIconSrc(item) {
     return "ImagesRPG/imagesobjets/epee_fer.png";
   if (id === "dague_fer" || name.includes("dague de fer"))
     return "ImagesRPG/imagesobjets/dague_tier2.png";
+  if (id === "dague_acier" || name.includes("dague en acier"))
+    return "ImagesRPG/imagesobjets/dague_acier.png";
+  if (id === "dague_or" || name.includes("dague en or"))
+    return "ImagesRPG/imagesobjets/dague_or.png";
   if (id === "sword_1" || name.includes("\xE9p\xE9e basique") || name.includes("epee basique"))
     return "ImagesRPG/imagesobjets/epee1.png";
+  if (id === "sword_acier" || name.includes("\xE9p\xE9e en acier") || name.includes("epee en acier"))
+    return "ImagesRPG/imagesobjets/epee_acier.png";
   if (id === "dagues_rouille" || name.includes("dagues rouill"))
     return "ImagesRPG/imagesobjets/dague_rouillee.png";
   if (id === "staff_novice" || name.includes("b\xE2ton de novice") || name.includes("baton de novice"))
     return "ImagesRPG/imagesobjets/baton_novice.png";
   if (id === "armor_1" || name.includes("armure de cuir"))
     return "ImagesRPG/imagesobjets/armure_cuir.png";
+  if (id === "armor_fer" || name.includes("armure en fer"))
+    return "ImagesRPG/imagesobjets/armure_de_fer.jpeg";
+  if (id === "helmet_cuir" || name.includes("casque en cuir"))
+    return "ImagesRPG/imagesobjets/casque_en_cuir.jpeg";
   return null;
 }
 function buildItemTooltip(item) {
@@ -2627,32 +2637,69 @@ function createCurrencyInventoryItem(hero2) {
     quantity: amount
   };
 }
-function buildCurrencyInventoryRow(hero2) {
-  const currencyItem = createCurrencyInventoryItem(hero2);
-  const amount = Math.max(0, Math.floor(Number(currencyItem.quantity ?? 0)));
-  const icon = renderItemIconHtml(currencyItem, { size: 51 });
+function createMaterialInventoryItems(hero2) {
+  return [
+    {
+      id: "wood_resource",
+      name: "Bois",
+      description: "Matiere premiere de fabrication.",
+      stackable: true,
+      quantity: Math.max(0, Math.floor(Number(hero2?.wood ?? 0)))
+    },
+    {
+      id: "herb_resource",
+      name: "Herbe",
+      description: "Plante utile a l alchimie et aux recettes.",
+      stackable: true,
+      quantity: Math.max(0, Math.floor(Number(hero2?.herb ?? 0)))
+    },
+    {
+      id: "cuir_resource",
+      name: "Cuir",
+      description: "Matiere premiere pour l equipement leger.",
+      stackable: true,
+      quantity: Math.max(0, Math.floor(Number(hero2?.cuir ?? 0)))
+    },
+    {
+      id: "fer_resource",
+      name: "Fer",
+      description: "Matiere premiere pour la forge.",
+      stackable: true,
+      quantity: Math.max(0, Math.floor(Number(hero2?.fer ?? 0)))
+    }
+  ];
+}
+function createSpecialInventoryItems(hero2, opts = {}) {
+  const { showGold = true, showMaterials = true } = opts;
+  return [
+    ...showGold ? [createCurrencyInventoryItem(hero2)] : [],
+    ...showMaterials ? createMaterialInventoryItems(hero2) : []
+  ];
+}
+function buildVirtualInventoryRow(item, rowId) {
+  const qty = Math.max(0, Math.floor(Number(item?.quantity ?? 0)));
+  const icon = renderItemIconHtml(item, { size: 51 });
   return `
-        <li data-inv-row="currency-gold" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;cursor:pointer;user-select:none;border-radius:10px;padding:6px 8px;">
+        <li data-inv-row="${escapeAttr(rowId)}" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;cursor:pointer;user-select:none;border-radius:10px;padding:6px 8px;">
             <div style="flex:1;">
-                <div style="display:flex;align-items:center;gap:8px;">${icon}<span style="margin-left:2px;opacity:0.95;font-weight:900;">x${amount}</span></div>
+                <div style="display:flex;align-items:center;gap:8px;">${icon}<span style="margin-left:2px;opacity:0.95;font-weight:900;">x${qty}</span></div>
             </div>
-            <div data-inv-actions="currency-gold" style="white-space:nowrap;display:none;gap:8px;align-items:flex-start;"></div>
+            <div data-inv-actions="${escapeAttr(rowId)}" style="white-space:nowrap;display:none;gap:8px;align-items:flex-start;"></div>
         </li>
     `;
 }
+function buildSpecialInventoryRows(hero2, opts = {}) {
+  return createSpecialInventoryItems(hero2, opts).map((item, idx) => buildVirtualInventoryRow(item, `virtual-${idx}`)).join("");
+}
 function renderInventory(hero2, opts = {}) {
   const { showGold = true, showWood = true, transferFromPartyIdx, transferTargets = [] } = opts;
+  const specialRowsHtml = buildSpecialInventoryRows(hero2, { showGold, showMaterials: showWood });
+  const specialCount = createSpecialInventoryItems(hero2, { showGold, showMaterials: showWood }).length;
   let html = "";
-  if (showWood) {
-    html += '<p style="margin:6px 0;">';
-    if (showWood)
-      html += `<b>Bois :</b> ${hero2.wood ?? 0}`;
-    html += "</p>";
-  }
   html += `<div class="inventory-items" style="margin-top:8px; color:#ddd; font-size:0.95em;">
-        ${(showGold ? 1 : 0) + hero2.inventory.length === 0 ? `<em>Aucun objet</em>` : `
+        ${specialCount + hero2.inventory.length === 0 ? `<em>Aucun objet</em>` : `
             <ul style="list-style:none;padding:0;margin:0;">
-                ${showGold ? buildCurrencyInventoryRow(hero2) : ""}
+                ${specialRowsHtml}
                 ${hero2.inventory.map((it, idx) => {
     const qty = Math.max(1, Math.floor(Number(it?.quantity ?? 1)));
     const showQty = Boolean(it?.stackable) && qty > 1;
@@ -74572,22 +74619,21 @@ function showTacticalSkirmish(options = {}) {
                         </div>
                     `;
       }).join("");
-      const currencyItem = createCurrencyInventoryItem(hero);
-      const currencyRow = `
-                <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);user-select:none;">
-                    <div style="min-width:0;">
-                        <div style="display:flex;align-items:center;gap:8px;">${renderItemIconHtml(currencyItem, { size: 51 })}<span style="margin-left:2px;opacity:0.95;font-weight:900;">x${gold}</span></div>
+      const specialRows = createSpecialInventoryItems(hero).map((item) => `
+                    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);user-select:none;">
+                        <div style="min-width:0;">
+                            <div style="display:flex;align-items:center;gap:8px;">${renderItemIconHtml(item, { size: 51 })}<span style="margin-left:2px;opacity:0.95;font-weight:900;">x${Math.max(0, Math.floor(Number(item.quantity ?? 0)))}</span></div>
+                        </div>
+                        <div style="white-space:nowrap;display:flex;gap:8px;align-items:center;"></div>
                     </div>
-                    <div style="white-space:nowrap;display:flex;gap:8px;align-items:center;"></div>
-                </div>
-            `;
+                `).join("");
       return `
                 <div style="font-weight:700;margin-bottom:6px;">Inventaire</div>
                 <div class="tactical-log" id="tacticalInventoryBlock">
                     <div class="line">Bois: ${wood}</div>
                     <div class="line">Herbes: ${herb}</div>
                     ${canUseCampfire ? `<div class="line" style="margin:6px 0 8px 0;"><button class="btn" id="useCampfireBtn" style="min-width:180px;">Utiliser Feu de camp (${campfireCount})</button></div>` : ""}
-                    ${currencyRow}
+                    ${specialRows}
                     ${inv.length ? itemsHtml : '<div class="line" style="opacity:0.8;">(vide)</div>'}
                 </div>
             `;
@@ -79646,19 +79692,15 @@ function showMaisonDeplacement(options) {
         }).join("");
       };
       const renderInventoryRows = () => {
-        const gold = Math.max(0, Math.floor(Number(hero?.gold ?? 0)));
-        const currencyItem = createCurrencyInventoryItem(hero);
-        const currencyRow = `
-					<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;background:rgba(255,255,255,0.04);padding:10px;border-radius:10px;margin-bottom:6px;">
-						<div style="flex:1;">
-							<div style="display:flex;align-items:center;gap:8px;">${renderItemIconHtml(currencyItem, { size: 51 })}<span style="margin-left:8px;opacity:0.95;font-weight:900;">x${gold}</span></div>
+        const specialRows = createSpecialInventoryItems(hero).map((item) => `
+						<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;background:rgba(255,255,255,0.04);padding:10px;border-radius:10px;margin-bottom:6px;">
+							<div style="flex:1;display:flex;align-items:center;gap:8px;">${renderItemIconHtml(item, { size: 51 })}<div><div style="font-weight:800;">${escapeHtml(String(item.name ?? "Objet"))}</div><div style="color:#bbb;font-size:12px;margin-top:3px;">x${Math.max(0, Math.floor(Number(item.quantity ?? 0)))}</div></div></div>
+							<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;"><span style="color:#777;font-size:12px;">\u2014</span></div>
 						</div>
-						<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;"><span style="color:#777;font-size:12px;">\u2014</span></div>
-					</div>
-				`;
+					`).join("");
         if (!inv.length)
-          return currencyRow;
-        return currencyRow + inv.map((item, idx) => {
+          return specialRows;
+        return specialRows + inv.map((item, idx) => {
           const baseName = String(item?.name ?? "Objet");
           const q = Math.max(1, Math.floor(Number(item?.quantity ?? 1)));
           const showQty = Boolean(item?.stackable) && q > 1;
@@ -82679,19 +82721,15 @@ function showPlateauMapRenderer(opts) {
         }).join("");
       };
       const renderInventoryRows = () => {
-        const gold = Math.max(0, Math.floor(Number(hero2?.gold ?? 0)));
-        const currencyItem = createCurrencyInventoryItem(hero2);
-        const currencyRow = `
-					<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;background:rgba(255,255,255,0.04);padding:10px;border-radius:10px;margin-bottom:6px;user-select:none;">
-						<div style="flex:1;">
-							<div style="display:flex;align-items:center;gap:8px;">${renderItemIconHtml(currencyItem, { size: 51 })}<span style="margin-left:2px;opacity:0.95;font-weight:900;">x${gold}</span></div>
+        const specialRows = createSpecialInventoryItems(hero2).map((item) => `
+						<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;background:rgba(255,255,255,0.04);padding:10px;border-radius:10px;margin-bottom:6px;user-select:none;">
+							<div style="flex:1;display:flex;align-items:center;gap:8px;">${renderItemIconHtml(item, { size: 51 })}<div><div style="font-weight:800;">${escapeHtml(String(item.name ?? "Objet"))}</div><div style="color:#bbb;font-size:12px;margin-top:3px;">x${Math.max(0, Math.floor(Number(item.quantity ?? 0)))}</div></div></div>
+							<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;min-width:180px;"></div>
 						</div>
-						<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;min-width:180px;"></div>
-					</div>
-				`;
+					`).join("");
         if (!inv.length)
-          return currencyRow;
-        return currencyRow + inv.map((item, idx) => {
+          return specialRows;
+        return specialRows + inv.map((item, idx) => {
           const isSelected = selectedInvIdx === idx;
           const q = Math.max(1, Math.floor(Number(item?.quantity ?? 1)));
           const showQty = Boolean(item?.stackable) && q > 1;
@@ -84335,8 +84373,8 @@ function showEntrainement() {
   let selectedEndInvIdx = null;
   let history = [];
   function renderEndInventoryEquipment() {
-    const slotLabel = { weapon: "Arme", armor: "Armure", ring: "Anneau" };
-    const slots = ["weapon", "armor", "ring"];
+    const slotLabel = { weapon: "Arme", armor: "Armure", head: "Casque", ring: "Anneau" };
+    const slots = ["weapon", "armor", "head", "ring"];
     const equipmentLines = slots.map((slot) => {
       const eq = hero.equipment[slot];
       return `
@@ -84349,22 +84387,21 @@ function showEntrainement() {
                     </div>
                 `;
     }).join("");
-    const currencyItem = createCurrencyInventoryItem(hero);
-    const currencyLine = `
-            <li style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-radius:10px;background:rgba(255,255,255,0.05);padding:6px 8px;">
-                <div style="flex:1;display:flex;align-items:center;gap:8px;">
-                    ${renderItemIconHtml(currencyItem, { size: 51 })}
-                    <div>
-                        <div style="font-weight:600;color:#fff;">Argent</div>
-                        <div style="font-size:0.9em;color:#ddd;">x${Math.max(0, Math.floor(Number(hero.gold ?? 0)))}</div>
+    const specialLines = createSpecialInventoryItems(hero).map((item) => `
+                <li style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-radius:10px;background:rgba(255,255,255,0.05);padding:6px 8px;">
+                    <div style="flex:1;display:flex;align-items:center;gap:8px;">
+                        ${renderItemIconHtml(item, { size: 51 })}
+                        <div>
+                            <div style="font-weight:600;color:#fff;">${item.name}</div>
+                            <div style="font-size:0.9em;color:#ddd;">x${Math.max(0, Math.floor(Number(item.quantity ?? 0)))}</div>
+                        </div>
                     </div>
-                </div>
-                <div style="white-space:nowrap;"></div>
-            </li>
-        `;
-    const invLines = hero.inventory.length === 0 ? `<ul id="trainingEndInventoryBlock" style="list-style:none;padding:0;margin:0;">${currencyLine}</ul>` : `
+                    <div style="white-space:nowrap;"></div>
+                </li>
+            `).join("");
+    const invLines = hero.inventory.length === 0 ? `<ul id="trainingEndInventoryBlock" style="list-style:none;padding:0;margin:0;">${specialLines}</ul>` : `
                 <ul id="trainingEndInventoryBlock" style="list-style:none;padding:0;margin:0;">
-                    ${currencyLine}
+                    ${specialLines}
                     ${hero.inventory.map((it, idx) => {
       const isSelected = selectedEndInvIdx === idx;
       return `
@@ -84953,10 +84990,15 @@ function showBoutique(options = {}) {
     { create: () => new Equipment("sword_1", "\xC9p\xE9e basique", "\xC9p\xE9e en fer (+5 attaque)", "weapon", 5, 0, 0, 0), price: 50, category: "equipment" },
     { create: () => new Equipment("sword_bronze", "\xC9p\xE9e de bronze", "\xC9p\xE9e en bronze (+2 attaque)", "weapon", 2, 0, 0, 0), price: 80, category: "equipment" },
     { create: () => new Equipment("sword_wood", "\xC9p\xE9e en bois", "\xC9p\xE9e l\xE9g\xE8re (+1 attaque)", "weapon", 1, 0, 0, 0), price: 15, category: "equipment" },
+    { create: () => new Equipment("sword_acier", "\xC9p\xE9e en acier", "\xC9p\xE9e aff\xFBt\xE9e (+7 attaque)", "weapon", 7, 0, 0, 0), price: 220, category: "equipment" },
     { create: () => new Equipment("dague_fer", "Dague de fer", "Dague en fer (+2 attaque, +2 critique)", "weapon", 2, 0, 0, 0, 2), price: 150, category: "equipment" },
+    { create: () => new Equipment("dague_acier", "Dague en acier", "Dague pr\xE9cise (+4 attaque, +3 critique)", "weapon", 4, 0, 0, 0, 3), price: 210, category: "equipment" },
+    { create: () => new Equipment("dague_or", "Dague en or", "Dague noble (+5 attaque, +5 critique)", "weapon", 5, 0, 0, 0, 5), price: 320, category: "equipment" },
     { create: () => new Equipment("dagues_rouille", "Dagues rouill\xE9es", "Dagues us\xE9es (+1 critique)", "weapon", 0, 0, 0, 0, 1), price: 25, category: "equipment" },
     { create: () => new Equipment("staff_novice", "B\xE2ton de novice", "B\xE2ton simple (+10 mana maximum)", "weapon", 0, 0, 0, 10), price: 40, category: "equipment" },
     { create: () => new Equipment("armor_1", "Armure de cuir", "Armure l\xE9g\xE8re (+20 PV)", "armor", 0, 0, 20, 0), price: 50, category: "equipment" },
+    { create: () => new Equipment("armor_fer", "Armure en fer", "Armure lourde (+3 d\xE9fense, +35 PV)", "armor", 0, 3, 35, 0), price: 180, category: "equipment" },
+    { create: () => new Equipment("helmet_cuir", "Casque en cuir", "Casque l\xE9ger (+1 d\xE9fense, +10 PV)", "head", 0, 1, 10, 0), price: 70, category: "equipment" },
     { create: () => new Equipment("ring_1", "Anneau de mana", "Anneau (+10 mana)", "ring", 0, 0, 0, 10), price: 50, category: "equipment" }
   ];
   const render = () => {
@@ -85648,8 +85690,8 @@ function showCombat(enemyLevel = hero.level, options = {}) {
     return { xp, gold, wood, herb, bonusPct: comboBonusPct };
   }
   function renderEndCombatInventoryEquipment() {
-    const slotLabel = { weapon: "Arme", armor: "Armure", ring: "Anneau" };
-    const slots = ["weapon", "armor", "ring"];
+    const slotLabel = { weapon: "Arme", armor: "Armure", head: "Casque", ring: "Anneau" };
+    const slots = ["weapon", "armor", "head", "ring"];
     const equipmentLines = slots.map((slot) => {
       const eq = hero.equipment[slot];
       return `
@@ -85662,22 +85704,22 @@ function showCombat(enemyLevel = hero.level, options = {}) {
                     </div>
                 `;
     }).join("");
-    const currencyItem = createCurrencyInventoryItem(hero);
-    const currencyLine = `
-            <li style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-radius:10px;background:rgba(255,255,255,0.05);padding:6px 8px;">
-                <div style="flex:1;display:flex;align-items:center;gap:8px;">
-                    ${renderItemIconHtml(currencyItem, { size: 51 })}
-                    <div>
-                        <div style="font-weight:600;color:#fff;">Argent</div>
-                        <div style="font-size:0.9em;color:#ddd;">x${Math.max(0, Math.floor(Number(hero.gold ?? 0)))}</div>
+    const specialItems = createSpecialInventoryItems(hero);
+    const specialLines = specialItems.map((item) => `
+                <li style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-radius:10px;background:rgba(255,255,255,0.05);padding:6px 8px;">
+                    <div style="flex:1;display:flex;align-items:center;gap:8px;">
+                        ${renderItemIconHtml(item, { size: 51 })}
+                        <div>
+                            <div style="font-weight:600;color:#fff;">${item.name}</div>
+                            <div style="font-size:0.9em;color:#ddd;">x${Math.max(0, Math.floor(Number(item.quantity ?? 0)))}</div>
+                        </div>
                     </div>
-                </div>
-                <div style="white-space:nowrap;"></div>
-            </li>
-        `;
-    const invLines = hero.inventory.length === 0 ? `<ul id="combatEndInventoryBlock" style="list-style:none;padding:0;margin:0;">${currencyLine}</ul>` : `
+                    <div style="white-space:nowrap;"></div>
+                </li>
+            `).join("");
+    const invLines = hero.inventory.length === 0 ? `<ul id="combatEndInventoryBlock" style="list-style:none;padding:0;margin:0;">${specialLines}</ul>` : `
                 <ul id="combatEndInventoryBlock" style="list-style:none;padding:0;margin:0;">
-                    ${currencyLine}
+                    ${specialLines}
                     ${hero.inventory.map((it, idx) => {
       const isSelected = selectedEndInvIdx === idx;
       return `
@@ -86647,6 +86689,7 @@ function loadGameFromBrowser(hero2, slot = 1) {
     return { ok: false, error: "Aucune sauvegarde trouv\xE9e." };
   try {
     applySaveData(hero2, data);
+    hero2.__hasStartedGame = true;
     return { ok: true };
   } catch (e2) {
     const msg = e2 instanceof Error ? e2.message : "Erreur inconnue";
@@ -86680,6 +86723,7 @@ function importSaveFromString(hero2, text, slot = 1) {
     if (!data.hero)
       return { ok: false, error: "Sauvegarde invalide (hero manquant)." };
     applySaveData(hero2, data);
+    hero2.__hasStartedGame = true;
     localStorage.setItem(getSaveStorageKey(normalizedSlot), JSON.stringify(data));
     if (normalizedSlot === 1)
       localStorage.removeItem(SAVE_STORAGE_KEY);
@@ -86739,10 +86783,10 @@ function resetHeroForNewGame() {
   hero.level = 1;
   hero.currentXP = 0;
   hero.gold = 50;
-  hero.wood = 0;
-  hero.herb = 0;
-  hero.cuir = 0;
-  hero.fer = 0;
+  hero.wood = 10;
+  hero.herb = 10;
+  hero.cuir = 10;
+  hero.fer = 10;
   hero.skillPoints = 0;
   hero.characteristicPoints = 0;
   hero.skills = [
@@ -86778,6 +86822,7 @@ function resetHeroForNewGame() {
   hero.__partyLeader = void 0;
   hero.__startingGift = void 0;
   hero.__partyProgress = void 0;
+  hero.__hasStartedGame = false;
   hero.syncDerivedStatsFromCharacteristics({ fillResources: true });
 }
 function applyCreationChoices(state2) {
@@ -86786,6 +86831,7 @@ function applyCreationChoices(state2) {
   hero.__partyBond = state2.bond;
   hero.__partyLeader = state2.leader;
   hero.__startingGift = state2.gift;
+  hero.__hasStartedGame = true;
   if (state2.leader === "guerrier")
     addHonneur(hero, 10);
   if (state2.leader === "voleur")
@@ -87140,6 +87186,7 @@ function showAccueil() {
   const saveSlots = listBrowserSaveSlots();
   const usedSlots = saveSlots.filter((entry) => entry.meta).length;
   const latestSave = saveSlots.filter((entry) => entry.meta).map((entry) => entry.meta).sort((a2, b2) => new Date(b2.createdAt).getTime() - new Date(a2.createdAt).getTime())[0] ?? null;
+  const canResume = Boolean(hero.__hasStartedGame);
   const saveInfoHtml = usedSlots > 0 ? `<div style="margin-top:10px;font-size:0.95em;color:#ddd;">${usedSlots}/${SAVE_SLOT_COUNT} emplacement(s) utilis\xE9(s)${latestSave ? ` \xB7 Derni\xE8re sauvegarde : ${latestSave.heroName}, ${formatSaveDate(latestSave.createdAt)}` : ""}</div>` : `<div style="margin-top:10px;font-size:0.95em;color:#bbb;">Aucune sauvegarde d\xE9tect\xE9e</div>`;
   app2.innerHTML = `
         <img src="ImagesRPG/imagesfond/fondaccueil.png" class="background" alt="Accueil RPG">
@@ -87147,7 +87194,7 @@ function showAccueil() {
             <h1>Bienvenue dans le jeu RPG !</h1>
             ${askNameHtml}
             <button class="btn" id="newGameBtn">Nouvelle partie</button>
-            <button class="btn" id="resumeGameBtn">Reprendre la partie</button>
+            <button class="btn" id="resumeGameBtn" ${canResume ? "" : 'disabled style="opacity:0.5;cursor:not-allowed;"'}>Reprendre la partie</button>
             <button class="btn" id="villageBtn" disabled style="opacity:0.5;cursor:not-allowed;">Village</button>
 
             <div style="margin-top:18px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.08);">
@@ -87186,9 +87233,11 @@ function showAccueil() {
       return;
     showNewGameCreation({ onCancel: showAccueil, onBackAfterStart: showAccueil });
   });
-  document.getElementById("resumeGameBtn")?.addEventListener("click", () => {
-    showBoaravenWorldMap({ onBack: showAccueil });
-  });
+  if (canResume) {
+    document.getElementById("resumeGameBtn")?.addEventListener("click", () => {
+      showBoaravenWorldMap({ onBack: showAccueil });
+    });
+  }
   document.getElementById("saveSlotsBtn")?.addEventListener("click", openSaveSlotsModal);
   document.getElementById("exportBtn")?.addEventListener("click", async () => {
     const text = exportSaveAsString(hero);

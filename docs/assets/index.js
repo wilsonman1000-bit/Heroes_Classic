@@ -3784,6 +3784,15 @@ var init_game = __esm({
   }
 });
 
+// dist/config.web.js
+var ENABLE_SIMPLE_COMBAT;
+var init_config_web = __esm({
+  "dist/config.web.js"() {
+    "use strict";
+    ENABLE_SIMPLE_COMBAT = false;
+  }
+});
+
 // dist/enemies.js
 function scaled(base, perLevel, level) {
   const lvl = Math.max(1, Math.floor(level || 1));
@@ -4033,12 +4042,50 @@ var init_enemies = __esm({
   }
 });
 
-// dist/config.web.js
-var ENABLE_SIMPLE_COMBAT;
-var init_config_web = __esm({
-  "dist/config.web.js"() {
+// dist/combatMenu.web.js
+function showCombatMenu(options) {
+  const audio = window.game?.audioManager;
+  audio?.pauseAll();
+  audio?.resume("background");
+  const fuirBtn = document.getElementById("fuirBtn");
+  fuirBtn?.remove();
+  const app2 = document.getElementById("app");
+  if (!app2)
+    return;
+  app2.innerHTML = `
+        <img src="ImagesRPG/imagesfond/pngtree-forest-background-cartoon-illustration-image_2119957.jpg" class="background" alt="Menu combattre">
+        <div class="centered-content">
+            <h1>Menu combattre</h1>
+            <div style="display:flex;flex-direction:column;gap:14px;align-items:center;margin-top:18px;">
+                ${Object.entries(ENEMY_DEFS).map(([id, def]) => `
+                    <button class="btn enemy-btn" data-enemy-id="${id}" title="${def.description ?? ""}" aria-label="${def.name} - ${def.description ?? ""}" style="min-width:220px;display:flex;align-items:center;gap:12px;justify-content:center;">
+                        <img src="${def.image}" alt="${def.name}" title="${def.description ?? ""}" style="height:38px;width:38px;border-radius:8px;object-fit:cover;box-shadow:0 2px 8px #000a;">
+                        <span>${def.name}</span>
+                    </button>
+                `).join("")}
+                ${options.onBack ? `<button class="btn" id="backBtn" style="min-width:220px;">Retour</button>` : ""}
+            </div>
+        </div>
+    `;
+  document.querySelectorAll(".enemy-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-enemy-id");
+      if (!ENABLE_SIMPLE_COMBAT) {
+        alert("Le mode de combat simple est d\xE9sactiv\xE9. Utilisez le Combat plateau.");
+        return;
+      }
+      void Promise.resolve().then(() => (init_combat_web(), combat_web_exports)).then((m2) => m2.showCombat(void 0, { enemyFactory: (lvl) => createEnemy(id, lvl) }));
+    });
+  });
+  if (options.onBack) {
+    document.getElementById("backBtn")?.addEventListener("click", options.onBack);
+  }
+}
+var init_combatMenu_web = __esm({
+  "dist/combatMenu.web.js"() {
     "use strict";
-    ENABLE_SIMPLE_COMBAT = false;
+    init_enemies();
+    init_config_web();
   }
 });
 
@@ -4398,22 +4445,6 @@ var init_battleTurn_web = __esm({
   }
 });
 
-// dist/history.web.js
-function pushHistory(history, turn, text) {
-  history.push({ turn, text });
-}
-function pushHistoryMany(history, turn, texts) {
-  texts.forEach((t2) => history.push({ turn, text: t2 }));
-}
-function renderHistoryHtml(history, maxItems) {
-  return history.slice(-maxItems).map((h2) => `<div><b>[${h2.turn}]</b> ${h2.text}</div>`).join("");
-}
-var init_history_web = __esm({
-  "dist/history.web.js"() {
-    "use strict";
-  }
-});
-
 // dist/skillUi.web.js
 function encodeSkillTooltip(skill) {
   const skillId = String(skill.skillId ?? "");
@@ -4573,627 +4604,6 @@ var init_skillUi_web = __esm({
     init_skill();
     init_utils_web();
     init_skillLibrary();
-  }
-});
-
-// dist/combat.web.js
-var combat_web_exports = {};
-__export(combat_web_exports, {
-  showCombat: () => showCombat
-});
-function getEffectiveSkillForCaster2(skill, caster) {
-  if (!(skill instanceof DefenseSkill))
-    return skill;
-  if (skill.name !== "Blocage")
-    return skill;
-  if (caster.hasPassive?.("blocage_voleur")) {
-    return new DefenseSkill(skill.key, skill.description, skill.name, 0.33, skill.duration, 10, 1);
-  }
-  if (caster.hasPassive?.("blocage_mage")) {
-    return new DefenseSkill(skill.key, skill.description, skill.name, skill.defenseAmount, skill.duration, -10, skill.actionPoints);
-  }
-  return skill;
-}
-function showCombat(enemyLevel = hero.level, options = {}) {
-  if (!ENABLE_SIMPLE_COMBAT) {
-    console.warn("showCombat: simple combat mode disabled by configuration (ENABLE_SIMPLE_COMBAT=false).");
-    const app3 = document.getElementById("app");
-    if (app3) {
-      app3.innerHTML = `
-                <div class="centered-content">
-                    <h2>Le mode de combat simple est d\xE9sactiv\xE9.</h2>
-                    <div style="margin-top:8px;">Utilisez le <b>Combat plateau</b> (mode par d\xE9faut).</div>
-                    <div style="margin-top:14px;"><button class="btn" id="combatDisabledBackBtn">Retour</button></div>
-                </div>
-            `;
-      const b2 = document.getElementById("combatDisabledBackBtn");
-      if (b2)
-        b2.addEventListener("click", () => {
-          (options.onBack ?? (() => showAccueil()))();
-        });
-    }
-    return;
-  }
-  const comboIndex = options.comboIndex ?? 1;
-  const comboBonusPct = Math.min(Math.max(comboIndex - 1, 0) * 25, 100);
-  const comboMultiplier = 1 + comboBonusPct / 100;
-  const defaultEnemyFactory = (level) => {
-    const enemyPv = 80 + (level - 1) * 20;
-    const enemyAttack = 8 + level * 2;
-    const enemyMana = 20 + level * 1;
-    const enemyXp = 15 + level * 5;
-    const enemyGold = 15 + level * 5;
-    console.log(`Cr\xE9ation gobelin niveau ${level} PV: ${enemyPv}`);
-    return new Player(`Guerrier gobelin niveau ${level}`, enemyPv, enemyPv, enemyAttack, [createSkill("basic_attack")], enemyMana, false, 0, 0, enemyXp, enemyGold);
-  };
-  const backgroundUrl = options.backgroundUrl ?? "https://img.freepik.com/photos-premium/arts-martiaux-pop-up-ui-dojo-jeu-theme-mobile-combat-deco-design-art-cadre-graphique-decor-carte_655090-771134.jpg";
-  const title = options.title ?? `Combat contre`;
-  const showAgainButton = options.showAgainButton ?? true;
-  let player = hero.clone();
-  if (options.startAtFull) {
-    player.maxPv = player.effectiveMaxPv;
-    player.pv = player.maxPv;
-    player.maxMana = player.effectiveMaxMana;
-    player.currentMana = player.maxMana;
-  } else {
-    player.maxPv = Math.max(1, Math.floor(player.effectiveMaxPv));
-    player.pv = Math.min(Math.max(0, Math.floor(player.pv ?? 0)), player.maxPv);
-    player.maxMana = Math.max(0, Math.floor(player.effectiveMaxMana));
-    player.currentMana = Math.min(Math.max(0, Math.floor(player.currentMana ?? 0)), player.maxMana);
-  }
-  {
-    const cls = String(player.characterClass ?? "").toLowerCase();
-    const baseApMax = cls === "voleur" ? 4 : 3;
-    player.actionPointsMax = Math.max(1, Math.floor(baseApMax));
-    player.actionPoints = player.actionPointsMax;
-  }
-  let enemy = options.enemy ?? (options.enemyFactory ?? defaultEnemyFactory)(enemyLevel);
-  let turn = 1;
-  let message = "";
-  let selectedEndInvIdx = null;
-  let history = [];
-  let isPlayerTurn = true;
-  let isResolvingPlayerAction = false;
-  const app2 = document.getElementById("app");
-  function startEnemyTurnAfterDelay() {
-    setTimeout(() => {
-      if (enemy.pv <= 0 || player.pv <= 0)
-        return;
-      turn++;
-      enemy.tickSkillCooldowns?.();
-      const enemyStartMsgs = enemy.updateEffects();
-      if (enemyStartMsgs.length)
-        pushHistoryMany(history, turn, enemyStartMsgs);
-      if (enemy.pv <= 0) {
-        const { xp, gold, bonusPct } = computeVictoryRewards();
-        const bonusTxt = bonusPct > 0 ? ` (Bonus combo +${bonusPct}%)` : "";
-        message += `<br>Victoire ! Vous gagnez ${xp} XP et ${gold} argent.${bonusTxt}`;
-        applyVictoryRewards();
-        render();
-        return;
-      }
-      {
-        const beforeMana = enemy.currentMana;
-        const activeManaRegen = (enemy.activeEffects || []).filter((e2) => e2.type === "mana_regen" && e2.remainingTurns !== 0).reduce((s2, e2) => s2 + (e2.amount || 0), 0);
-        const regen = (enemy.manaRegenPerTurn || 0) + (enemy.getPassiveManaRegenPerTurnBonus?.() ?? 0) + activeManaRegen;
-        enemy.currentMana = Math.min(enemy.currentMana + regen, enemy.maxMana);
-        if (enemy.currentMana > beforeMana) {
-          pushHistory(history, turn, `${enemy.name} r\xE9g\xE9n\xE8re ${enemy.currentMana - beforeMana} mana (Mana ${beforeMana} \u2192 ${enemy.currentMana})`);
-        }
-      }
-      const res = applyAutoTurn({ caster: enemy, target: player, turn });
-      message = res.message;
-      pushHistory(history, turn, message);
-      if (res.ok)
-        pushHistoryMany(history, turn, res.extraHistory);
-      const enemyEndMsgs = enemy.endTurnEffects?.() || [];
-      if (enemyEndMsgs.length)
-        pushHistoryMany(history, turn, enemyEndMsgs);
-      if (res.ok && res.damageFlashOnTarget) {
-        render();
-        setTimeout(() => {
-          const playerHp = document.querySelector(".hp-bar.player");
-          const playerShield = document.querySelector(".stat-badge.defense");
-          if (res.damageFlashOnTarget && res.damageFlashOnTarget.actualDamage > 0 && playerHp) {
-            playerHp.classList.add("flash-damage");
-            setTimeout(() => playerHp.classList.remove("flash-damage"), 600);
-          }
-          if (res.damageFlashOnTarget && res.damageFlashOnTarget.reduced && playerShield) {
-            playerShield.classList.add("flash-reduced");
-            setTimeout(() => playerShield.classList.remove("flash-reduced"), 360);
-          }
-        }, 20);
-      }
-      if (player.pv <= 0) {
-        message += `<br>D\xE9faite ! Retour au village.`;
-        pushHistory(history, turn, "D\xE9faite ! Retour au village.");
-        hero.pv = player.pv;
-        hero.currentMana = player.currentMana;
-        syncHeroToCombatClone();
-        render();
-        return;
-      }
-      player.tickSkillCooldowns?.();
-      const playerStartMsgs = player.updateEffects();
-      if (playerStartMsgs.length)
-        pushHistoryMany(history, turn, playerStartMsgs);
-      if (player.pv <= 0) {
-        message += `<br>D\xE9faite ! Retour au village.`;
-        pushHistory(history, turn, "D\xE9faite ! Retour au village.");
-        hero.pv = player.pv;
-        hero.currentMana = player.currentMana;
-        syncHeroToCombatClone();
-        render();
-        return;
-      }
-      {
-        const beforeMana = player.currentMana;
-        const activeManaRegen = (player.activeEffects || []).filter((e2) => e2.type === "mana_regen" && e2.remainingTurns !== 0).reduce((s2, e2) => s2 + (e2.amount || 0), 0);
-        const regen = (player.manaRegenPerTurn || 0) + (player.getPassiveManaRegenPerTurnBonus?.() ?? 0) + activeManaRegen;
-        player.currentMana = Math.min(player.currentMana + regen, player.maxMana);
-        if (player.currentMana > beforeMana) {
-          pushHistory(history, turn, `${player.name} r\xE9g\xE9n\xE8re ${player.currentMana - beforeMana} mana (Mana ${beforeMana} \u2192 ${player.currentMana})`);
-        }
-      }
-      player.actionPoints = player.actionPointsMax;
-      isPlayerTurn = true;
-      render();
-    }, 900);
-  }
-  function computeVictoryRewards() {
-    const baseXp = enemy.xpReward;
-    const baseGold = enemy.goldReward;
-    const baseWood = Number(enemy.woodReward ?? 0);
-    const baseHerb = Number(enemy.herbReward ?? 0);
-    const xp = Math.round(baseXp * comboMultiplier);
-    const gold = Math.round(baseGold * comboMultiplier);
-    const wood = Math.round(baseWood * comboMultiplier);
-    const herb = Math.round(baseHerb * comboMultiplier);
-    return { xp, gold, wood, herb, bonusPct: comboBonusPct };
-  }
-  function renderEndCombatInventoryEquipment() {
-    const slotLabel = { weapon: "Arme", armor: "Armure", ring: "Anneau" };
-    const slots = ["weapon", "armor", "ring"];
-    const equipmentLines = slots.map((slot) => {
-      const eq = hero.equipment[slot];
-      return `
-                    <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;">
-                        <span>${slotLabel[slot]} :</span>
-                        <span style="display:flex;gap:10px;align-items:center;">
-                            <b>${eq ? eq.name : "\u2014"}</b>
-                            ${eq ? `<button class="btn" data-unequip-slot="${slot}" style="min-width:80px;">Retirer</button>` : ""}
-                        </span>
-                    </div>
-                `;
-    }).join("");
-    const currencyItem = createCurrencyInventoryItem(hero);
-    const currencyLine = `
-            <li style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-radius:10px;background:rgba(255,255,255,0.05);padding:6px 8px;">
-                <div style="flex:1;display:flex;align-items:center;gap:8px;">
-                    ${renderItemIconHtml(currencyItem, { size: 51 })}
-                    <div>
-                        <div style="font-weight:600;color:#fff;">Argent</div>
-                        <div style="font-size:0.9em;color:#ddd;">x${Math.max(0, Math.floor(Number(hero.gold ?? 0)))}</div>
-                    </div>
-                </div>
-                <div style="white-space:nowrap;"></div>
-            </li>
-        `;
-    const invLines = hero.inventory.length === 0 ? `<ul id="combatEndInventoryBlock" style="list-style:none;padding:0;margin:0;">${currencyLine}</ul>` : `
-                <ul id="combatEndInventoryBlock" style="list-style:none;padding:0;margin:0;">
-                    ${currencyLine}
-                    ${hero.inventory.map((it, idx) => {
-      const isSelected = selectedEndInvIdx === idx;
-      return `
-                        <li data-combat-inv-row="${idx}" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer;user-select:none;${isSelected ? "outline:1px solid rgba(255,235,59,0.35);border-radius:10px;background:rgba(255,255,255,0.05);padding:6px 8px;" : ""}">
-                            <div style="flex:1;">
-                                <div style="font-weight:600;color:#fff;">${it.name}</div>
-                                <div style="font-size:0.9em;color:#ddd;">${it.description}</div>
-                            </div>
-                            <div style="white-space:nowrap;">
-                                ${isSelected && (it.constructor && it.constructor.name === "Consumable") ? `<button class="btn" data-inv-idx="${idx}" style="min-width:80px;">Utiliser</button>` : ""}
-                                ${isSelected && (it.constructor && it.constructor.name === "Equipment") ? `<button class="btn" data-equip-idx="${idx}" style="min-width:80px;">\xC9quiper</button>` : ""}
-                            </div>
-                        </li>
-                    `;
-    }).join("")}
-                </ul>
-            `;
-    return `
-            <div style="margin-top:14px; display:flex; gap:14px; flex-wrap:wrap; justify-content:center;">
-                <div style="min-width:320px; max-width:520px; flex:1; padding:10px 12px; background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.08); border-radius:10px; text-align:left;">
-                    <div style="font-weight:700; margin-bottom:6px;">\xC9quipement</div>
-                    <div style="display:flex; flex-direction:column; gap:8px;">${equipmentLines}</div>
-                </div>
-                <div style="min-width:320px; max-width:520px; flex:1; padding:10px 12px; background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.08); border-radius:10px; text-align:left;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-                        <div style="font-weight:700;">Inventaire</div>
-                    </div>
-                    <div style="margin-top:8px; color:#ddd; font-size:0.95em;">${invLines}</div>
-                </div>
-            </div>
-        `;
-  }
-  function syncHeroToCombatClone() {
-    player.inventory = [...hero.inventory || []];
-    player.equipment = Object.assign({}, hero.equipment);
-    player.maxPv = hero.effectiveMaxPv;
-    player.maxMana = hero.effectiveMaxMana;
-    player.pv = Math.min(hero.pv, player.maxPv);
-    player.currentMana = Math.min(hero.currentMana, player.maxMana);
-  }
-  function applyVictoryRewards() {
-    const { xp, gold, wood, herb, bonusPct } = computeVictoryRewards();
-    const bonusTxt = bonusPct > 0 ? ` (Bonus combo +${bonusPct}%)` : "";
-    const woodTxt = wood > 0 ? ` et ${wood} bois` : "";
-    const herbTxt = herb > 0 ? ` et ${herb} herbes` : "";
-    pushHistory(history, turn, `Victoire ! Vous gagnez ${xp} XP et ${gold} argent${woodTxt}${herbTxt}.${bonusTxt}`);
-    hero.gainXP ? hero.gainXP(xp) : hero.currentXP += xp;
-    hero.gold += gold;
-    hero.wood = (hero.wood ?? 0) + wood;
-    hero.herb = hero.herb ?? 0;
-    hero.herb = hero.herb + herb;
-    hero.pv = player.pv;
-    hero.currentMana = player.currentMana;
-    syncHeroToCombatClone();
-  }
-  function render() {
-    if (!app2)
-      return;
-    const combatEnded = enemy.pv <= 0 || player.pv <= 0;
-    const playerHpPct = Math.max(0, Math.round(player.pv / player.maxPv * 100));
-    const enemyHpPct = Math.max(0, Math.round(enemy.pv / enemy.maxPv * 100));
-    const playerManaPct = Math.max(0, Math.round(player.currentMana / player.maxMana * 100));
-    const enemyManaPct = Math.max(0, Math.round(enemy.currentMana / enemy.maxMana * 100));
-    const playerBuffPct = Math.round(player.activeEffects.filter((e2) => e2.type === "buff").reduce((s2, e2) => s2 + (e2.amount || 0), 0) * 100);
-    const playerDebuffPct = Math.round(player.activeEffects.filter((e2) => e2.type === "debuff").reduce((s2, e2) => s2 + (e2.amount || 0), 0) * 100);
-    const playerDefenseArr = player.activeEffects.filter((e2) => e2.type === "defense");
-    const playerDefensePct = Math.round(playerDefenseArr.reduce((s2, e2) => s2 + (e2.amount || 0), 0) * 100);
-    const playerDefenseTurn = playerDefenseArr.some((e2) => e2.remainingTurns === -1) ? -1 : playerDefenseArr.filter((e2) => e2.remainingTurns > 0).map((e2) => e2.remainingTurns)[0] || 0;
-    const enemyBuffPct = Math.round(enemy.activeEffects.filter((e2) => e2.type === "buff").reduce((s2, e2) => s2 + (e2.amount || 0), 0) * 100);
-    const enemyDebuffPct = Math.round(enemy.activeEffects.filter((e2) => e2.type === "debuff").reduce((s2, e2) => s2 + (e2.amount || 0), 0) * 100);
-    const enemyDefenseArr = enemy.activeEffects.filter((e2) => e2.type === "defense");
-    const enemyDefensePct = Math.round(enemyDefenseArr.reduce((s2, e2) => s2 + (e2.amount || 0), 0) * 100);
-    const enemyDefenseTurn = enemyDefenseArr.some((e2) => e2.remainingTurns === -1) ? -1 : enemyDefenseArr.filter((e2) => e2.remainingTurns > 0).map((e2) => e2.remainingTurns)[0] || 0;
-    const playerCls = String(player.characterClass ?? "").toLowerCase();
-    const playerSpriteSrc = playerCls === "mage" ? "ImagesRPG/imagespersonnage/mage.png" : playerCls === "voleur" ? "ImagesRPG/imagespersonnage/voleur.png" : "ImagesRPG/imagespersonnage/trueplayer.png";
-    let playerImgStyle = "max-width:260px;width:38vw;max-height:240px;height:auto;object-fit:contain;";
-    if (playerCls === "mage")
-      playerImgStyle += " transform:scale(0.9);";
-    if (playerCls === "voleur")
-      playerImgStyle += " transform:scale(0.8);";
-    app2.innerHTML = `
-            <img src="${backgroundUrl}" class="background" alt="Combat">
-            <div class="centered-content">
-                <h1>${title} ${enemy.name}</h1>
-                <div class="hp-row">
-                    <div class="hp-column">
-                        <div style="display:flex;align-items:center;gap:8px;">
-                            <div class="hp-label"><b>${player.name}</b> - PV : ${player.pv} / ${player.maxPv}</div>
-                            <div class="stat-badges-inline">
-                                ${playerBuffPct > 0 ? `<span class="stat-badge up"><span class="icon">\u{1F5E1}\uFE0F</span>\u25B2 ${playerBuffPct}%</span>` : ""}
-                                ${playerDebuffPct > 0 ? `<span class="stat-badge down"><span class="icon">\u{1F5E1}\uFE0F</span>\u25BC ${playerDebuffPct}%</span>` : ""}
-                                ${playerDefensePct > 0 ? `<span class="stat-badge defense"><span class="icon">\u{1F6E1}\uFE0F</span>Bloc ${playerDefensePct}%${playerDefenseTurn > 0 ? ` (${playerDefenseTurn}t)` : playerDefenseTurn === -1 ? " (combat)" : ""}</span>` : ""}
-                            </div>
-                        </div>
-                        <div class="hp-bar-container"><div class="hp-bar player" style="width:${playerHpPct}%;"></div><div class="bar-label">${player.pv}/${player.maxPv}</div></div>
-                        <div class="mana-bar-container"><div class="mana-bar" style="width:${playerManaPct}%;"></div><div class="bar-label">${player.currentMana}/${player.maxMana}</div></div>
-                        <div class="pa-bar-container" style="margin-top:4px;"><span class="bar-label"><b>PA :</b> ${player.actionPoints} / ${player.actionPointsMax}</span></div>
-                    </div>
-                    <div class="hp-column" style="text-align:right">
-                        <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">
-                            <div class="stat-badges-inline">
-                                ${enemyBuffPct > 0 ? `<span class="stat-badge up"><span class="icon">\u{1F5E1}\uFE0F</span>\u25B2 ${enemyBuffPct}%</span>` : ""}
-                                ${enemyDebuffPct > 0 ? `<span class="stat-badge down"><span class="icon">\u{1F5E1}\uFE0F</span>\u25BC ${enemyDebuffPct}%</span>` : ""}
-                                ${enemyDefensePct > 0 ? `<span class="stat-badge defense"><span class="icon">\u{1F6E1}\uFE0F</span>Bloc ${enemyDefensePct}%${enemyDefenseTurn > 0 ? ` (${enemyDefenseTurn}t)` : enemyDefenseTurn === -1 ? " (combat)" : ""}</span>` : ""}
-                            </div>
-                            <div class="hp-label"><b>${enemy.name}</b> - PV : ${enemy.pv} / ${enemy.maxPv}</div>
-                        </div>
-                        <div class="hp-bar-container"><div class="hp-bar enemy" style="width:${enemyHpPct}%;"></div><div class="bar-label">${enemy.pv}/${enemy.maxPv}</div></div>
-                        <div class="mana-bar-container"><div class="mana-bar" style="width:${enemyManaPct}%;"></div><div class="bar-label">${enemy.currentMana}/${enemy.maxMana}</div></div>
-                    </div>
-                </div>
-                <div id="combat-sprites" style="display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin:18px auto 6px auto;max-width:760px;width:100%;">
-                    <img src="${playerSpriteSrc}" alt="${player.name}" style="${playerImgStyle}" />
-                    <img src="ImagesRPG/imagespersonnage/trueennemi.png" alt="${enemy.name}" style="max-width:260px;width:38vw;max-height:240px;height:auto;object-fit:contain;" />
-                </div>
-                <div id="player-effects" class="effect-badges">
-                    ${player.activeEffects.map((e2) => `<span class="effect-badge ${e2.type === "buff" ? "buff" : e2.type === "debuff" ? "debuff" : e2.type === "defense" ? "defense" : e2.type === "mana_regen" ? "buff" : ""}">${e2.type === "buff" ? "Buff" : e2.type === "debuff" ? "Debuff" : e2.type === "defense" ? "\u{1F6E1} Blocage" : e2.type === "mana_regen" ? "Mana regen" : e2.type.toUpperCase()} ${e2.type === "mana_regen" ? "+" + e2.amount + " mana/t" : e2.amount ? Math.round(e2.amount * 100) + "%" : ""}${e2.remainingTurns > 0 ? " (" + e2.remainingTurns + "t)" : e2.remainingTurns === -1 ? " (combat)" : ""}</span>`).join("")}
-                </div>
-                <div id="enemy-effects" class="effect-badges">
-                    ${enemy.activeEffects.map((e2) => `<span class="effect-badge ${e2.type === "buff" ? "buff" : e2.type === "debuff" ? "debuff" : e2.type === "defense" ? "defense" : e2.type === "mana_regen" ? "buff" : ""}">${e2.type === "buff" ? "Buff" : e2.type === "debuff" ? "Debuff" : e2.type === "defense" ? "\u{1F6E1} Blocage" : e2.type === "mana_regen" ? "Mana regen" : e2.type.toUpperCase()} ${e2.type === "mana_regen" ? "+" + e2.amount + " mana/t" : e2.amount ? Math.round(e2.amount * 100) + "%" : ""}${e2.remainingTurns > 0 ? " (" + e2.remainingTurns + "t)" : e2.remainingTurns === -1 ? " (combat)" : ""}</span>`).join("")}
-                </div>
-                <div id="combat-message">${message}</div>
-                <div id="recent-infos" style="margin:10px 0 15px 0; color:#e0e0e0; font-size:1.05em;">
-                    ${renderHistoryHtml(history, 3)}
-                </div>
-                ${combatEnded ? `
-                    <div id="end-actions" style="margin-top:10px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
-                        ${enemy.pv <= 0 && showAgainButton ? `<button class='btn' id='againBtn'>Combattre \xE0 nouveau</button>` : ""}
-                        <button class='btn' id='villageBtn'>Retour village</button>
-                    </div>
-                ` : ""}
-                ${combatEnded ? renderEndCombatInventoryEquipment() : ""}
-            </div>
-            <div class="combat-history">
-                <div class="combat-history-title">Historique du combat</div>
-                ${renderHistoryHtml(history, 10)}
-            </div>
-            <div id="skills-bar" style="position:fixed;bottom:0;left:0;width:100vw;display:flex;justify-content:center;align-items:center;padding:24px 0 18px 0;z-index:10;background:rgba(0,0,0,0.4);gap:16px;"></div>
-        `;
-    const oldFuirBtn = document.getElementById("fuirBtn");
-    if (oldFuirBtn && document.body.contains(oldFuirBtn))
-      document.body.removeChild(oldFuirBtn);
-    if (document.querySelector(".combat-history")) {
-      const fuirBtn = document.createElement("button");
-      fuirBtn.className = "btn";
-      fuirBtn.id = "fuirBtn";
-      fuirBtn.textContent = "Fuir";
-      document.body.appendChild(fuirBtn);
-      fuirBtn.onclick = showVillage;
-    }
-    {
-      const skillsDiv = document.getElementById("skills-bar");
-      if (skillsDiv) {
-        const baseSkills = player.skills ?? [];
-        renderSkillButtons(skillsDiv, baseSkills, playTurn, {
-          buttonClass: "btn skill-btn",
-          buttonStyle: "margin:0 12px 0 0;display:inline-block;",
-          playerPA: player.actionPoints,
-          getCooldownRemaining: (skill) => player.getSkillCooldownRemaining?.(skill) ?? 0
-        });
-        skillsDiv.insertAdjacentHTML("beforeend", `<button class='btn' id='passTurnBtn' style='margin:0 12px 0 0;display:inline-block;'>Passer le tour</button>`);
-        const passBtn = document.getElementById("passTurnBtn");
-        if (passBtn) {
-          passBtn.disabled = !isPlayerTurn || combatEnded;
-          passBtn.onclick = () => {
-            if (!isPlayerTurn || combatEnded)
-              return;
-            const playerEndMsgs = player.endTurnEffects?.() || [];
-            if (playerEndMsgs.length)
-              pushHistoryMany(history, turn, playerEndMsgs);
-            isPlayerTurn = false;
-            startEnemyTurnAfterDelay();
-            render();
-          };
-        }
-      }
-    }
-    document.getElementById("fuirBtn")?.addEventListener("click", showVillage);
-    if (combatEnded) {
-      document.getElementById("villageBtn")?.addEventListener("click", showVillage);
-      document.getElementById("againBtn")?.addEventListener("click", () => {
-        if (options.onAgain)
-          return options.onAgain();
-        const nextComboIndex = Math.min((options.comboIndex ?? 1) + 1, 5);
-        return showCombat(enemyLevel + 1, { ...options, comboIndex: nextComboIndex });
-      });
-      const invButtons = document.querySelectorAll("[data-inv-idx]");
-      invButtons.forEach((btn) => {
-        btn.addEventListener("click", () => {
-          selectedEndInvIdx = null;
-          const idx = Number(btn.getAttribute("data-inv-idx"));
-          const msg = hero.useItem(idx);
-          message = msg;
-          pushHistory(history, turn, msg);
-          syncHeroToCombatClone();
-          render();
-        });
-      });
-      const equipButtons = document.querySelectorAll("[data-equip-idx]");
-      equipButtons.forEach((btn) => {
-        btn.addEventListener("click", () => {
-          selectedEndInvIdx = null;
-          const idx = Number(btn.getAttribute("data-equip-idx"));
-          const msg = hero.equipItem(idx);
-          message = msg;
-          pushHistory(history, turn, msg);
-          syncHeroToCombatClone();
-          render();
-        });
-      });
-      const invRows = document.querySelectorAll("[data-combat-inv-row]");
-      invRows.forEach((row) => {
-        row.addEventListener("click", (ev) => {
-          const t2 = ev.target;
-          if (t2?.closest("button"))
-            return;
-          const idx = Number(row.getAttribute("data-combat-inv-row"));
-          selectedEndInvIdx = Number.isFinite(idx) ? idx : null;
-          render();
-        });
-        row.addEventListener("contextmenu", (ev) => {
-          ev.preventDefault();
-          selectedEndInvIdx = null;
-          render();
-        });
-      });
-      document.getElementById("combatEndInventoryBlock")?.addEventListener("click", (ev) => {
-        const t2 = ev.target;
-        if (!t2)
-          return;
-        if (t2.closest("[data-combat-inv-row]") || t2.closest("button"))
-          return;
-        selectedEndInvIdx = null;
-        render();
-      });
-      const unequipButtons = document.querySelectorAll("[data-unequip-slot]");
-      unequipButtons.forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const slot = btn.getAttribute("data-unequip-slot");
-          const msg = hero.unequipSlot(slot);
-          message = msg;
-          pushHistory(history, turn, msg);
-          syncHeroToCombatClone();
-          render();
-        });
-      });
-    }
-  }
-  function playTurn(skill) {
-    const effectiveSkill = getEffectiveSkillForCaster2(skill, player);
-    if (!isPlayerTurn)
-      return;
-    if (player.pv <= 0 || enemy.pv <= 0)
-      return;
-    if (isResolvingPlayerAction)
-      return;
-    if (player.actionPoints < effectiveSkill.actionPoints) {
-      message = `Pas assez de points d'action pour utiliser ${effectiveSkill.name} (co\xFBt : ${effectiveSkill.actionPoints})`;
-      pushHistory(history, turn, message);
-      render();
-      return;
-    }
-    const cd = player.getSkillCooldownRemaining?.(skill) ?? 0;
-    if (cd > 0) {
-      message = `${effectiveSkill.name} est en cooldown (${cd} tour(s) restant(s)).`;
-      pushHistory(history, turn, message);
-      render();
-      return;
-    }
-    isResolvingPlayerAction = true;
-    const res = applyPlayerSkillTurn({ caster: player, target: enemy, skill, turn });
-    if (!res.ok) {
-      message = res.message;
-      pushHistory(history, turn, message);
-      isResolvingPlayerAction = false;
-      render();
-      return;
-    }
-    player.actionPoints -= effectiveSkill.actionPoints;
-    if (effectiveSkill.name === "Attaque de base" || effectiveSkill.name === "Hache lourde" || effectiveSkill.name === "Buff attaque") {
-      window.game?.audioManager.play("attaque");
-    }
-    if (effectiveSkill.name === "Boule de feu") {
-      window.game?.audioManager.play("bouledefeu");
-    }
-    message = res.message;
-    pushHistory(history, turn, message);
-    pushHistoryMany(history, turn, res.extraHistory);
-    if (res.healFlashOnCaster) {
-      render();
-      setTimeout(() => {
-        const playerHp = document.querySelector(".hp-bar.player");
-        if (playerHp) {
-          playerHp.classList.add("flash-heal");
-          setTimeout(() => playerHp.classList.remove("flash-heal"), 360);
-        }
-      }, 20);
-    }
-    if (res.damageFlashOnTarget && res.damageFlashOnTarget.actualDamage > 0) {
-      render();
-      setTimeout(() => {
-        const enemyHp = document.querySelector(".hp-bar.enemy");
-        const enemyShield = document.querySelector(".stat-badge.defense");
-        if (enemyHp) {
-          enemyHp.classList.add("flash-damage");
-          setTimeout(() => enemyHp.classList.remove("flash-damage"), 600);
-        }
-        if (res.damageFlashOnTarget?.reduced && enemyShield) {
-          enemyShield.classList.add("flash-reduced");
-          setTimeout(() => enemyShield.classList.remove("flash-reduced"), 360);
-        }
-      }, 20);
-    }
-    if (enemy.pv <= 0) {
-      const { xp, gold, bonusPct } = computeVictoryRewards();
-      const bonusTxt = bonusPct > 0 ? ` (Bonus combo +${bonusPct}%)` : "";
-      message += `<br>Victoire ! Vous gagnez ${xp} XP et ${gold} argent.${bonusTxt}`;
-      applyVictoryRewards();
-      isResolvingPlayerAction = false;
-      render();
-      return;
-    }
-    isResolvingPlayerAction = false;
-    render();
-  }
-  player.tickSkillCooldowns?.();
-  player.actionPoints = player.actionPointsMax;
-  const startMsgs = player.updateEffects();
-  if (startMsgs.length)
-    pushHistoryMany(history, turn, startMsgs);
-  if (player.pv <= 0) {
-    message = "D\xE9faite ! Retour au village.";
-    pushHistory(history, turn, "D\xE9faite ! Retour au village.");
-    hero.pv = player.pv;
-    hero.currentMana = player.currentMana;
-    syncHeroToCombatClone();
-    render();
-    return;
-  }
-  {
-    const beforeMana = player.currentMana;
-    const activeManaRegen = (player.activeEffects || []).filter((e2) => e2.type === "mana_regen" && e2.remainingTurns !== 0).reduce((s2, e2) => s2 + (e2.amount || 0), 0);
-    const regen = (player.manaRegenPerTurn || 0) + (player.getPassiveManaRegenPerTurnBonus?.() ?? 0) + activeManaRegen;
-    player.currentMana = Math.min(player.currentMana + regen, player.maxMana);
-    if (player.currentMana > beforeMana) {
-      pushHistory(history, turn, `${player.name} r\xE9g\xE9n\xE8re ${player.currentMana - beforeMana} mana (Mana ${beforeMana} \u2192 ${player.currentMana})`);
-    }
-  }
-  render();
-}
-var init_combat_web = __esm({
-  "dist/combat.web.js"() {
-    "use strict";
-    init_player();
-    init_skill();
-    init_skillLibrary();
-    init_index_web();
-    init_accueil_web();
-    init_config_web();
-    init_village_web();
-    init_battleTurn_web();
-    init_history_web();
-    init_skillUi_web();
-    init_ui();
-    init_itemIcons_web();
-  }
-});
-
-// dist/combatMenu.web.js
-function showCombatMenu(options) {
-  const audio = window.game?.audioManager;
-  audio?.pauseAll();
-  audio?.resume("background");
-  const fuirBtn = document.getElementById("fuirBtn");
-  fuirBtn?.remove();
-  const app2 = document.getElementById("app");
-  if (!app2)
-    return;
-  app2.innerHTML = `
-        <img src="ImagesRPG/imagesfond/pngtree-forest-background-cartoon-illustration-image_2119957.jpg" class="background" alt="Menu combattre">
-        <div class="centered-content">
-            <h1>Menu combattre</h1>
-            <div style="display:flex;flex-direction:column;gap:14px;align-items:center;margin-top:18px;">
-                ${Object.entries(ENEMY_DEFS).map(([id, def]) => `
-                    <button class="btn enemy-btn" data-enemy-id="${id}" title="${def.description ?? ""}" aria-label="${def.name} - ${def.description ?? ""}" style="min-width:220px;display:flex;align-items:center;gap:12px;justify-content:center;">
-                        <img src="${def.image}" alt="${def.name}" title="${def.description ?? ""}" style="height:38px;width:38px;border-radius:8px;object-fit:cover;box-shadow:0 2px 8px #000a;">
-                        <span>${def.name}</span>
-                    </button>
-                `).join("")}
-                ${options.onBack ? `<button class="btn" id="backBtn" style="min-width:220px;">Retour</button>` : ""}
-            </div>
-        </div>
-    `;
-  document.querySelectorAll(".enemy-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = btn.getAttribute("data-enemy-id");
-      if (!ENABLE_SIMPLE_COMBAT) {
-        alert("Le mode de combat simple est d\xE9sactiv\xE9. Utilisez le Combat plateau.");
-        return;
-      }
-      void Promise.resolve().then(() => (init_combat_web(), combat_web_exports)).then((m2) => m2.showCombat(void 0, { enemyFactory: (lvl) => createEnemy(id, lvl) }));
-    });
-  });
-  if (options.onBack) {
-    document.getElementById("backBtn")?.addEventListener("click", options.onBack);
-  }
-}
-var init_combatMenu_web = __esm({
-  "dist/combatMenu.web.js"() {
-    "use strict";
-    init_enemies();
-    init_config_web();
   }
 });
 
@@ -84771,14 +84181,51 @@ var init_maps = __esm({
 });
 
 // dist/world/worldMap.web.js
+function getWorldMapStatesStore(hero2) {
+  if (!hero2)
+    return {};
+  if (!hero2.__worldMapStates || typeof hero2.__worldMapStates !== "object") {
+    hero2.__worldMapStates = {};
+  }
+  return hero2.__worldMapStates;
+}
+function getHeroForWorldMaps() {
+  return window.game?.hero;
+}
+function readPersistedState(key2) {
+  const hero2 = getHeroForWorldMaps();
+  const raw = getWorldMapStatesStore(hero2)?.[key2];
+  if (!raw || typeof raw !== "object")
+    return null;
+  const mapId = String(raw.mapId ?? "");
+  const x2 = Math.floor(Number(raw.pos?.x));
+  const y2 = Math.floor(Number(raw.pos?.y));
+  if (!mapId || !Number.isFinite(x2) || !Number.isFinite(y2))
+    return null;
+  return { mapId, pos: { x: x2, y: y2 } };
+}
+function persistState(key2, state2) {
+  const hero2 = getHeroForWorldMaps();
+  if (!hero2)
+    return;
+  const store = getWorldMapStatesStore(hero2);
+  store[key2] = {
+    mapId: state2.mapId,
+    pos: { x: Math.floor(Number(state2.pos.x)), y: Math.floor(Number(state2.pos.y)) }
+  };
+}
 function showForestWorldMaps(options) {
   const world = new WorldManager();
   world.registerMaps(FOREST_MAPS);
-  const mapId = options.startMapId ?? "forest_1";
-  const entry = options.startEntry ?? DEFAULT_FOREST_ENTRY;
+  const persisted = readPersistedState("forest");
+  const mapId = options.startMapId ?? persisted?.mapId ?? "forest_1";
+  const entry = options.startEntry ?? persisted?.pos ?? DEFAULT_FOREST_ENTRY;
   showPlateauMapRenderer({
     world,
-    onBack: options.onBack,
+    onBack: () => {
+      persistState("forest", { mapId: world.currentMapId, pos: world.playerPos });
+      options.onBack();
+    },
     start: { mapId, entry },
     movement: { stepMs: 220 }
     // Layout intentionally omitted: we centralize world-map rendering defaults
@@ -84788,11 +84235,15 @@ function showForestWorldMaps(options) {
 function showBoaravenWorldMap(options) {
   const world = new WorldManager();
   world.registerMaps(FOREST_MAPS);
-  const mapId = options.startMapId ?? "village_y0x1";
-  const entry = options.startEntry ?? { x: 4, y: 4 };
+  const persisted = readPersistedState("boaraven");
+  const mapId = options.startMapId ?? persisted?.mapId ?? "village_y0x1";
+  const entry = options.startEntry ?? persisted?.pos ?? { x: 4, y: 4 };
   showPlateauMapRenderer({
     world,
-    onBack: options.onBack,
+    onBack: () => {
+      persistState("boaraven", { mapId: world.currentMapId, pos: world.playerPos });
+      options.onBack();
+    },
     start: { mapId, entry },
     movement: { stepMs: 220 }
   });
@@ -84839,6 +84290,22 @@ var init_foret_web = __esm({
     init_tacticalCombat_web();
     init_combatPlateauMenu_web();
     init_worldMap_web();
+  }
+});
+
+// dist/history.web.js
+function pushHistory(history, turn, text) {
+  history.push({ turn, text });
+}
+function pushHistoryMany(history, turn, texts) {
+  texts.forEach((t2) => history.push({ turn, text: t2 }));
+}
+function renderHistoryHtml(history, maxItems) {
+  return history.slice(-maxItems).map((h2) => `<div><b>[${h2.turn}]</b> ${h2.text}</div>`).join("");
+}
+var init_history_web = __esm({
+  "dist/history.web.js"() {
+    "use strict";
   }
 });
 
@@ -86005,6 +85472,580 @@ var init_village_web = __esm({
   }
 });
 
+// dist/combat.web.js
+var combat_web_exports = {};
+__export(combat_web_exports, {
+  showCombat: () => showCombat
+});
+function getEffectiveSkillForCaster2(skill, caster) {
+  if (!(skill instanceof DefenseSkill))
+    return skill;
+  if (skill.name !== "Blocage")
+    return skill;
+  if (caster.hasPassive?.("blocage_voleur")) {
+    return new DefenseSkill(skill.key, skill.description, skill.name, 0.33, skill.duration, 10, 1);
+  }
+  if (caster.hasPassive?.("blocage_mage")) {
+    return new DefenseSkill(skill.key, skill.description, skill.name, skill.defenseAmount, skill.duration, -10, skill.actionPoints);
+  }
+  return skill;
+}
+function showCombat(enemyLevel = hero.level, options = {}) {
+  if (!ENABLE_SIMPLE_COMBAT) {
+    console.warn("showCombat: simple combat mode disabled by configuration (ENABLE_SIMPLE_COMBAT=false).");
+    const app3 = document.getElementById("app");
+    if (app3) {
+      app3.innerHTML = `
+                <div class="centered-content">
+                    <h2>Le mode de combat simple est d\xE9sactiv\xE9.</h2>
+                    <div style="margin-top:8px;">Utilisez le <b>Combat plateau</b> (mode par d\xE9faut).</div>
+                    <div style="margin-top:14px;"><button class="btn" id="combatDisabledBackBtn">Retour</button></div>
+                </div>
+            `;
+      const b2 = document.getElementById("combatDisabledBackBtn");
+      if (b2)
+        b2.addEventListener("click", () => {
+          (options.onBack ?? (() => showAccueil()))();
+        });
+    }
+    return;
+  }
+  const comboIndex = options.comboIndex ?? 1;
+  const comboBonusPct = Math.min(Math.max(comboIndex - 1, 0) * 25, 100);
+  const comboMultiplier = 1 + comboBonusPct / 100;
+  const defaultEnemyFactory = (level) => {
+    const enemyPv = 80 + (level - 1) * 20;
+    const enemyAttack = 8 + level * 2;
+    const enemyMana = 20 + level * 1;
+    const enemyXp = 15 + level * 5;
+    const enemyGold = 15 + level * 5;
+    console.log(`Cr\xE9ation gobelin niveau ${level} PV: ${enemyPv}`);
+    return new Player(`Guerrier gobelin niveau ${level}`, enemyPv, enemyPv, enemyAttack, [createSkill("basic_attack")], enemyMana, false, 0, 0, enemyXp, enemyGold);
+  };
+  const backgroundUrl = options.backgroundUrl ?? "https://img.freepik.com/photos-premium/arts-martiaux-pop-up-ui-dojo-jeu-theme-mobile-combat-deco-design-art-cadre-graphique-decor-carte_655090-771134.jpg";
+  const title = options.title ?? `Combat contre`;
+  const showAgainButton = options.showAgainButton ?? true;
+  let player = hero.clone();
+  if (options.startAtFull) {
+    player.maxPv = player.effectiveMaxPv;
+    player.pv = player.maxPv;
+    player.maxMana = player.effectiveMaxMana;
+    player.currentMana = player.maxMana;
+  } else {
+    player.maxPv = Math.max(1, Math.floor(player.effectiveMaxPv));
+    player.pv = Math.min(Math.max(0, Math.floor(player.pv ?? 0)), player.maxPv);
+    player.maxMana = Math.max(0, Math.floor(player.effectiveMaxMana));
+    player.currentMana = Math.min(Math.max(0, Math.floor(player.currentMana ?? 0)), player.maxMana);
+  }
+  {
+    const cls = String(player.characterClass ?? "").toLowerCase();
+    const baseApMax = cls === "voleur" ? 4 : 3;
+    player.actionPointsMax = Math.max(1, Math.floor(baseApMax));
+    player.actionPoints = player.actionPointsMax;
+  }
+  let enemy = options.enemy ?? (options.enemyFactory ?? defaultEnemyFactory)(enemyLevel);
+  let turn = 1;
+  let message = "";
+  let selectedEndInvIdx = null;
+  let history = [];
+  let isPlayerTurn = true;
+  let isResolvingPlayerAction = false;
+  const app2 = document.getElementById("app");
+  function startEnemyTurnAfterDelay() {
+    setTimeout(() => {
+      if (enemy.pv <= 0 || player.pv <= 0)
+        return;
+      turn++;
+      enemy.tickSkillCooldowns?.();
+      const enemyStartMsgs = enemy.updateEffects();
+      if (enemyStartMsgs.length)
+        pushHistoryMany(history, turn, enemyStartMsgs);
+      if (enemy.pv <= 0) {
+        const { xp, gold, bonusPct } = computeVictoryRewards();
+        const bonusTxt = bonusPct > 0 ? ` (Bonus combo +${bonusPct}%)` : "";
+        message += `<br>Victoire ! Vous gagnez ${xp} XP et ${gold} argent.${bonusTxt}`;
+        applyVictoryRewards();
+        render();
+        return;
+      }
+      {
+        const beforeMana = enemy.currentMana;
+        const activeManaRegen = (enemy.activeEffects || []).filter((e2) => e2.type === "mana_regen" && e2.remainingTurns !== 0).reduce((s2, e2) => s2 + (e2.amount || 0), 0);
+        const regen = (enemy.manaRegenPerTurn || 0) + (enemy.getPassiveManaRegenPerTurnBonus?.() ?? 0) + activeManaRegen;
+        enemy.currentMana = Math.min(enemy.currentMana + regen, enemy.maxMana);
+        if (enemy.currentMana > beforeMana) {
+          pushHistory(history, turn, `${enemy.name} r\xE9g\xE9n\xE8re ${enemy.currentMana - beforeMana} mana (Mana ${beforeMana} \u2192 ${enemy.currentMana})`);
+        }
+      }
+      const res = applyAutoTurn({ caster: enemy, target: player, turn });
+      message = res.message;
+      pushHistory(history, turn, message);
+      if (res.ok)
+        pushHistoryMany(history, turn, res.extraHistory);
+      const enemyEndMsgs = enemy.endTurnEffects?.() || [];
+      if (enemyEndMsgs.length)
+        pushHistoryMany(history, turn, enemyEndMsgs);
+      if (res.ok && res.damageFlashOnTarget) {
+        render();
+        setTimeout(() => {
+          const playerHp = document.querySelector(".hp-bar.player");
+          const playerShield = document.querySelector(".stat-badge.defense");
+          if (res.damageFlashOnTarget && res.damageFlashOnTarget.actualDamage > 0 && playerHp) {
+            playerHp.classList.add("flash-damage");
+            setTimeout(() => playerHp.classList.remove("flash-damage"), 600);
+          }
+          if (res.damageFlashOnTarget && res.damageFlashOnTarget.reduced && playerShield) {
+            playerShield.classList.add("flash-reduced");
+            setTimeout(() => playerShield.classList.remove("flash-reduced"), 360);
+          }
+        }, 20);
+      }
+      if (player.pv <= 0) {
+        message += `<br>D\xE9faite ! Retour au village.`;
+        pushHistory(history, turn, "D\xE9faite ! Retour au village.");
+        hero.pv = player.pv;
+        hero.currentMana = player.currentMana;
+        syncHeroToCombatClone();
+        render();
+        return;
+      }
+      player.tickSkillCooldowns?.();
+      const playerStartMsgs = player.updateEffects();
+      if (playerStartMsgs.length)
+        pushHistoryMany(history, turn, playerStartMsgs);
+      if (player.pv <= 0) {
+        message += `<br>D\xE9faite ! Retour au village.`;
+        pushHistory(history, turn, "D\xE9faite ! Retour au village.");
+        hero.pv = player.pv;
+        hero.currentMana = player.currentMana;
+        syncHeroToCombatClone();
+        render();
+        return;
+      }
+      {
+        const beforeMana = player.currentMana;
+        const activeManaRegen = (player.activeEffects || []).filter((e2) => e2.type === "mana_regen" && e2.remainingTurns !== 0).reduce((s2, e2) => s2 + (e2.amount || 0), 0);
+        const regen = (player.manaRegenPerTurn || 0) + (player.getPassiveManaRegenPerTurnBonus?.() ?? 0) + activeManaRegen;
+        player.currentMana = Math.min(player.currentMana + regen, player.maxMana);
+        if (player.currentMana > beforeMana) {
+          pushHistory(history, turn, `${player.name} r\xE9g\xE9n\xE8re ${player.currentMana - beforeMana} mana (Mana ${beforeMana} \u2192 ${player.currentMana})`);
+        }
+      }
+      player.actionPoints = player.actionPointsMax;
+      isPlayerTurn = true;
+      render();
+    }, 900);
+  }
+  function computeVictoryRewards() {
+    const baseXp = enemy.xpReward;
+    const baseGold = enemy.goldReward;
+    const baseWood = Number(enemy.woodReward ?? 0);
+    const baseHerb = Number(enemy.herbReward ?? 0);
+    const xp = Math.round(baseXp * comboMultiplier);
+    const gold = Math.round(baseGold * comboMultiplier);
+    const wood = Math.round(baseWood * comboMultiplier);
+    const herb = Math.round(baseHerb * comboMultiplier);
+    return { xp, gold, wood, herb, bonusPct: comboBonusPct };
+  }
+  function renderEndCombatInventoryEquipment() {
+    const slotLabel = { weapon: "Arme", armor: "Armure", ring: "Anneau" };
+    const slots = ["weapon", "armor", "ring"];
+    const equipmentLines = slots.map((slot) => {
+      const eq = hero.equipment[slot];
+      return `
+                    <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;">
+                        <span>${slotLabel[slot]} :</span>
+                        <span style="display:flex;gap:10px;align-items:center;">
+                            <b>${eq ? eq.name : "\u2014"}</b>
+                            ${eq ? `<button class="btn" data-unequip-slot="${slot}" style="min-width:80px;">Retirer</button>` : ""}
+                        </span>
+                    </div>
+                `;
+    }).join("");
+    const currencyItem = createCurrencyInventoryItem(hero);
+    const currencyLine = `
+            <li style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-radius:10px;background:rgba(255,255,255,0.05);padding:6px 8px;">
+                <div style="flex:1;display:flex;align-items:center;gap:8px;">
+                    ${renderItemIconHtml(currencyItem, { size: 51 })}
+                    <div>
+                        <div style="font-weight:600;color:#fff;">Argent</div>
+                        <div style="font-size:0.9em;color:#ddd;">x${Math.max(0, Math.floor(Number(hero.gold ?? 0)))}</div>
+                    </div>
+                </div>
+                <div style="white-space:nowrap;"></div>
+            </li>
+        `;
+    const invLines = hero.inventory.length === 0 ? `<ul id="combatEndInventoryBlock" style="list-style:none;padding:0;margin:0;">${currencyLine}</ul>` : `
+                <ul id="combatEndInventoryBlock" style="list-style:none;padding:0;margin:0;">
+                    ${currencyLine}
+                    ${hero.inventory.map((it, idx) => {
+      const isSelected = selectedEndInvIdx === idx;
+      return `
+                        <li data-combat-inv-row="${idx}" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer;user-select:none;${isSelected ? "outline:1px solid rgba(255,235,59,0.35);border-radius:10px;background:rgba(255,255,255,0.05);padding:6px 8px;" : ""}">
+                            <div style="flex:1;">
+                                <div style="font-weight:600;color:#fff;">${it.name}</div>
+                                <div style="font-size:0.9em;color:#ddd;">${it.description}</div>
+                            </div>
+                            <div style="white-space:nowrap;">
+                                ${isSelected && (it.constructor && it.constructor.name === "Consumable") ? `<button class="btn" data-inv-idx="${idx}" style="min-width:80px;">Utiliser</button>` : ""}
+                                ${isSelected && (it.constructor && it.constructor.name === "Equipment") ? `<button class="btn" data-equip-idx="${idx}" style="min-width:80px;">\xC9quiper</button>` : ""}
+                            </div>
+                        </li>
+                    `;
+    }).join("")}
+                </ul>
+            `;
+    return `
+            <div style="margin-top:14px; display:flex; gap:14px; flex-wrap:wrap; justify-content:center;">
+                <div style="min-width:320px; max-width:520px; flex:1; padding:10px 12px; background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.08); border-radius:10px; text-align:left;">
+                    <div style="font-weight:700; margin-bottom:6px;">\xC9quipement</div>
+                    <div style="display:flex; flex-direction:column; gap:8px;">${equipmentLines}</div>
+                </div>
+                <div style="min-width:320px; max-width:520px; flex:1; padding:10px 12px; background:rgba(0,0,0,0.55); border:1px solid rgba(255,255,255,0.08); border-radius:10px; text-align:left;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+                        <div style="font-weight:700;">Inventaire</div>
+                    </div>
+                    <div style="margin-top:8px; color:#ddd; font-size:0.95em;">${invLines}</div>
+                </div>
+            </div>
+        `;
+  }
+  function syncHeroToCombatClone() {
+    player.inventory = [...hero.inventory || []];
+    player.equipment = Object.assign({}, hero.equipment);
+    player.maxPv = hero.effectiveMaxPv;
+    player.maxMana = hero.effectiveMaxMana;
+    player.pv = Math.min(hero.pv, player.maxPv);
+    player.currentMana = Math.min(hero.currentMana, player.maxMana);
+  }
+  function applyVictoryRewards() {
+    const { xp, gold, wood, herb, bonusPct } = computeVictoryRewards();
+    const bonusTxt = bonusPct > 0 ? ` (Bonus combo +${bonusPct}%)` : "";
+    const woodTxt = wood > 0 ? ` et ${wood} bois` : "";
+    const herbTxt = herb > 0 ? ` et ${herb} herbes` : "";
+    pushHistory(history, turn, `Victoire ! Vous gagnez ${xp} XP et ${gold} argent${woodTxt}${herbTxt}.${bonusTxt}`);
+    hero.gainXP ? hero.gainXP(xp) : hero.currentXP += xp;
+    hero.gold += gold;
+    hero.wood = (hero.wood ?? 0) + wood;
+    hero.herb = hero.herb ?? 0;
+    hero.herb = hero.herb + herb;
+    hero.pv = player.pv;
+    hero.currentMana = player.currentMana;
+    syncHeroToCombatClone();
+  }
+  function render() {
+    if (!app2)
+      return;
+    const combatEnded = enemy.pv <= 0 || player.pv <= 0;
+    const playerHpPct = Math.max(0, Math.round(player.pv / player.maxPv * 100));
+    const enemyHpPct = Math.max(0, Math.round(enemy.pv / enemy.maxPv * 100));
+    const playerManaPct = Math.max(0, Math.round(player.currentMana / player.maxMana * 100));
+    const enemyManaPct = Math.max(0, Math.round(enemy.currentMana / enemy.maxMana * 100));
+    const playerBuffPct = Math.round(player.activeEffects.filter((e2) => e2.type === "buff").reduce((s2, e2) => s2 + (e2.amount || 0), 0) * 100);
+    const playerDebuffPct = Math.round(player.activeEffects.filter((e2) => e2.type === "debuff").reduce((s2, e2) => s2 + (e2.amount || 0), 0) * 100);
+    const playerDefenseArr = player.activeEffects.filter((e2) => e2.type === "defense");
+    const playerDefensePct = Math.round(playerDefenseArr.reduce((s2, e2) => s2 + (e2.amount || 0), 0) * 100);
+    const playerDefenseTurn = playerDefenseArr.some((e2) => e2.remainingTurns === -1) ? -1 : playerDefenseArr.filter((e2) => e2.remainingTurns > 0).map((e2) => e2.remainingTurns)[0] || 0;
+    const enemyBuffPct = Math.round(enemy.activeEffects.filter((e2) => e2.type === "buff").reduce((s2, e2) => s2 + (e2.amount || 0), 0) * 100);
+    const enemyDebuffPct = Math.round(enemy.activeEffects.filter((e2) => e2.type === "debuff").reduce((s2, e2) => s2 + (e2.amount || 0), 0) * 100);
+    const enemyDefenseArr = enemy.activeEffects.filter((e2) => e2.type === "defense");
+    const enemyDefensePct = Math.round(enemyDefenseArr.reduce((s2, e2) => s2 + (e2.amount || 0), 0) * 100);
+    const enemyDefenseTurn = enemyDefenseArr.some((e2) => e2.remainingTurns === -1) ? -1 : enemyDefenseArr.filter((e2) => e2.remainingTurns > 0).map((e2) => e2.remainingTurns)[0] || 0;
+    const playerCls = String(player.characterClass ?? "").toLowerCase();
+    const playerSpriteSrc = playerCls === "mage" ? "ImagesRPG/imagespersonnage/mage.png" : playerCls === "voleur" ? "ImagesRPG/imagespersonnage/voleur.png" : "ImagesRPG/imagespersonnage/trueplayer.png";
+    let playerImgStyle = "max-width:260px;width:38vw;max-height:240px;height:auto;object-fit:contain;";
+    if (playerCls === "mage")
+      playerImgStyle += " transform:scale(0.9);";
+    if (playerCls === "voleur")
+      playerImgStyle += " transform:scale(0.8);";
+    app2.innerHTML = `
+            <img src="${backgroundUrl}" class="background" alt="Combat">
+            <div class="centered-content">
+                <h1>${title} ${enemy.name}</h1>
+                <div class="hp-row">
+                    <div class="hp-column">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div class="hp-label"><b>${player.name}</b> - PV : ${player.pv} / ${player.maxPv}</div>
+                            <div class="stat-badges-inline">
+                                ${playerBuffPct > 0 ? `<span class="stat-badge up"><span class="icon">\u{1F5E1}\uFE0F</span>\u25B2 ${playerBuffPct}%</span>` : ""}
+                                ${playerDebuffPct > 0 ? `<span class="stat-badge down"><span class="icon">\u{1F5E1}\uFE0F</span>\u25BC ${playerDebuffPct}%</span>` : ""}
+                                ${playerDefensePct > 0 ? `<span class="stat-badge defense"><span class="icon">\u{1F6E1}\uFE0F</span>Bloc ${playerDefensePct}%${playerDefenseTurn > 0 ? ` (${playerDefenseTurn}t)` : playerDefenseTurn === -1 ? " (combat)" : ""}</span>` : ""}
+                            </div>
+                        </div>
+                        <div class="hp-bar-container"><div class="hp-bar player" style="width:${playerHpPct}%;"></div><div class="bar-label">${player.pv}/${player.maxPv}</div></div>
+                        <div class="mana-bar-container"><div class="mana-bar" style="width:${playerManaPct}%;"></div><div class="bar-label">${player.currentMana}/${player.maxMana}</div></div>
+                        <div class="pa-bar-container" style="margin-top:4px;"><span class="bar-label"><b>PA :</b> ${player.actionPoints} / ${player.actionPointsMax}</span></div>
+                    </div>
+                    <div class="hp-column" style="text-align:right">
+                        <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">
+                            <div class="stat-badges-inline">
+                                ${enemyBuffPct > 0 ? `<span class="stat-badge up"><span class="icon">\u{1F5E1}\uFE0F</span>\u25B2 ${enemyBuffPct}%</span>` : ""}
+                                ${enemyDebuffPct > 0 ? `<span class="stat-badge down"><span class="icon">\u{1F5E1}\uFE0F</span>\u25BC ${enemyDebuffPct}%</span>` : ""}
+                                ${enemyDefensePct > 0 ? `<span class="stat-badge defense"><span class="icon">\u{1F6E1}\uFE0F</span>Bloc ${enemyDefensePct}%${enemyDefenseTurn > 0 ? ` (${enemyDefenseTurn}t)` : enemyDefenseTurn === -1 ? " (combat)" : ""}</span>` : ""}
+                            </div>
+                            <div class="hp-label"><b>${enemy.name}</b> - PV : ${enemy.pv} / ${enemy.maxPv}</div>
+                        </div>
+                        <div class="hp-bar-container"><div class="hp-bar enemy" style="width:${enemyHpPct}%;"></div><div class="bar-label">${enemy.pv}/${enemy.maxPv}</div></div>
+                        <div class="mana-bar-container"><div class="mana-bar" style="width:${enemyManaPct}%;"></div><div class="bar-label">${enemy.currentMana}/${enemy.maxMana}</div></div>
+                    </div>
+                </div>
+                <div id="combat-sprites" style="display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin:18px auto 6px auto;max-width:760px;width:100%;">
+                    <img src="${playerSpriteSrc}" alt="${player.name}" style="${playerImgStyle}" />
+                    <img src="ImagesRPG/imagespersonnage/trueennemi.png" alt="${enemy.name}" style="max-width:260px;width:38vw;max-height:240px;height:auto;object-fit:contain;" />
+                </div>
+                <div id="player-effects" class="effect-badges">
+                    ${player.activeEffects.map((e2) => `<span class="effect-badge ${e2.type === "buff" ? "buff" : e2.type === "debuff" ? "debuff" : e2.type === "defense" ? "defense" : e2.type === "mana_regen" ? "buff" : ""}">${e2.type === "buff" ? "Buff" : e2.type === "debuff" ? "Debuff" : e2.type === "defense" ? "\u{1F6E1} Blocage" : e2.type === "mana_regen" ? "Mana regen" : e2.type.toUpperCase()} ${e2.type === "mana_regen" ? "+" + e2.amount + " mana/t" : e2.amount ? Math.round(e2.amount * 100) + "%" : ""}${e2.remainingTurns > 0 ? " (" + e2.remainingTurns + "t)" : e2.remainingTurns === -1 ? " (combat)" : ""}</span>`).join("")}
+                </div>
+                <div id="enemy-effects" class="effect-badges">
+                    ${enemy.activeEffects.map((e2) => `<span class="effect-badge ${e2.type === "buff" ? "buff" : e2.type === "debuff" ? "debuff" : e2.type === "defense" ? "defense" : e2.type === "mana_regen" ? "buff" : ""}">${e2.type === "buff" ? "Buff" : e2.type === "debuff" ? "Debuff" : e2.type === "defense" ? "\u{1F6E1} Blocage" : e2.type === "mana_regen" ? "Mana regen" : e2.type.toUpperCase()} ${e2.type === "mana_regen" ? "+" + e2.amount + " mana/t" : e2.amount ? Math.round(e2.amount * 100) + "%" : ""}${e2.remainingTurns > 0 ? " (" + e2.remainingTurns + "t)" : e2.remainingTurns === -1 ? " (combat)" : ""}</span>`).join("")}
+                </div>
+                <div id="combat-message">${message}</div>
+                <div id="recent-infos" style="margin:10px 0 15px 0; color:#e0e0e0; font-size:1.05em;">
+                    ${renderHistoryHtml(history, 3)}
+                </div>
+                ${combatEnded ? `
+                    <div id="end-actions" style="margin-top:10px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+                        ${enemy.pv <= 0 && showAgainButton ? `<button class='btn' id='againBtn'>Combattre \xE0 nouveau</button>` : ""}
+                        <button class='btn' id='villageBtn'>Retour village</button>
+                    </div>
+                ` : ""}
+                ${combatEnded ? renderEndCombatInventoryEquipment() : ""}
+            </div>
+            <div class="combat-history">
+                <div class="combat-history-title">Historique du combat</div>
+                ${renderHistoryHtml(history, 10)}
+            </div>
+            <div id="skills-bar" style="position:fixed;bottom:0;left:0;width:100vw;display:flex;justify-content:center;align-items:center;padding:24px 0 18px 0;z-index:10;background:rgba(0,0,0,0.4);gap:16px;"></div>
+        `;
+    const oldFuirBtn = document.getElementById("fuirBtn");
+    if (oldFuirBtn && document.body.contains(oldFuirBtn))
+      document.body.removeChild(oldFuirBtn);
+    if (document.querySelector(".combat-history")) {
+      const fuirBtn = document.createElement("button");
+      fuirBtn.className = "btn";
+      fuirBtn.id = "fuirBtn";
+      fuirBtn.textContent = "Fuir";
+      document.body.appendChild(fuirBtn);
+      fuirBtn.onclick = showVillage;
+    }
+    {
+      const skillsDiv = document.getElementById("skills-bar");
+      if (skillsDiv) {
+        const baseSkills = player.skills ?? [];
+        renderSkillButtons(skillsDiv, baseSkills, playTurn, {
+          buttonClass: "btn skill-btn",
+          buttonStyle: "margin:0 12px 0 0;display:inline-block;",
+          playerPA: player.actionPoints,
+          getCooldownRemaining: (skill) => player.getSkillCooldownRemaining?.(skill) ?? 0
+        });
+        skillsDiv.insertAdjacentHTML("beforeend", `<button class='btn' id='passTurnBtn' style='margin:0 12px 0 0;display:inline-block;'>Passer le tour</button>`);
+        const passBtn = document.getElementById("passTurnBtn");
+        if (passBtn) {
+          passBtn.disabled = !isPlayerTurn || combatEnded;
+          passBtn.onclick = () => {
+            if (!isPlayerTurn || combatEnded)
+              return;
+            const playerEndMsgs = player.endTurnEffects?.() || [];
+            if (playerEndMsgs.length)
+              pushHistoryMany(history, turn, playerEndMsgs);
+            isPlayerTurn = false;
+            startEnemyTurnAfterDelay();
+            render();
+          };
+        }
+      }
+    }
+    document.getElementById("fuirBtn")?.addEventListener("click", showVillage);
+    if (combatEnded) {
+      document.getElementById("villageBtn")?.addEventListener("click", showVillage);
+      document.getElementById("againBtn")?.addEventListener("click", () => {
+        if (options.onAgain)
+          return options.onAgain();
+        const nextComboIndex = Math.min((options.comboIndex ?? 1) + 1, 5);
+        return showCombat(enemyLevel + 1, { ...options, comboIndex: nextComboIndex });
+      });
+      const invButtons = document.querySelectorAll("[data-inv-idx]");
+      invButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          selectedEndInvIdx = null;
+          const idx = Number(btn.getAttribute("data-inv-idx"));
+          const msg = hero.useItem(idx);
+          message = msg;
+          pushHistory(history, turn, msg);
+          syncHeroToCombatClone();
+          render();
+        });
+      });
+      const equipButtons = document.querySelectorAll("[data-equip-idx]");
+      equipButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          selectedEndInvIdx = null;
+          const idx = Number(btn.getAttribute("data-equip-idx"));
+          const msg = hero.equipItem(idx);
+          message = msg;
+          pushHistory(history, turn, msg);
+          syncHeroToCombatClone();
+          render();
+        });
+      });
+      const invRows = document.querySelectorAll("[data-combat-inv-row]");
+      invRows.forEach((row) => {
+        row.addEventListener("click", (ev) => {
+          const t2 = ev.target;
+          if (t2?.closest("button"))
+            return;
+          const idx = Number(row.getAttribute("data-combat-inv-row"));
+          selectedEndInvIdx = Number.isFinite(idx) ? idx : null;
+          render();
+        });
+        row.addEventListener("contextmenu", (ev) => {
+          ev.preventDefault();
+          selectedEndInvIdx = null;
+          render();
+        });
+      });
+      document.getElementById("combatEndInventoryBlock")?.addEventListener("click", (ev) => {
+        const t2 = ev.target;
+        if (!t2)
+          return;
+        if (t2.closest("[data-combat-inv-row]") || t2.closest("button"))
+          return;
+        selectedEndInvIdx = null;
+        render();
+      });
+      const unequipButtons = document.querySelectorAll("[data-unequip-slot]");
+      unequipButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const slot = btn.getAttribute("data-unequip-slot");
+          const msg = hero.unequipSlot(slot);
+          message = msg;
+          pushHistory(history, turn, msg);
+          syncHeroToCombatClone();
+          render();
+        });
+      });
+    }
+  }
+  function playTurn(skill) {
+    const effectiveSkill = getEffectiveSkillForCaster2(skill, player);
+    if (!isPlayerTurn)
+      return;
+    if (player.pv <= 0 || enemy.pv <= 0)
+      return;
+    if (isResolvingPlayerAction)
+      return;
+    if (player.actionPoints < effectiveSkill.actionPoints) {
+      message = `Pas assez de points d'action pour utiliser ${effectiveSkill.name} (co\xFBt : ${effectiveSkill.actionPoints})`;
+      pushHistory(history, turn, message);
+      render();
+      return;
+    }
+    const cd = player.getSkillCooldownRemaining?.(skill) ?? 0;
+    if (cd > 0) {
+      message = `${effectiveSkill.name} est en cooldown (${cd} tour(s) restant(s)).`;
+      pushHistory(history, turn, message);
+      render();
+      return;
+    }
+    isResolvingPlayerAction = true;
+    const res = applyPlayerSkillTurn({ caster: player, target: enemy, skill, turn });
+    if (!res.ok) {
+      message = res.message;
+      pushHistory(history, turn, message);
+      isResolvingPlayerAction = false;
+      render();
+      return;
+    }
+    player.actionPoints -= effectiveSkill.actionPoints;
+    if (effectiveSkill.name === "Attaque de base" || effectiveSkill.name === "Hache lourde" || effectiveSkill.name === "Buff attaque") {
+      window.game?.audioManager.play("attaque");
+    }
+    if (effectiveSkill.name === "Boule de feu") {
+      window.game?.audioManager.play("bouledefeu");
+    }
+    message = res.message;
+    pushHistory(history, turn, message);
+    pushHistoryMany(history, turn, res.extraHistory);
+    if (res.healFlashOnCaster) {
+      render();
+      setTimeout(() => {
+        const playerHp = document.querySelector(".hp-bar.player");
+        if (playerHp) {
+          playerHp.classList.add("flash-heal");
+          setTimeout(() => playerHp.classList.remove("flash-heal"), 360);
+        }
+      }, 20);
+    }
+    if (res.damageFlashOnTarget && res.damageFlashOnTarget.actualDamage > 0) {
+      render();
+      setTimeout(() => {
+        const enemyHp = document.querySelector(".hp-bar.enemy");
+        const enemyShield = document.querySelector(".stat-badge.defense");
+        if (enemyHp) {
+          enemyHp.classList.add("flash-damage");
+          setTimeout(() => enemyHp.classList.remove("flash-damage"), 600);
+        }
+        if (res.damageFlashOnTarget?.reduced && enemyShield) {
+          enemyShield.classList.add("flash-reduced");
+          setTimeout(() => enemyShield.classList.remove("flash-reduced"), 360);
+        }
+      }, 20);
+    }
+    if (enemy.pv <= 0) {
+      const { xp, gold, bonusPct } = computeVictoryRewards();
+      const bonusTxt = bonusPct > 0 ? ` (Bonus combo +${bonusPct}%)` : "";
+      message += `<br>Victoire ! Vous gagnez ${xp} XP et ${gold} argent.${bonusTxt}`;
+      applyVictoryRewards();
+      isResolvingPlayerAction = false;
+      render();
+      return;
+    }
+    isResolvingPlayerAction = false;
+    render();
+  }
+  player.tickSkillCooldowns?.();
+  player.actionPoints = player.actionPointsMax;
+  const startMsgs = player.updateEffects();
+  if (startMsgs.length)
+    pushHistoryMany(history, turn, startMsgs);
+  if (player.pv <= 0) {
+    message = "D\xE9faite ! Retour au village.";
+    pushHistory(history, turn, "D\xE9faite ! Retour au village.");
+    hero.pv = player.pv;
+    hero.currentMana = player.currentMana;
+    syncHeroToCombatClone();
+    render();
+    return;
+  }
+  {
+    const beforeMana = player.currentMana;
+    const activeManaRegen = (player.activeEffects || []).filter((e2) => e2.type === "mana_regen" && e2.remainingTurns !== 0).reduce((s2, e2) => s2 + (e2.amount || 0), 0);
+    const regen = (player.manaRegenPerTurn || 0) + (player.getPassiveManaRegenPerTurnBonus?.() ?? 0) + activeManaRegen;
+    player.currentMana = Math.min(player.currentMana + regen, player.maxMana);
+    if (player.currentMana > beforeMana) {
+      pushHistory(history, turn, `${player.name} r\xE9g\xE9n\xE8re ${player.currentMana - beforeMana} mana (Mana ${beforeMana} \u2192 ${player.currentMana})`);
+    }
+  }
+  render();
+}
+var init_combat_web = __esm({
+  "dist/combat.web.js"() {
+    "use strict";
+    init_player();
+    init_skill();
+    init_skillLibrary();
+    init_index_web();
+    init_accueil_web();
+    init_config_web();
+    init_village_web();
+    init_battleTurn_web();
+    init_history_web();
+    init_skillUi_web();
+    init_ui();
+    init_itemIcons_web();
+  }
+});
+
 // dist/save.web.js
 function clampInt5(n2, min = 0) {
   const v2 = Math.floor(Number(n2 ?? 0));
@@ -86424,6 +86465,7 @@ function buildSaveData(hero2) {
       ...titles.length ? { titles } : {},
       // World map: encounters defeated today should remain hidden after reload
       worldEncounterDefeats: hero2.__worldEncounterDefeats ?? void 0,
+      worldMapStates: hero2.__worldMapStates ?? void 0,
       marketDay: clampInt5(hero2.marketDay ?? 1, 1),
       ...market ? { market } : {}
     }
@@ -86531,6 +86573,7 @@ function applySaveData(hero2, save) {
     hero2.titles = list;
   }
   hero2.__worldEncounterDefeats = save.hero.worldEncounterDefeats ?? hero2.__worldEncounterDefeats ?? {};
+  hero2.__worldMapStates = save.hero.worldMapStates ?? hero2.__worldMapStates ?? {};
   const market = deserializeMarket(save.hero.market);
   if (market)
     hero2.market = market;
@@ -86730,6 +86773,7 @@ function resetHeroForNewGame() {
   hero.day = 1;
   hero.hour = 0;
   hero.__worldEncounterDefeats = {};
+  hero.__worldMapStates = {};
   hero.__partyBond = void 0;
   hero.__partyLeader = void 0;
   hero.__startingGift = void 0;
@@ -87103,8 +87147,8 @@ function showAccueil() {
             <h1>Bienvenue dans le jeu RPG !</h1>
             ${askNameHtml}
             <button class="btn" id="newGameBtn">Nouvelle partie</button>
-            <button class="btn" id="villageBtn">Village</button>
-            <button class="btn" id="tacticalBtn">Combat plateau (test)</button>
+            <button class="btn" id="resumeGameBtn">Reprendre la partie</button>
+            <button class="btn" id="villageBtn" disabled style="opacity:0.5;cursor:not-allowed;">Village</button>
 
             <div style="margin-top:18px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.08);">
                 <h2 style="margin:0 0 10px 0; font-size:1.15em; font-weight:600;">Sauvegarde</h2>
@@ -87142,8 +87186,9 @@ function showAccueil() {
       return;
     showNewGameCreation({ onCancel: showAccueil, onBackAfterStart: showAccueil });
   });
-  document.getElementById("villageBtn")?.addEventListener("click", showVillage);
-  document.getElementById("tacticalBtn")?.addEventListener("click", () => showTacticalSkirmish());
+  document.getElementById("resumeGameBtn")?.addEventListener("click", () => {
+    showBoaravenWorldMap({ onBack: showAccueil });
+  });
   document.getElementById("saveSlotsBtn")?.addEventListener("click", openSaveSlotsModal);
   document.getElementById("exportBtn")?.addEventListener("click", async () => {
     const text = exportSaveAsString(hero);
@@ -87181,12 +87226,12 @@ function showAccueil() {
 var init_accueil_web = __esm({
   "dist/accueil.web.js"() {
     "use strict";
-    init_village_web();
     init_combat_web();
     init_index_web();
     init_save_web();
     init_tacticalCombat_web();
     init_newGame_web();
+    init_worldMap_web();
   }
 });
 

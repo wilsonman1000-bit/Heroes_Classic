@@ -673,7 +673,7 @@ var init_skillLibrary = __esm({
       lancer_ennemi: { category: "guerrier", cooldownTurns: 1 },
       double_crochet: { category: "guerrier", cooldownTurns: 0 },
       charge: { category: "guerrier", cooldownTurns: 1 },
-      mouvement_de_fou: { category: "voleur", cooldownTurns: 0 },
+      mouvement_de_fou: { category: "voleur", cooldownTurns: 1 },
       repouser: { category: "guerrier", cooldownTurns: 1 },
       bombe_fumigene: { category: "voleur", cooldownTurns: 1 },
       immobiliser: { category: "voleur", cooldownTurns: 1 },
@@ -826,7 +826,7 @@ var init_skillLibrary = __esm({
         return s2;
       },
       mouvement_de_fou: () => {
-        const s2 = new MovementSkill("MF", "Effectue un mouvement d'un seul pas en diagonale (4 directions). Port\xE9e : 1. Co\xFBt : 0 mana, 1 PA, CD 0.", "Mouvement de fou", 0, 1);
+        const s2 = new MovementSkill("MF", "Effectue un mouvement d'un seul pas en diagonale (4 directions). Port\xE9e : 1. Co\xFBt : 0 mana, 1 PA, CD 1.", "Mouvement de fou", 0, 1);
         s2.tactical = { kind: "move", range: 1, aim: "diagonal_strict" };
         return s2;
       },
@@ -2360,36 +2360,23 @@ var init_quests = __esm({
     QUEST_DEFS = {
       auberge_demarrage: {
         id: "auberge_demarrage",
-        name: "Premiers pas \xE0 l'auberge",
-        description: "Parle aux PNJ de l'auberge puis gagne un combat contre des gobelins.",
+        name: "Premiers pas",
+        description: "Vaincs un gobelin.",
         // autoStart: true, (starts when the player first enters the auberge)
         manualStartAllowed: false,
         steps: [
           {
-            id: "win_gobelins",
-            title: "Premier combat",
+            id: "win_gobelin",
+            title: "Premier sang",
             objectives: [
               {
                 id: "win_gobelin",
-                description: "Gagner un combat contre des gobelins",
+                description: "Vaincre un gobelin",
                 type: "counter",
                 eventType: "win_tactical",
                 target: 1,
                 match: (e2) => e2.type === "win_tactical" && e2.enemyId === "gobelin",
                 amount: () => 1
-              }
-            ]
-          },
-          {
-            id: "talk_aubergiste",
-            title: "Rencontre",
-            objectives: [
-              {
-                id: "talk_aubergiste",
-                description: "Parler \xE0 l'aubergiste",
-                type: "flag",
-                eventType: "talk_npc",
-                match: (e2) => e2.type === "talk_npc" && e2.npcId === "aubergiste"
               }
             ]
           }
@@ -2591,7 +2578,7 @@ function getItemIconSrc(item) {
   if (id === "armor_fer" || name.includes("armure en fer"))
     return "ImagesRPG/imagesobjets/armure_de_fer.jpeg";
   if (id === "helmet_cuir" || name.includes("casque en cuir"))
-    return "ImagesRPG/imagesobjets/casque_en_cuir.jpeg";
+    return "ImagesRPG/imagesobjets/casque_en_cuir.png";
   return null;
 }
 function buildItemTooltip(item) {
@@ -2609,6 +2596,18 @@ function renderItemIconHtml(item, opts = {}) {
   const src = getItemIconSrc(item);
   const baseStyle = `width:${size}px;height:${size}px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);`;
   if (src) {
+    const normalizedSrc = src.trim().toLowerCase();
+    const zoomedIconSrcs = /* @__PURE__ */ new Set([
+      "imagesrpg/imagesobjets/dague_acier.png",
+      "imagesrpg/imagesobjets/dague_or.png",
+      "imagesrpg/imagesobjets/epee_acier.png",
+      "imagesrpg/imagesobjets/epee_en_bois.png"
+    ]);
+    if (zoomedIconSrcs.has(normalizedSrc)) {
+      const containerStyle = `${baseStyle}padding:2px;overflow:hidden;`;
+      const imgStyle = `width:100%;height:100%;object-fit:contain;transform:scale(1.35);transform-origin:center;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.35));`;
+      return `<span title="${escapeHtml(title)}" style="${containerStyle}"><img src="${escapeHtml(src)}" alt="${escapeHtml(String(item?.name ?? "Objet"))}" style="${imgStyle}" /></span>`;
+    }
     return `<img src="${escapeHtml(src)}" alt="${escapeHtml(String(item?.name ?? "Objet"))}" title="${escapeHtml(title)}" style="${baseStyle}padding:4px;object-fit:contain;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.35));" />`;
   }
   const fallback = String(item?.name ?? "?").trim();
@@ -3523,30 +3522,6 @@ function advanceGameTimeHours(hero2, hours, opts = {}) {
   const res = { day, hour, daysAdvanced, ...market ? { market } : {} };
   return res;
 }
-function advanceGameDay(hero2, opts = {}) {
-  const prev = getGameDay(hero2);
-  const day = setGameDay(hero2, prev + 1);
-  const hour = setGameHour(hero2, 0);
-  let market;
-  try {
-    market = runMarketDailyTick(hero2, day);
-  } catch (e2) {
-    console.error("[daySystem] runMarketDailyTick error", e2);
-  }
-  try {
-    window.dispatchEvent(new CustomEvent(GAME_DAY_EVENT, {
-      detail: { day, reason: String(opts.reason ?? "") }
-    }));
-  } catch {
-  }
-  try {
-    window.dispatchEvent(new CustomEvent(GAME_TIME_EVENT, {
-      detail: { day, hour, daysAdvanced: 1, reason: String(opts.reason ?? "") }
-    }));
-  } catch {
-  }
-  return market ? { day, hour, market } : { day, hour };
-}
 var GAME_DAY_EVENT, GAME_TIME_EVENT;
 var init_daySystem_web = __esm({
   "dist/daySystem.web.js"() {
@@ -3655,8 +3630,6 @@ var init_game = __esm({
         this.audioManager = new AudioManager();
         this.questManager = new QuestManager(hero2, QUEST_DEFS);
         this.audioManager.loadSound("background", "sounds/musique.mp3", true, 0.1);
-        this.audioManager.loadSound("intro", "sounds/prenomaudio.mp3", false, 0.4);
-        this.audioManager.loadSound("groot", "sounds/groot.mp3", false, 0.9);
         this.audioManager.loadSound("pnjintro", "sounds/Pnjintroaudio.mp3", false, 0.9);
         this.audioManager.loadSound("auberge", "sounds/aubergesound.mp3", true, 0.9);
         this.audioManager.loadSound("riremalefique", "sounds/riremalefique.mp3", false, 0.5);
@@ -74851,6 +74824,10 @@ function showTacticalSkirmish(options = {}) {
       }
       applyCampfireRest();
       syncFromActors();
+      try {
+        advanceGameTimeHours(hero, 12, { reason: "campfire" });
+      } catch {
+      }
       pw2.chosenKind = "campfire";
       pw2.pointsVisible = false;
       pw2.spawnInTurns = isDonjon ? 3 : null;
@@ -78724,6 +78701,157 @@ var init_competences_web = __esm({
   }
 });
 
+// dist/questJournalModal.web.js
+var questJournalModal_web_exports = {};
+__export(questJournalModal_web_exports, {
+  closeQuestJournalModal: () => closeQuestJournalModal,
+  openQuestJournalModal: () => openQuestJournalModal
+});
+var questJournalModalEl, closeQuestJournalModal, openQuestJournalModal;
+var init_questJournalModal_web = __esm({
+  "dist/questJournalModal.web.js"() {
+    "use strict";
+    init_utils_web();
+    questJournalModalEl = null;
+    closeQuestJournalModal = () => {
+      questJournalModalEl?.remove();
+      questJournalModalEl = null;
+    };
+    openQuestJournalModal = () => {
+      if (questJournalModalEl)
+        return;
+      questJournalModalEl = document.createElement("div");
+      questJournalModalEl.id = "questJournalModal";
+      questJournalModalEl.style.cssText = [
+        "position:fixed",
+        "inset:0",
+        "display:flex",
+        "align-items:center",
+        "justify-content:center",
+        "background:rgba(0,0,0,0.65)",
+        "z-index:10000",
+        "padding:18px"
+      ].join(";");
+      const panel = document.createElement("div");
+      panel.style.cssText = [
+        "width:min(860px, 96vw)",
+        "max-height:min(84vh, 820px)",
+        "overflow:auto",
+        "background:#111",
+        "border:1px solid rgba(255,255,255,0.10)",
+        "border-radius:12px",
+        "padding:14px",
+        "color:#fff"
+      ].join(";");
+      let tab = "active";
+      const renderStatus = (p2) => {
+        const s2 = String(p2?.status ?? "");
+        if (s2 === "claimed")
+          return "Termin\xE9e";
+        if (s2 === "completed")
+          return "\xC0 valider";
+        if (s2 === "active")
+          return "En cours";
+        return "Non d\xE9marr\xE9e";
+      };
+      const renderProgress = (def, p2) => {
+        if (!p2 || p2.status === void 0)
+          return '<div style="color:#bbb;">Non d\xE9marr\xE9e.</div>';
+        const stepIndex = Math.max(0, Math.floor(Number(p2.stepIndex ?? 0)));
+        const step = Array.isArray(def?.steps) ? def.steps[stepIndex] : null;
+        if (!step) {
+          if (p2?.status === "claimed" || p2?.status === "completed") {
+            return '<div style="margin-top:10px;color:#c8e6c9;font-weight:700;">Objectifs termin\xE9s.</div>';
+          }
+          return '<div style="color:#bbb;">Aucune \xE9tape.</div>';
+        }
+        const objectives = Array.isArray(step.objectives) ? step.objectives : [];
+        const objState = p2.objectives ?? {};
+        return `
+			<div style="margin-top:10px;">
+				<div style="font-weight:700;">\xC9tape: ${escapeHtml(String(step.title ?? step.id ?? ""))}</div>
+				<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+					${objectives.map((o2) => {
+          const cur = Math.max(0, Math.floor(Number(objState?.[String(o2.id)] ?? 0)));
+          const t2 = String(o2.type ?? "");
+          if (t2 === "counter") {
+            const target = Math.max(1, Math.floor(Number(o2.target ?? 1)));
+            const done2 = cur >= target;
+            return `<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
+									<div style="color:${done2 ? "#c8e6c9" : "#ddd"};">${done2 ? "\u2714" : "\u2022"} ${escapeHtml(String(o2.description ?? o2.id ?? ""))}</div>
+									<div style="color:#bbb;white-space:nowrap;">${cur}/${target}</div>
+								</div>`;
+          }
+          const done = cur >= 1;
+          return `<div style="color:${done ? "#c8e6c9" : "#ddd"};">${done ? "\u2714" : "\u2022"} ${escapeHtml(String(o2.description ?? o2.id ?? ""))}</div>`;
+        }).join("")}
+				</div>
+			</div>
+		`;
+      };
+      const renderModal = () => {
+        const qm = window.game?.questManager;
+        const items = typeof qm?.getAll === "function" ? qm.getAll() : [];
+        const list = items.filter(({ progress }) => {
+          const status = String(progress?.status ?? "");
+          if (tab === "completed")
+            return status === "claimed";
+          return status === "active" || status === "completed";
+        });
+        panel.innerHTML = `
+			<div style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
+				<div style="font-weight:900;font-size:18px;">Qu\xEAtes</div>
+				<button class="btn" id="questJournalModalCloseBtn">Fermer</button>
+			</div>
+			<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:10px;">
+				<button class="btn" id="questJournalTabActiveBtn" style="min-width:220px;${tab === "active" ? "border:2px solid #ffd700;" : ""}">Qu\xEAtes en cours</button>
+				<button class="btn" id="questJournalTabCompletedBtn" style="min-width:220px;${tab === "completed" ? "border:2px solid #ffd700;" : ""}">Qu\xEAtes termin\xE9es</button>
+			</div>
+			${!qm ? '<div style="margin-top:12px;background:rgba(0,0,0,0.55);padding:14px;border-radius:10px;">Qu\xEAtes indisponibles (questManager manquant).</div>' : ""}
+			<div style="display:flex;flex-direction:column;gap:14px;margin-top:14px;text-align:left;">
+				${list.map(({ def, progress }) => {
+          const status = renderStatus(progress);
+          return `
+							<div style="background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.08);padding:14px;border-radius:12px;">
+								<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
+									<div>
+										<div style="font-size:1.1em;font-weight:800;">${escapeHtml(String(def?.name ?? def?.id ?? "Qu\xEAte"))}</div>
+										<div style="color:#ddd;margin-top:4px;">${escapeHtml(String(def?.description ?? ""))}</div>
+									</div>
+									<div style="text-align:right;min-width:120px;">
+										<div style="font-weight:800;color:#ffd700;">${escapeHtml(status)}</div>
+									</div>
+								</div>
+								${renderProgress(def, progress)}
+							</div>
+						`;
+        }).join("")}
+				${list.length === 0 ? '<div style="background:rgba(0,0,0,0.55);padding:14px;border-radius:10px;">Aucune qu\xEAte.</div>' : ""}
+			</div>
+		`;
+        panel.querySelector("#questJournalModalCloseBtn")?.addEventListener("click", () => {
+          closeQuestJournalModal();
+        });
+        panel.querySelector("#questJournalTabActiveBtn")?.addEventListener("click", () => {
+          tab = "active";
+          renderModal();
+        });
+        panel.querySelector("#questJournalTabCompletedBtn")?.addEventListener("click", () => {
+          tab = "completed";
+          renderModal();
+        });
+      };
+      renderModal();
+      questJournalModalEl.appendChild(panel);
+      questJournalModalEl.addEventListener("click", (e2) => {
+        if (e2.target === questJournalModalEl)
+          closeQuestJournalModal();
+      });
+      document.body.appendChild(questJournalModalEl);
+    };
+  }
+});
+
 // dist/movement/houseMovement.web.js
 function showMaisonDeplacement(options) {
   const app2 = document.getElementById("app");
@@ -79008,7 +79136,6 @@ function showMaisonDeplacement(options) {
   let moveTimer = null;
   let fabricationModalEl = null;
   let inventoryModalEl = null;
-  let questJournalModalEl = null;
   const clamp7 = (n2, min, max) => Math.max(min, Math.min(max, Math.floor(n2)));
   const FORGE_KEY = "0,4";
   const CHEST_KEY = "6,0";
@@ -79089,142 +79216,8 @@ function showMaisonDeplacement(options) {
     inventoryModalEl?.remove();
     inventoryModalEl = null;
   };
-  const closeQuestJournalModal = () => {
-    questJournalModalEl?.remove();
-    questJournalModalEl = null;
-  };
-  const openQuestJournalModal = () => {
-    if (questJournalModalEl)
-      return;
-    questJournalModalEl = document.createElement("div");
-    questJournalModalEl.id = "questJournalModalHouse";
-    questJournalModalEl.style.cssText = [
-      "position:fixed",
-      "inset:0",
-      "display:flex",
-      "align-items:center",
-      "justify-content:center",
-      "background:rgba(0,0,0,0.65)",
-      "z-index:10000",
-      "padding:18px"
-    ].join(";");
-    const panel = document.createElement("div");
-    panel.style.cssText = [
-      "width:min(860px, 96vw)",
-      "max-height:min(84vh, 820px)",
-      "overflow:auto",
-      "background:#111",
-      "border:1px solid rgba(255,255,255,0.10)",
-      "border-radius:12px",
-      "padding:14px",
-      "color:#fff"
-    ].join(";");
-    let tab = "active";
-    const renderStatus = (p2) => {
-      const s2 = String(p2?.status ?? "");
-      if (s2 === "claimed")
-        return "Termin\xE9e";
-      if (s2 === "completed")
-        return "\xC0 valider";
-      if (s2 === "active")
-        return "En cours";
-      return "Non d\xE9marr\xE9e";
-    };
-    const renderProgress = (def, p2) => {
-      if (!p2 || p2.status === void 0)
-        return '<div style="color:#bbb;">Non d\xE9marr\xE9e.</div>';
-      const stepIndex = Math.max(0, Math.floor(Number(p2.stepIndex ?? 0)));
-      const step = Array.isArray(def?.steps) ? def.steps[stepIndex] : null;
-      if (!step) {
-        if (p2?.status === "claimed" || p2?.status === "completed") {
-          return '<div style="margin-top:10px;color:#c8e6c9;font-weight:700;">Objectifs termin\xE9s.</div>';
-        }
-        return '<div style="color:#bbb;">Aucune \xE9tape.</div>';
-      }
-      const objectives = Array.isArray(step.objectives) ? step.objectives : [];
-      const objState = p2.objectives ?? {};
-      return `
-				<div style="margin-top:10px;">
-					<div style="font-weight:700;">\xC9tape: ${escapeHtml(String(step.title ?? step.id ?? ""))}</div>
-					<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-						${objectives.map((o2) => {
-        const cur = Math.max(0, Math.floor(Number(objState?.[String(o2.id)] ?? 0)));
-        const t2 = String(o2.type ?? "");
-        if (t2 === "counter") {
-          const target = Math.max(1, Math.floor(Number(o2.target ?? 1)));
-          const done2 = cur >= target;
-          return `<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
-										<div style="color:${done2 ? "#c8e6c9" : "#ddd"};">${done2 ? "\u2714" : "\u2022"} ${escapeHtml(String(o2.description ?? o2.id ?? ""))}</div>
-										<div style="color:#bbb;white-space:nowrap;">${cur}/${target}</div>
-									</div>`;
-        }
-        const done = cur >= 1;
-        return `<div style="color:${done ? "#c8e6c9" : "#ddd"};">${done ? "\u2714" : "\u2022"} ${escapeHtml(String(o2.description ?? o2.id ?? ""))}</div>`;
-      }).join("")}
-					</div>
-				</div>
-			`;
-    };
-    const renderModal = () => {
-      const qm = window.game?.questManager;
-      const items = typeof qm?.getAll === "function" ? qm.getAll() : [];
-      const list = items.filter(({ progress }) => {
-        const status = String(progress?.status ?? "");
-        if (tab === "completed")
-          return status === "claimed";
-        return status === "active" || status === "completed";
-      });
-      panel.innerHTML = `
-				<div style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
-					<div style="font-weight:900;font-size:18px;">Qu\xEAtes</div>
-					<button class="btn" id="questJournalModalCloseBtn">Fermer</button>
-				</div>
-				<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:10px;">
-					<button class="btn" id="questJournalTabActiveBtn" style="min-width:220px;${tab === "active" ? "border:2px solid #ffd700;" : ""}">Qu\xEAtes en cours</button>
-					<button class="btn" id="questJournalTabCompletedBtn" style="min-width:220px;${tab === "completed" ? "border:2px solid #ffd700;" : ""}">Qu\xEAtes termin\xE9es</button>
-				</div>
-				${!qm ? '<div style="margin-top:12px;background:rgba(0,0,0,0.55);padding:14px;border-radius:10px;">Qu\xEAtes indisponibles (questManager manquant).</div>' : ""}
-				<div style="display:flex;flex-direction:column;gap:14px;margin-top:14px;text-align:left;">
-					${list.map(({ def, progress }) => {
-        const status = renderStatus(progress);
-        return `
-								<div style="background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.08);padding:14px;border-radius:12px;">
-									<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
-										<div>
-											<div style="font-size:1.1em;font-weight:800;">${escapeHtml(String(def?.name ?? def?.id ?? "Qu\xEAte"))}</div>
-											<div style="color:#ddd;margin-top:4px;">${escapeHtml(String(def?.description ?? ""))}</div>
-										</div>
-										<div style="text-align:right;min-width:120px;">
-											<div style="font-weight:800;color:#ffd700;">${escapeHtml(status)}</div>
-										</div>
-									</div>
-									${renderProgress(def, progress)}
-								</div>
-							`;
-      }).join("")}
-					${list.length === 0 ? '<div style="background:rgba(0,0,0,0.55);padding:14px;border-radius:10px;">Aucune qu\xEAte.</div>' : ""}
-				</div>
-			`;
-      panel.querySelector("#questJournalModalCloseBtn")?.addEventListener("click", () => {
-        closeQuestJournalModal();
-      });
-      panel.querySelector("#questJournalTabActiveBtn")?.addEventListener("click", () => {
-        tab = "active";
-        renderModal();
-      });
-      panel.querySelector("#questJournalTabCompletedBtn")?.addEventListener("click", () => {
-        tab = "completed";
-        renderModal();
-      });
-    };
-    renderModal();
-    questJournalModalEl.appendChild(panel);
-    questJournalModalEl.addEventListener("click", (e2) => {
-      if (e2.target === questJournalModalEl)
-        closeQuestJournalModal();
-    });
-    document.body.appendChild(questJournalModalEl);
-  };
+  const closeQuestJournalModal2 = () => closeQuestJournalModal();
+  const openQuestJournalModal2 = () => openQuestJournalModal();
   const openFabricationModal = () => {
     if (fabricationModalEl)
       return;
@@ -79866,7 +79859,7 @@ function showMaisonDeplacement(options) {
       const grimoire = isGrimoire({ x: x2, y: y2 });
       const questJournal = isQuestJournal({ x: x2, y: y2 });
       const sleep3 = isSleep({ x: x2, y: y2 });
-      const content = blocked ? forge ? `<img src="ImagesRPG/imagesobjets/craft_icon.svg" alt="Craft" title="Enclume (fabrication)" style="width:86%;height:86%;object-fit:contain;pointer-events:none;margin:auto;display:block;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.35));">` : chest ? `<img src="ImagesRPG/imagesobjets/coffre.png" alt="Coffre" style="width:86%;height:86%;object-fit:contain;pointer-events:none;margin:auto;display:block;">` : grimoire ? `<img src="ImagesRPG/imagesobjets/grimoire_image.png" alt="Grimoire" style="width:86%;height:86%;object-fit:contain;pointer-events:none;margin:auto;display:block;">` : questJournal ? `<img src="ImagesRPG/imagesobjets/journal_quete.png" alt="Journal de qu\xEAtes" style="width:86%;height:86%;object-fit:contain;pointer-events:none;margin:auto;display:block;">` : sleep3 ? `<img src="ImagesRPG/imagesobjets/sommeil.svg" alt="Dormir" title="Dormir (passer au lendemain)" style="width:86%;height:86%;object-fit:contain;pointer-events:none;margin:auto;display:block;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.35));">` : "" : x2 === pos.x && y2 === pos.y ? renderUnitLeaderOnly() : "";
+      const content = blocked ? forge ? `<img src="ImagesRPG/imagesobjets/craft_icon.svg" alt="Craft" title="Enclume (fabrication)" style="width:86%;height:86%;object-fit:contain;pointer-events:none;margin:auto;display:block;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.35));">` : chest ? `<img src="ImagesRPG/imagesobjets/coffre.png" alt="Coffre" style="width:86%;height:86%;object-fit:contain;pointer-events:none;margin:auto;display:block;">` : grimoire ? `<img src="ImagesRPG/imagesobjets/grimoire_image.png" alt="Grimoire" style="width:86%;height:86%;object-fit:contain;pointer-events:none;margin:auto;display:block;">` : questJournal ? `<img src="ImagesRPG/imagesobjets/journal_quete.png" alt="Journal de qu\xEAtes" style="width:86%;height:86%;object-fit:contain;pointer-events:none;margin:auto;display:block;">` : sleep3 ? `<img src="ImagesRPG/imagesobjets/sommeil.svg" alt="Dormir" title="Dormir (12h)" style="width:86%;height:86%;object-fit:contain;pointer-events:none;margin:auto;display:block;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.35));">` : "" : x2 === pos.x && y2 === pos.y ? renderUnitLeaderOnly() : "";
       return `<div class="tile ${blocked ? "blocked" : ""} ${forge ? "forge" : ""} ${chest || grimoire || questJournal || sleep3 ? "interactive" : ""}" data-x="${x2}" data-y="${y2}"><div class="tile-bg" aria-hidden="true"></div>${content}</div>`;
     }).join("")}
 							</div>
@@ -79879,7 +79872,7 @@ function showMaisonDeplacement(options) {
       stopMovement();
       closeFabricationModal();
       closeInventoryModal();
-      closeQuestJournalModal();
+      closeQuestJournalModal2();
       try {
         window.removeEventListener("tempSpriteChanged", onTempSpriteChangedHouse);
       } catch (e2) {
@@ -79934,22 +79927,22 @@ function showMaisonDeplacement(options) {
         }
         if (isSleep(target)) {
           try {
-            const res = advanceGameDay(hero, { reason: "sleep" });
+            const before = getGameTime(hero);
+            const res = advanceGameTimeHours(hero, 12, { reason: "sleep" });
+            const fromH = String(before.hour).padStart(2, "0");
+            const toH = String(res.hour).padStart(2, "0");
             const market = res.market;
-            if (market && market.soldCount > 0) {
-              showTemporaryMessage(`Jour ${res.day} \u2014 Ventes: ${market.soldCount} objet(s) (+${market.soldTotal} argent \xE0 collecter).`, 4200);
-            } else {
-              showTemporaryMessage(`Jour ${res.day} \u2014 Aucune vente aujourd'hui.`, 2800);
-            }
+            const extra = res.daysAdvanced > 0 ? market && market.soldCount > 0 ? ` \u2014 Ventes: ${market.soldCount} (+${market.soldTotal} argent \xE0 collecter)` : " \u2014 Aucune vente" : "";
+            showTemporaryMessage(`Sommeil 12h: Jour ${before.day} ${fromH}h \u2192 Jour ${res.day} ${toH}h${extra}`, 5200);
           } catch (e2) {
-            console.error("[house] advanceGameDay error", e2);
-            showTemporaryMessage("Impossible de passer au lendemain.", 2600);
+            console.error("[house] advanceGameTimeHours error", e2);
+            showTemporaryMessage("Impossible de dormir.", 2600);
           }
           render();
           return;
         }
         if (isQuestJournal(target)) {
-          openQuestJournalModal();
+          openQuestJournalModal2();
           return;
         }
         if (isBlocked(target) && !isForge(target)) {
@@ -80037,6 +80030,7 @@ var init_houseMovement_web = __esm({
     init_characterSprites_web();
     init_ui();
     init_itemIcons_web();
+    init_questJournalModal_web();
     spriteForClass = (characterClass) => {
       const cls = String(characterClass ?? "").toLowerCase();
       if (cls === "mage")
@@ -80808,6 +80802,20 @@ var init_dialogues = __esm({
                 enabled: () => claimableCount > 0,
                 next: "claim"
               });
+              const hasFirstQuest = Boolean(qm?.getProgress?.("auberge_demarrage"));
+              if (!hasFirstQuest) {
+                choices.push({
+                  text: "Qu\xEAte : Premiers pas",
+                  onSelect: (ctx2) => {
+                    const res = ctx2.questManager?.start?.("auberge_demarrage");
+                    if (res && res.ok === false)
+                      notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
+                    else
+                      notify(ctx2, "Qu\xEAte accept\xE9e : Premiers pas", 3200);
+                  },
+                  next: "start"
+                });
+              }
               choices.push({ text: "Voir les qu\xEAtes disponibles", next: "offers" });
               const wood = Math.max(0, Math.floor(Number(hero2?.wood ?? 0)));
               const bringWoodActive = qm?.getProgress?.("bring_wood_festival")?.status === "active";
@@ -80896,42 +80904,58 @@ var init_dialogues = __esm({
                   return claimed("bring_wood_festival");
                 return true;
               };
-              choices.push({
-                text: "Qu\xEAte : Bois pour la f\xEAte",
-                enabled: () => canStart("bring_wood_festival"),
-                onSelect: (ctx2) => {
-                  const res = ctx2.questManager?.start?.("bring_wood_festival");
-                  if (res && res.ok === false)
-                    notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
-                  else
-                    notify(ctx2, "Qu\xEAte accept\xE9e : Bois pour la f\xEAte", 3200);
-                },
-                next: "offers"
-              });
-              choices.push({
-                text: "Qu\xEAte : Chasse gobelinesque",
-                enabled: () => canStart("kill_gobelin_lvl5"),
-                onSelect: (ctx2) => {
-                  const res = ctx2.questManager?.start?.("kill_gobelin_lvl5");
-                  if (res && res.ok === false)
-                    notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
-                  else
-                    notify(ctx2, "Qu\xEAte accept\xE9e : Chasse gobelinesque", 3200);
-                },
-                next: "offers"
-              });
-              choices.push({
-                text: "Qu\xEAte : Cr\xE9ation feu de camp",
-                enabled: () => canStart("build_campfire"),
-                onSelect: (ctx2) => {
-                  const res = ctx2.questManager?.start?.("build_campfire");
-                  if (res && res.ok === false)
-                    notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
-                  else
-                    notify(ctx2, "Qu\xEAte accept\xE9e : Cr\xE9ation feu de camp", 3200);
-                },
-                next: "offers"
-              });
+              if (canStart("auberge_demarrage")) {
+                choices.push({
+                  text: "Qu\xEAte : Premiers pas",
+                  onSelect: (ctx2) => {
+                    const res = ctx2.questManager?.start?.("auberge_demarrage");
+                    if (res && res.ok === false)
+                      notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
+                    else
+                      notify(ctx2, "Qu\xEAte accept\xE9e : Premiers pas", 3200);
+                  },
+                  next: "offers"
+                });
+              }
+              if (canStart("bring_wood_festival")) {
+                choices.push({
+                  text: "Qu\xEAte : Bois pour la f\xEAte",
+                  onSelect: (ctx2) => {
+                    const res = ctx2.questManager?.start?.("bring_wood_festival");
+                    if (res && res.ok === false)
+                      notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
+                    else
+                      notify(ctx2, "Qu\xEAte accept\xE9e : Bois pour la f\xEAte", 3200);
+                  },
+                  next: "offers"
+                });
+              }
+              if (canStart("kill_gobelin_lvl5")) {
+                choices.push({
+                  text: "Qu\xEAte : Chasse gobelinesque",
+                  onSelect: (ctx2) => {
+                    const res = ctx2.questManager?.start?.("kill_gobelin_lvl5");
+                    if (res && res.ok === false)
+                      notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
+                    else
+                      notify(ctx2, "Qu\xEAte accept\xE9e : Chasse gobelinesque", 3200);
+                  },
+                  next: "offers"
+                });
+              }
+              if (canStart("build_campfire")) {
+                choices.push({
+                  text: "Qu\xEAte : Cr\xE9ation feu de camp",
+                  onSelect: (ctx2) => {
+                    const res = ctx2.questManager?.start?.("build_campfire");
+                    if (res && res.ok === false)
+                      notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
+                    else
+                      notify(ctx2, "Qu\xEAte accept\xE9e : Cr\xE9ation feu de camp", 3200);
+                  },
+                  next: "offers"
+                });
+              }
               choices.push({ text: "Retour", next: "start" });
               return choices;
             }
@@ -82477,10 +82501,9 @@ function showPlateauMapRenderer(opts) {
 				<span>Personnage</span>
 			</button>
 
-			<button class="btn" data-hub-action="other" style="${btnBase};left:50%;bottom:16px;transform:translateX(-50%);width:56%;height:20%;">
+			<button class="btn" data-hub-action="quests" style="${btnBase};left:50%;bottom:16px;transform:translateX(-50%);width:56%;height:20%;">
 				<span style="font-size:18px;">\u{1F4DC}</span>
-				<span>Autre</span>
-				<span style="opacity:0.75;font-weight:800;">(bient\xF4t)</span>
+				<span>Qu\xEAtes</span>
 			</button>
 
 			<button class="btn" data-hub-action="back" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:132px;height:132px;border-radius:999px;border:1px solid rgba(255,255,255,0.18);background:rgba(0,0,0,0.62);color:#fff;font-weight:900;box-shadow:0 16px 34px rgba(0,0,0,0.50);cursor:pointer;">
@@ -82529,8 +82552,15 @@ function showPlateauMapRenderer(opts) {
           });
           return;
         }
-        if (action === "other") {
-          showTemporaryMessage("Bient\xF4t disponible.", 1600);
+        if (action === "quests") {
+          closeHubModal();
+          void Promise.resolve().then(() => (init_questJournalModal_web(), questJournalModal_web_exports)).then((m2) => {
+            try {
+              m2.openQuestJournalModal?.();
+            } catch {
+              showTemporaryMessage("Impossible d'ouvrir les qu\xEAtes.", 1600);
+            }
+          });
           return;
         }
       });
@@ -82665,6 +82695,10 @@ function showPlateauMapRenderer(opts) {
             }
           } catch {
           }
+        }
+        try {
+          advanceGameTimeHours(hero2, 12, { reason: "campfire" });
+        } catch {
         }
         shared.splice(invIndex, 1);
         hero2.inventory = shared;
@@ -84905,14 +84939,6 @@ function showAuberge(opts) {
   const app2 = document.getElementById("app");
   if (!app2)
     return;
-  try {
-    const qm = window.game?.questManager;
-    if (qm && typeof qm.getProgress === "function" && !qm.getProgress("auberge_demarrage")) {
-      qm.start("auberge_demarrage");
-    }
-  } catch (e2) {
-    console.error("[quest] error ensuring auberge quest start", e2);
-  }
   app2.innerHTML = `
         <img src="ImagesRPG/imagesfond/auberge_Boaraven.jpeg" class="background" alt="Int\xE9rieur de taverne">
 
@@ -87285,7 +87311,7 @@ var init_accueil_web = __esm({
 });
 
 // dist/index.web.js
-var hero, game, musicStarted, gameContainer, app, style;
+var hero, game, gameContainer, app, style;
 var init_index_web = __esm({
   "dist/index.web.js"() {
     init_game();
@@ -87304,18 +87330,6 @@ var init_index_web = __esm({
     game = new Game("Merdoum 3", hero);
     window.game = game;
     game.init();
-    musicStarted = false;
-    document.addEventListener("click", () => {
-      if (!musicStarted) {
-        musicStarted = true;
-        game.audioManager.playOnce("intro", () => {
-          game.audioManager.playOnce("groot", () => {
-            game.audioManager.play("background");
-            console.log("Intro et Groot termin\xE9s, musique de fond lanc\xE9e");
-          });
-        });
-      }
-    });
     console.log("Bienvenue dans " + game.name + " !");
     gameContainer = window.document.getElementById("game-container");
     if (gameContainer) {

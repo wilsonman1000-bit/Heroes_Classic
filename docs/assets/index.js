@@ -5696,6 +5696,7 @@ function createQuickSkirmishFromParty(alliesParty, enemySetup = {}) {
   for (let i2 = 0; i2 < enemyCount; ++i2) {
     const idToCreate = enemyId === "gobelin" && i2 === 0 ? "gobelin_archer" : enemyId === "chef_gobelin" && i2 === 1 ? "sergent_gobelin" : enemyId;
     const e2 = createEnemy(idToCreate, enemyLevel);
+    e2.level = enemyLevel;
     e2.name = `${e2.name.split(" niveau ")[0]} ${i2 + 1}`;
     enemies.push(e2);
   }
@@ -6299,7 +6300,7 @@ function renderBarsRow(u2, isActive) {
   return `
         <div style="padding:10px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); ${isActive ? "outline:2px solid rgba(255,255,255,0.55);" : ""}">
             <div class="hp-label" style="margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; gap:10px;">
-                <span><b>${u2.name}</b></span>
+                <span><b>${u2.name}</b>${u2.team === "enemies" ? ` <span style="font-size:0.78em;opacity:0.6;font-weight:normal;">Niv.&nbsp;${Math.max(1, Math.floor(Number(actor?.level ?? 1)))}</span>` : ""}</span>
                 <span style="font-size:0.92em; color:#ddd;">PA ${u2.actionPoints}/${u2.actionPointsMax}</span>
             </div>
             ${effectsHtml}
@@ -75636,6 +75637,64 @@ var init_world = __esm({
       interact() {
         this.emit("tileInteract", { mapId: this.currentMapId, pos: this.playerPos, tile: this.getTileAt(this._playerPos) });
       }
+      /**
+       * Move an NPC from one tile to another on the given map.
+       * Mutates tileByKey and def.tiles in place so all consumers see the update immediately.
+       */
+      moveNpcToTile(mapId, from, to, npcDef) {
+        const rt = this.maps.get(mapId);
+        if (!rt)
+          return;
+        const fromKey = key(from);
+        const fromTile = rt.tileByKey.get(fromKey);
+        if (fromTile) {
+          delete fromTile.npc;
+          if (!fromTile.encounter && !fromTile.exit)
+            delete fromTile.blocked;
+          const remaining = Object.keys(fromTile).filter((k2) => k2 !== "x" && k2 !== "y");
+          if (!remaining.length)
+            rt.tileByKey.delete(fromKey);
+        }
+        const toKey = key(to);
+        const toTile = rt.tileByKey.get(toKey);
+        if (toTile) {
+          toTile.npc = npcDef;
+          toTile.blocked = true;
+        } else {
+          const newTile = { x: to.x, y: to.y, blocked: true, npc: npcDef };
+          rt.tileByKey.set(toKey, newTile);
+          rt.def.tiles = rt.def.tiles ?? [];
+          rt.def.tiles.push(newTile);
+        }
+      }
+      /**
+       * Move an encounter (enemy group) from one tile to another on the given map.
+       * Mutates tileByKey and def.tiles in place.
+       */
+      moveEncounterToTile(mapId, from, to) {
+        const rt = this.maps.get(mapId);
+        if (!rt)
+          return;
+        const fromKey = key(from);
+        const fromTile = rt.tileByKey.get(fromKey);
+        if (!fromTile?.encounter)
+          return;
+        const encounter = fromTile.encounter;
+        delete fromTile.encounter;
+        const remaining = Object.keys(fromTile).filter((k2) => k2 !== "x" && k2 !== "y");
+        if (!remaining.length)
+          rt.tileByKey.delete(fromKey);
+        const toKey = key(to);
+        const toTile = rt.tileByKey.get(toKey);
+        if (toTile) {
+          toTile.encounter = encounter;
+        } else {
+          const newTile = { x: to.x, y: to.y, encounter };
+          rt.tileByKey.set(toKey, newTile);
+          rt.def.tiles = rt.def.tiles ?? [];
+          rt.def.tiles.push(newTile);
+        }
+      }
       consumeOnce(mapId, token) {
         const rt = this.maps.get(mapId);
         if (!rt)
@@ -80279,7 +80338,9 @@ function ensureState(PIXI, app2, containerId, map, boardRect, hiddenEncounterTok
     map,
     ...boardRect ? { boardRect } : {},
     hiddenEncounterTokens: new Set((hiddenEncounterTokens ?? []).map(String)),
-    layout: computeIsoLayout(w2, h2, map.w, map.h, map)
+    layout: computeIsoLayout(w2, h2, map.w, map.h, map),
+    npcSpriteByTile: /* @__PURE__ */ new Map(),
+    enemySpriteByTile: /* @__PURE__ */ new Map()
   };
   state = s2;
   return s2;
@@ -80425,8 +80486,20 @@ function drawBoard(PIXI, s2) {
               }
               tileWrap.eventMode = "static";
               tileWrap.cursor = "pointer";
-              tileWrap.on("pointerover", () => drawHover(cx, cy));
-              tileWrap.on("pointerout", () => clearHover());
+              tileWrap.on("pointerover", () => {
+                drawHover(cx, cy);
+                try {
+                  window.dispatchEvent(new CustomEvent("worldTileHover", { detail: { x: x2, y: y2 } }));
+                } catch {
+                }
+              });
+              tileWrap.on("pointerout", () => {
+                clearHover();
+                try {
+                  window.dispatchEvent(new CustomEvent("worldTileHoverEnd"));
+                } catch {
+                }
+              });
               tileWrap.on("pointertap", () => {
                 try {
                   window.dispatchEvent(new CustomEvent("worldTileClick", { detail: { x: x2, y: y2 } }));
@@ -80472,6 +80545,8 @@ function drawBoard(PIXI, s2) {
     s2.boardShade.endFill();
   }
   s2.markersLayer.removeChildren();
+  s2.npcSpriteByTile.clear();
+  s2.enemySpriteByTile.clear();
   for (const t2 of map.tiles ?? []) {
     const encounterToken = `encounter:${String(map.id)}:${t2.x},${t2.y}`;
     const encounterHidden = Boolean(t2.encounter) && Boolean(s2.hiddenEncounterTokens?.has(encounterToken));
@@ -80514,6 +80589,42 @@ function drawBoard(PIXI, s2) {
         }
       });
       s2.markersLayer.addChild(sprite);
+      s2.enemySpriteByTile.set(`${t2.x},${t2.y}`, sprite);
+      continue;
+    }
+    const npcImg = String(t2?.npc?.imageSrc ?? "").trim();
+    if (t2.npc && npcImg) {
+      const sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+      sprite.anchor.set(0.5, 0.72);
+      sprite.x = cx;
+      sprite.y = cy - layout.tileH * 0.1;
+      sprite.alpha = 0;
+      const desiredW = Math.max(8, layout.tileW * 0.95);
+      const desiredH = Math.max(8, layout.tileH * 1.55);
+      const applySize = (tex) => {
+        const t22 = tex ?? sprite.texture;
+        const natW = Math.max(1, Number(t22?.width ?? 1));
+        const natH = Math.max(1, Number(t22?.height ?? 1));
+        if (natW <= 1 || natH <= 1)
+          return;
+        const kW = desiredW / natW;
+        const kH = desiredH / natH;
+        const k2 = Math.max(0.01, Math.min(kW, kH));
+        try {
+          sprite.scale.set(k2, k2);
+        } catch {
+        }
+      };
+      applySize();
+      setSpriteSourceAsync2(PIXI, sprite, npcImg, (tex) => {
+        applySize(tex);
+        try {
+          sprite.alpha = 1;
+        } catch {
+        }
+      });
+      s2.markersLayer.addChild(sprite);
+      s2.npcSpriteByTile.set(`${t2.x},${t2.y}`, sprite);
       continue;
     }
     let glyph = "";
@@ -80583,6 +80694,130 @@ function ensureWorldMapPixiListenerBound() {
       return;
     const s2 = ensureState(PIXI, app2, String(detail.containerId), detail.map, detail.boardRect, detail.hiddenEncounterTokens);
     drawBoard(PIXI, s2);
+  });
+  window.addEventListener("worldEnemySlide", (ev) => {
+    const detail = ev?.detail;
+    if (!detail)
+      return;
+    const app2 = getApp2();
+    const PIXI = window.PIXI;
+    if (!app2 || !PIXI)
+      return;
+    if (!state || state.app !== app2)
+      return;
+    const fromX = Number(detail.fromX ?? 0);
+    const fromY = Number(detail.fromY ?? 0);
+    const toX = Number(detail.toX ?? 0);
+    const toY = Number(detail.toY ?? 0);
+    const slideMs = Math.max(200, Number(detail.slideMs ?? 1e3));
+    const containerId = String(detail.containerId ?? "");
+    const map = detail.map;
+    const boardRect = detail.boardRect;
+    const hiddenEncounterTokens = detail.hiddenEncounterTokens;
+    const sprite = state.enemySpriteByTile.get(`${fromX},${fromY}`);
+    if (!sprite) {
+      const s2 = ensureState(PIXI, app2, containerId, map, boardRect, hiddenEncounterTokens);
+      drawBoard(PIXI, s2);
+      return;
+    }
+    const canvasRect = getCanvasRect(app2);
+    const { sx, sy } = getCanvasToRendererScale(app2);
+    const br = boardRect ?? state.boardRect ?? { left: 0, top: 0, width: 0, height: 0 };
+    const bLeft = (Number(br.left) - Number(canvasRect.left)) * sx;
+    const bTop = (Number(br.top) - Number(canvasRect.top)) * sy;
+    const localTo = tileCenter(state.layout, toX, toY);
+    const targetX = bLeft + localTo.cx;
+    const targetY = bTop + localTo.cy - state.layout.tileH * 0.06;
+    state.enemySpriteByTile.delete(`${fromX},${fromY}`);
+    state.enemySpriteByTile.set(`${toX},${toY}`, sprite);
+    const startX = Number(sprite.x ?? 0);
+    const startY = Number(sprite.y ?? 0);
+    const startTime = performance.now();
+    const tick = () => {
+      const elapsed = performance.now() - startTime;
+      const t2 = Math.min(1, elapsed / slideMs);
+      const ease = t2 < 0.5 ? 2 * t2 * t2 : -1 + (4 - 2 * t2) * t2;
+      try {
+        sprite.x = startX + (targetX - startX) * ease;
+      } catch {
+      }
+      try {
+        sprite.y = startY + (targetY - startY) * ease;
+      } catch {
+      }
+      if (t2 < 1) {
+        requestAnimationFrame(tick);
+      } else {
+        try {
+          const s2 = ensureState(PIXI, app2, containerId, map, boardRect, hiddenEncounterTokens);
+          drawBoard(PIXI, s2);
+        } catch {
+        }
+      }
+    };
+    requestAnimationFrame(tick);
+  });
+  window.addEventListener("worldNpcSlide", (ev) => {
+    const detail = ev?.detail;
+    if (!detail)
+      return;
+    const app2 = getApp2();
+    const PIXI = window.PIXI;
+    if (!app2 || !PIXI)
+      return;
+    if (!state || state.app !== app2)
+      return;
+    const fromX = Number(detail.fromX ?? 0);
+    const fromY = Number(detail.fromY ?? 0);
+    const toX = Number(detail.toX ?? 0);
+    const toY = Number(detail.toY ?? 0);
+    const slideMs = Math.max(200, Number(detail.slideMs ?? 1e3));
+    const containerId = String(detail.containerId ?? "");
+    const map = detail.map;
+    const boardRect = detail.boardRect;
+    const hiddenEncounterTokens = detail.hiddenEncounterTokens;
+    const sprite = state.npcSpriteByTile.get(`${fromX},${fromY}`);
+    if (!sprite) {
+      const s2 = ensureState(PIXI, app2, containerId, map, boardRect, hiddenEncounterTokens);
+      drawBoard(PIXI, s2);
+      return;
+    }
+    const canvasRect = getCanvasRect(app2);
+    const { sx, sy } = getCanvasToRendererScale(app2);
+    const br = boardRect ?? state.boardRect ?? { left: 0, top: 0, width: 0, height: 0 };
+    const bLeft = (Number(br.left) - Number(canvasRect.left)) * sx;
+    const bTop = (Number(br.top) - Number(canvasRect.top)) * sy;
+    const localTo = tileCenter(state.layout, toX, toY);
+    const targetX = bLeft + localTo.cx;
+    const targetY = bTop + localTo.cy - state.layout.tileH * 0.1;
+    state.npcSpriteByTile.delete(`${fromX},${fromY}`);
+    state.npcSpriteByTile.set(`${toX},${toY}`, sprite);
+    const startX = Number(sprite.x ?? 0);
+    const startY = Number(sprite.y ?? 0);
+    const startTime = performance.now();
+    const tick = () => {
+      const elapsed = performance.now() - startTime;
+      const t2 = Math.min(1, elapsed / slideMs);
+      const ease = t2 < 0.5 ? 2 * t2 * t2 : -1 + (4 - 2 * t2) * t2;
+      try {
+        sprite.x = startX + (targetX - startX) * ease;
+      } catch {
+      }
+      try {
+        sprite.y = startY + (targetY - startY) * ease;
+      } catch {
+      }
+      if (t2 < 1) {
+        requestAnimationFrame(tick);
+      } else {
+        try {
+          const s2 = ensureState(PIXI, app2, containerId, map, boardRect, hiddenEncounterTokens);
+          drawBoard(PIXI, s2);
+        } catch {
+        }
+      }
+    };
+    requestAnimationFrame(tick);
   });
   window.addEventListener("worldPixiLeader", (ev) => {
     const detail = ev?.detail;
@@ -82139,6 +82374,36 @@ function ensureRendererStyles() {
 			border-radius: 8px;
 			transform: translateY(-3%);
 		}
+		/* NPC marker can optionally use a custom sprite instead of \u{1F4AC} */
+		.plateau-marker.npc.npc-img::after { content:''; }
+		.plateau-marker.npc .plateau-marker-npc {
+			width: 120%;
+			height: 140%;
+			object-fit: contain;
+			display:block;
+			filter: drop-shadow(0 18px 28px rgba(0,0,0,0.55));
+			border-radius: 10px;
+			transform: translateY(-10%);
+		}
+		/* NPC image tiles: hide the diamond tile-bg cutout so no dark overlay appears behind the sprite */
+		.tactical-grid.plateau-grid .tile:has(.plateau-marker.npc-img) .tile-bg { opacity: 0; }
+		/* World map hover tooltip */
+		#worldMapTooltip {
+			position: fixed;
+			pointer-events: none;
+			background: rgba(18, 14, 26, 0.92);
+			color: #f5e6c0;
+			font-size: 13px;
+			font-weight: 700;
+			padding: 5px 12px;
+			border-radius: 8px;
+			border: 1px solid rgba(255, 200, 80, 0.22);
+			box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+			white-space: nowrap;
+			z-index: 99999;
+			display: none;
+			transform: translate(16px, -50%);
+		}
 	`;
   if (!s2.parentNode)
     document.head.appendChild(s2);
@@ -82347,6 +82612,44 @@ function showPlateauMapRenderer(opts) {
   let pixiTileClickHandler = null;
   let pixiLeaderClickHandler = null;
   let pixiResizeHandler = null;
+  let wanderingTimers = [];
+  const clearWanderingTimers = () => {
+    for (const t2 of wanderingTimers)
+      clearTimeout(t2);
+    wanderingTimers = [];
+  };
+  let lastMouseX = 0;
+  let lastMouseY = 0;
+  const _onDocMouseMove = (e2) => {
+    lastMouseX = e2.clientX;
+    lastMouseY = e2.clientY;
+  };
+  document.addEventListener("mousemove", _onDocMouseMove);
+  const _getOrCreateMapTooltip = () => {
+    let el = document.getElementById("worldMapTooltip");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "worldMapTooltip";
+      document.body.appendChild(el);
+    }
+    return el;
+  };
+  const hideMapTooltip = () => {
+    const el = document.getElementById("worldMapTooltip");
+    if (el)
+      el.style.display = "none";
+  };
+  const showMapTooltip = (text) => {
+    if (!text) {
+      hideMapTooltip();
+      return;
+    }
+    const el = _getOrCreateMapTooltip();
+    el.textContent = text;
+    el.style.display = "block";
+    el.style.left = `${lastMouseX}px`;
+    el.style.top = `${lastMouseY}px`;
+  };
   const teardownWorldPixiOverlay = () => {
     if (pixiMountedHandler) {
       try {
@@ -82919,14 +83222,50 @@ function showPlateauMapRenderer(opts) {
   };
   const startWorldNpcDialogue = (npc) => {
     const qm = window.game?.questManager;
+    const speaker = String(npc.title ?? "PNJ");
+    const portraitSrc = String(npc.imageSrc ?? "").trim() || void 0;
+    const extraNodes = {};
+    const extraChoices = [];
+    for (let i2 = 0; i2 < (npc.choices?.length ?? 0); i2++) {
+      const c2 = npc.choices?.[i2];
+      if (!c2)
+        continue;
+      const nodeId = `resp_${i2}`;
+      const subChoicesForNode = [];
+      for (let j2 = 0; j2 < (c2.subChoices?.length ?? 0); j2++) {
+        const sc = c2.subChoices?.[j2];
+        if (!sc)
+          continue;
+        const subNodeId = `resp_${i2}_sub_${j2}`;
+        extraNodes[subNodeId] = {
+          id: subNodeId,
+          speaker,
+          side: "left",
+          ...portraitSrc ? { portraitSrc } : {},
+          text: String(sc.response ?? ""),
+          choices: [{ text: "Retour", next: nodeId }, { text: "Fermer" }]
+        };
+        subChoicesForNode.push({ text: String(sc.text ?? ""), next: subNodeId });
+      }
+      extraNodes[nodeId] = {
+        id: nodeId,
+        speaker,
+        side: "left",
+        ...portraitSrc ? { portraitSrc } : {},
+        text: String(c2.response ?? ""),
+        choices: [...subChoicesForNode, { text: "Retour", next: "start" }, { text: "Fermer" }]
+      };
+      extraChoices.push({ text: String(c2.text ?? ""), next: nodeId });
+    }
     const script = {
       id: `world_npc:${String(npc.id ?? npc.title ?? "npc")}`,
       start: "start",
       nodes: {
         start: {
           id: "start",
-          speaker: String(npc.title ?? "PNJ"),
+          speaker,
           side: "left",
+          ...portraitSrc ? { portraitSrc } : {},
           text: String(npc.text ?? ""),
           onEnter: (ctx) => {
             try {
@@ -82935,7 +83274,7 @@ function showPlateauMapRenderer(opts) {
             }
           },
           choices: (ctx) => {
-            const choices = [];
+            const choices = [...extraChoices];
             const qid = String(npc.questStartId ?? "").trim();
             if (qid) {
               const has = Boolean(ctx.questManager?.getProgress?.(qid));
@@ -82959,7 +83298,8 @@ function showPlateauMapRenderer(opts) {
             choices.push({ text: "Fermer" });
             return choices;
           }
-        }
+        },
+        ...extraNodes
       }
     };
     startDialogue(script, {
@@ -83020,6 +83360,35 @@ function showPlateauMapRenderer(opts) {
     const m2 = store?.[String(mapId)] ?? {};
     return Object.keys(m2).filter((token) => Number(m2[token]) === day);
   };
+  const tooltipLabelForTile = (t2, mapId) => {
+    if (!t2)
+      return "";
+    if (t2.npc)
+      return String(t2.npc.title ?? "PNJ");
+    if (t2.encounter && !isEncounterDefeatedToday(mapId, t2.x, t2.y)) {
+      const def = ENEMY_DEFS[String(t2.encounter.enemyId ?? "")];
+      const name = String(def?.name ?? t2.encounter.enemyId ?? "Ennemi");
+      const count2 = Math.max(1, Math.floor(Number(t2.encounter.enemyCount ?? 1)));
+      return count2 > 1 ? `${name} \xD7${count2}` : name;
+    }
+    return "";
+  };
+  const _onWorldTileHover = (ev) => {
+    const d2 = ev?.detail;
+    if (!d2)
+      return;
+    const map = opts.world.currentMap;
+    if (!map)
+      return;
+    const t2 = getTile(map, tileIndex, Number(d2.x), Number(d2.y));
+    const label = tooltipLabelForTile(t2, String(map.id));
+    if (label)
+      showMapTooltip(label);
+    else
+      hideMapTooltip();
+  };
+  window.addEventListener("worldTileHover", _onWorldTileHover);
+  window.addEventListener("worldTileHoverEnd", hideMapTooltip);
   const formatHudTime = () => {
     const hero2 = getHeroForWorld();
     if (!hero2)
@@ -83305,13 +83674,22 @@ function showPlateauMapRenderer(opts) {
       const hasNpc = Boolean(t2?.npc);
       const hasCombat = Boolean(t2?.encounter) && !isEncounterDefeatedToday(map.id, x2, y2);
       const isInteractive = hasExit || hasNpc || hasCombat || Boolean(t2?.eventId);
-      const marker = hasExit ? `<div class="plateau-marker exit ${escapeHtml(String(t2?.exit?.dir ?? ""))}" title="${escapeHtml(String(t2?.exit?.label ?? "Sortie"))}"></div>` : hasNpc ? `<div class="plateau-marker npc" title="Parler"></div>` : t2?.eventId === "maison" ? `<div class="plateau-marker house" title="Maison"></div>` : t2?.eventId === "auberge" ? `<div class="plateau-marker inn" title="Auberge"></div>` : t2?.eventId === "marche" ? `<div class="plateau-marker market" title="March\xE9"></div>` : t2?.eventId === "boutique" ? `<div class="plateau-marker shop" title="Boutique"></div>` : hasCombat ? (() => {
+      const npcImg = String(t2?.npc?.imageSrc ?? "").trim();
+      const marker = hasExit ? `<div class="plateau-marker exit ${escapeHtml(String(t2?.exit?.dir ?? ""))}" title="${escapeHtml(String(t2?.exit?.label ?? "Sortie"))}"></div>` : hasNpc ? npcImg ? `<div class="plateau-marker npc npc-img" title="Parler"><img class="plateau-marker-npc" src="${escapeHtml(npcImg)}" alt="PNJ"></div>` : `<div class="plateau-marker npc" title="Parler"></div>` : t2?.eventId === "maison" ? `<div class="plateau-marker house" title="Maison"></div>` : t2?.eventId === "auberge" ? `<div class="plateau-marker inn" title="Auberge"></div>` : t2?.eventId === "marche" ? `<div class="plateau-marker market" title="March\xE9"></div>` : t2?.eventId === "boutique" ? `<div class="plateau-marker shop" title="Boutique"></div>` : hasCombat ? (() => {
         const eid = t2?.encounter?.enemyId ?? "gobelin";
         const imgSrc = enemyImageSrc2(eid);
         return `<div class="plateau-marker combat" title="Combat"><img class="plateau-marker-enemy" src="${escapeHtml(String(imgSrc))}" alt="${escapeHtml(String(eid))}"></div>`;
       })() : "";
       const content = x2 === pos.x && y2 === pos.y ? renderLeader() : marker;
-      return `<div class="tile ${isBlocked ? "blocked" : ""} ${isInteractive ? "interactive" : ""}" data-x="${x2}" data-y="${y2}"><div class="tile-bg" aria-hidden="true"></div>${content}</div>`;
+      const _npcTip = hasNpc ? escapeHtml(String(t2?.npc?.title ?? "PNJ")) : "";
+      const _eneTip = !_npcTip && hasCombat ? (() => {
+        const _def = ENEMY_DEFS[String(t2?.encounter?.enemyId ?? "")];
+        const _nm = escapeHtml(String(_def?.name ?? t2?.encounter?.enemyId ?? "Ennemi"));
+        const _cnt = Math.max(1, Math.floor(Number(t2?.encounter?.enemyCount ?? 1)));
+        return _cnt > 1 ? `${_nm} \xD7${_cnt}` : _nm;
+      })() : "";
+      const _tileTip = _npcTip || _eneTip;
+      return `<div class="tile ${isBlocked ? "blocked" : ""} ${isInteractive ? "interactive" : ""}" data-x="${x2}" data-y="${y2}"${_tileTip ? ` data-tooltip="${_tileTip}"` : ""}><div class="tile-bg" aria-hidden="true"></div>${content}</div>`;
     }).join("")}
 							</div>
 						</div>
@@ -83325,6 +83703,7 @@ function showPlateauMapRenderer(opts) {
       stopMovement();
       closeInventoryModal({ silent: true });
       closeHubModal();
+      clearWanderingTimers();
       if (gameTimeHandler) {
         try {
           window.removeEventListener(GAME_TIME_EVENT, gameTimeHandler);
@@ -83371,6 +83750,10 @@ function showPlateauMapRenderer(opts) {
         }
         worldPixiScreenEl = null;
       }
+      document.removeEventListener("mousemove", _onDocMouseMove);
+      window.removeEventListener("worldTileHover", _onWorldTileHover);
+      window.removeEventListener("worldTileHoverEnd", hideMapTooltip);
+      hideMapTooltip();
       fade.remove();
       opts.onBack();
     });
@@ -83379,6 +83762,17 @@ function showPlateauMapRenderer(opts) {
     const grid = document.getElementById(GRID_ID);
     if (!grid)
       return;
+    grid.addEventListener("mouseover", (e2) => {
+      const tileEl = e2.target?.closest(".tile[data-tooltip]");
+      if (!tileEl)
+        return;
+      showMapTooltip(tileEl.getAttribute("data-tooltip") ?? "");
+    });
+    grid.addEventListener("mouseout", (e2) => {
+      const rel = e2.relatedTarget;
+      if (!rel?.closest("#plateauWorldGrid"))
+        hideMapTooltip();
+    });
     scheduleIsoLayout(app2, grid, map.w, map.h, opts.layout, map);
     const getPixiBoardRect = () => {
       const vw = Math.max(1, Math.floor(Number(window.innerWidth ?? 1)));
@@ -83454,8 +83848,12 @@ function showPlateauMapRenderer(opts) {
       if (hasExit) {
         return `<div class="plateau-marker exit ${escapeHtml(String(t2?.exit?.dir ?? ""))}" title="${escapeHtml(String(t2?.exit?.label ?? "Sortie"))}"></div>`;
       }
-      if (hasNpc)
+      if (hasNpc) {
+        const npcImg = String(t2?.npc?.imageSrc ?? "").trim();
+        if (npcImg)
+          return `<div class="plateau-marker npc npc-img" title="Parler"><img class="plateau-marker-npc" src="${escapeHtml(npcImg)}" alt="PNJ"></div>`;
         return `<div class="plateau-marker npc" title="Parler"></div>`;
+      }
       if (t2?.eventId === "maison")
         return `<div class="plateau-marker house" title="Maison"></div>`;
       if (t2?.eventId === "auberge")
@@ -83619,6 +84017,12 @@ function showPlateauMapRenderer(opts) {
         return;
       if (!Number.isFinite(tx) || !Number.isFinite(ty))
         return;
+      const clickedTile = opts.world.getTileAt({ x: tx, y: ty });
+      if (clickedTile?.blocked && clickedTile?.npc) {
+        stopMovement();
+        startWorldNpcDialogue(clickedTile.npc);
+        return;
+      }
       const path2 = opts.world.computePath({ x: tx, y: ty }, { allowEnterBlockedDestination: Boolean(opts.movement?.allowEnterBlockedDestination) });
       if (!path2.length) {
         showTemporaryMessage("Chemin bloqu\xE9.", 1600);
@@ -83865,6 +84269,273 @@ function showPlateauMapRenderer(opts) {
       } catch {
       }
     }
+    clearWanderingTimers();
+    const wanderingMap = opts.world.currentMap;
+    for (const tile of [...wanderingMap.tiles ?? []]) {
+      if (!tile.npc?.wandering)
+        continue;
+      const npcDef = tile.npc;
+      const intervalMs = Math.max(1e3, Number(npcDef.wandering.intervalMs ?? 1e4));
+      let npcX = tile.x;
+      let npcY = tile.y;
+      wanderingTimers.push(setInterval(() => {
+        if (opts.world.currentMapId !== wanderingMap.id)
+          return;
+        if (animating)
+          return;
+        const pp = opts.world.playerPos;
+        const deltas = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+        const candidates = deltas.map((d2) => ({ x: npcX + d2.x, y: npcY + d2.y })).filter((p2) => p2.x >= 0 && p2.y >= 0 && p2.x < wanderingMap.w && p2.y < wanderingMap.h && !opts.world.isBlocked(p2) && !(p2.x === pp.x && p2.y === pp.y));
+        if (!candidates.length)
+          return;
+        const next = candidates[Math.floor(Math.random() * candidates.length)];
+        if (!next)
+          return;
+        const prev = { x: npcX, y: npcY };
+        opts.world.moveNpcToTile(wanderingMap.id, prev, next, npcDef);
+        npcX = next.x;
+        npcY = next.y;
+        tileIndex = tileIndexFor();
+        if (Boolean(window.PIXI) && Boolean(window.__pixiApp)) {
+          try {
+            window.dispatchEvent(new CustomEvent("worldNpcSlide", {
+              detail: {
+                containerId: PIXI_CONTAINER_ID,
+                map: wanderingMap,
+                boardRect: getPixiBoardRect(),
+                hiddenEncounterTokens: listHiddenEncounterTokensForMap(wanderingMap.id),
+                fromX: prev.x,
+                fromY: prev.y,
+                toX: npcX,
+                toY: npcY,
+                imageSrc: npcDef.imageSrc ?? "",
+                slideMs: 1e3
+              }
+            }));
+          } catch {
+          }
+        } else {
+          const grid2 = document.getElementById(GRID_ID);
+          if (!grid2)
+            return;
+          const prevEl = grid2.querySelector(`.tile[data-x="${prev.x}"][data-y="${prev.y}"]`);
+          const nextEl = grid2.querySelector(`.tile[data-x="${npcX}"][data-y="${npcY}"]`);
+          if (prevEl) {
+            prevEl.querySelectorAll(".plateau-marker").forEach((n2) => n2.remove());
+            prevEl.classList.remove("interactive");
+            prevEl.removeAttribute("data-tooltip");
+            const m2 = markerHtmlForPos(prev.x, prev.y);
+            if (m2) {
+              prevEl.insertAdjacentHTML("beforeend", m2);
+              prevEl.classList.add("interactive");
+            }
+            const prevTip = tooltipLabelForTile(getTile(wanderingMap, tileIndex, prev.x, prev.y), wanderingMap.id);
+            if (prevTip)
+              prevEl.setAttribute("data-tooltip", prevTip);
+            else
+              prevEl.removeAttribute("data-tooltip");
+          }
+          const _npcImgSrc = String(npcDef.imageSrc ?? "").trim();
+          if (_npcImgSrc && prevEl && nextEl) {
+            const fr = prevEl.getBoundingClientRect();
+            const tr = nextEl.getBoundingClientRect();
+            const ghost = document.createElement("img");
+            ghost.src = _npcImgSrc;
+            ghost.style.cssText = [
+              "position:fixed",
+              `left:${fr.left - fr.width * 0.1}px`,
+              `top:${fr.top - fr.height * 0.55}px`,
+              `width:${fr.width * 1.2}px`,
+              `height:${fr.height * 1.55}px`,
+              "object-fit:contain",
+              "object-position:center bottom",
+              "pointer-events:none",
+              "z-index:9100",
+              "transition:left 1s cubic-bezier(.4,0,.2,1),top 1s cubic-bezier(.4,0,.2,1)",
+              "filter:drop-shadow(0 10px 20px rgba(0,0,0,0.55))"
+            ].join(";");
+            document.body.appendChild(ghost);
+            void ghost.offsetWidth;
+            ghost.style.left = `${tr.left - tr.width * 0.1}px`;
+            ghost.style.top = `${tr.top - tr.height * 0.55}px`;
+            const _onSlideEnd = () => {
+              try {
+                ghost.remove();
+              } catch {
+              }
+              if (nextEl) {
+                nextEl.querySelectorAll(".plateau-marker").forEach((n2) => n2.remove());
+                const m2 = markerHtmlForPos(npcX, npcY);
+                if (m2) {
+                  nextEl.insertAdjacentHTML("beforeend", m2);
+                  nextEl.classList.add("interactive");
+                }
+                nextEl.classList.add("interactive");
+                const nextTip = tooltipLabelForTile(getTile(wanderingMap, tileIndex, npcX, npcY), wanderingMap.id);
+                if (nextTip)
+                  nextEl.setAttribute("data-tooltip", nextTip);
+                else
+                  nextEl.removeAttribute("data-tooltip");
+              }
+            };
+            ghost.addEventListener("transitionend", _onSlideEnd, { once: true });
+            setTimeout(_onSlideEnd, 1150);
+          } else {
+            if (nextEl) {
+              nextEl.querySelectorAll(".plateau-marker").forEach((n2) => n2.remove());
+              const m2 = markerHtmlForPos(npcX, npcY);
+              if (m2) {
+                nextEl.insertAdjacentHTML("beforeend", m2);
+                nextEl.classList.add("interactive");
+              }
+              nextEl.classList.add("interactive");
+              const nextTip = tooltipLabelForTile(getTile(wanderingMap, tileIndex, npcX, npcY), wanderingMap.id);
+              if (nextTip)
+                nextEl.setAttribute("data-tooltip", nextTip);
+              else
+                nextEl.removeAttribute("data-tooltip");
+            }
+          }
+        }
+      }, intervalMs));
+    }
+    for (const tile of [...wanderingMap.tiles ?? []]) {
+      if (!tile.encounter)
+        continue;
+      const _encounterRef = tile.encounter;
+      let enX = tile.x;
+      let enY = tile.y;
+      const _stepEnemy = () => {
+        if (opts.world.currentMapId !== wanderingMap.id)
+          return;
+        if (animating)
+          return;
+        if (isEncounterDefeatedToday(wanderingMap.id, enX, enY))
+          return;
+        const pp = opts.world.playerPos;
+        const deltas = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+        const candidates = deltas.map((d2) => ({ x: enX + d2.x, y: enY + d2.y })).filter((p2) => p2.x >= 0 && p2.y >= 0 && p2.x < wanderingMap.w && p2.y < wanderingMap.h && !opts.world.isBlocked(p2) && !(p2.x === pp.x && p2.y === pp.y) && !getTile(wanderingMap, tileIndex, p2.x, p2.y)?.encounter && !getTile(wanderingMap, tileIndex, p2.x, p2.y)?.npc);
+        if (!candidates.length)
+          return;
+        const next = candidates[Math.floor(Math.random() * candidates.length)];
+        if (!next)
+          return;
+        const prev = { x: enX, y: enY };
+        opts.world.moveEncounterToTile(wanderingMap.id, prev, next);
+        enX = next.x;
+        enY = next.y;
+        tileIndex = tileIndexFor();
+        const _enImgSrc = enemyImageSrc2(getTile(wanderingMap, tileIndex, enX, enY)?.encounter?.enemyId ?? _encounterRef.enemyId ?? "");
+        if (Boolean(window.PIXI) && Boolean(window.__pixiApp)) {
+          try {
+            window.dispatchEvent(new CustomEvent("worldEnemySlide", {
+              detail: {
+                containerId: PIXI_CONTAINER_ID,
+                map: wanderingMap,
+                boardRect: getPixiBoardRect(),
+                hiddenEncounterTokens: listHiddenEncounterTokensForMap(wanderingMap.id),
+                fromX: prev.x,
+                fromY: prev.y,
+                toX: enX,
+                toY: enY,
+                imageSrc: _enImgSrc,
+                slideMs: 1e3
+              }
+            }));
+          } catch {
+          }
+        } else {
+          const grid2 = document.getElementById(GRID_ID);
+          if (!grid2)
+            return;
+          const prevEl = grid2.querySelector(`.tile[data-x="${prev.x}"][data-y="${prev.y}"]`);
+          const nextEl = grid2.querySelector(`.tile[data-x="${enX}"][data-y="${enY}"]`);
+          if (prevEl) {
+            prevEl.querySelectorAll(".plateau-marker").forEach((n2) => n2.remove());
+            prevEl.classList.remove("interactive");
+            prevEl.removeAttribute("data-tooltip");
+            const m2 = markerHtmlForPos(prev.x, prev.y);
+            if (m2) {
+              prevEl.insertAdjacentHTML("beforeend", m2);
+              prevEl.classList.add("interactive");
+            }
+            const prevTip = tooltipLabelForTile(getTile(wanderingMap, tileIndex, prev.x, prev.y), wanderingMap.id);
+            if (prevTip)
+              prevEl.setAttribute("data-tooltip", prevTip);
+            else
+              prevEl.removeAttribute("data-tooltip");
+          }
+          if (_enImgSrc && prevEl && nextEl) {
+            const fr = prevEl.getBoundingClientRect();
+            const tr = nextEl.getBoundingClientRect();
+            const ghost = document.createElement("img");
+            ghost.src = _enImgSrc;
+            ghost.style.cssText = [
+              "position:fixed",
+              `left:${fr.left - fr.width * 0.05}px`,
+              `top:${fr.top - fr.height * 0.4}px`,
+              `width:${fr.width * 1.1}px`,
+              `height:${fr.height * 1.1}px`,
+              "object-fit:contain",
+              "object-position:center bottom",
+              "pointer-events:none",
+              "z-index:9100",
+              "transition:left 1s cubic-bezier(.4,0,.2,1),top 1s cubic-bezier(.4,0,.2,1)",
+              "filter:drop-shadow(0 10px 20px rgba(0,0,0,0.55))"
+            ].join(";");
+            document.body.appendChild(ghost);
+            void ghost.offsetWidth;
+            ghost.style.left = `${tr.left - tr.width * 0.05}px`;
+            ghost.style.top = `${tr.top - tr.height * 0.4}px`;
+            const _onEnd = () => {
+              try {
+                ghost.remove();
+              } catch {
+              }
+              if (nextEl) {
+                nextEl.querySelectorAll(".plateau-marker").forEach((n2) => n2.remove());
+                const m2 = markerHtmlForPos(enX, enY);
+                if (m2) {
+                  nextEl.insertAdjacentHTML("beforeend", m2);
+                  nextEl.classList.add("interactive");
+                }
+                nextEl.classList.add("interactive");
+                const nextTip = tooltipLabelForTile(getTile(wanderingMap, tileIndex, enX, enY), wanderingMap.id);
+                if (nextTip)
+                  nextEl.setAttribute("data-tooltip", nextTip);
+                else
+                  nextEl.removeAttribute("data-tooltip");
+              }
+            };
+            ghost.addEventListener("transitionend", _onEnd, { once: true });
+            setTimeout(_onEnd, 1150);
+          } else {
+            if (nextEl) {
+              nextEl.querySelectorAll(".plateau-marker").forEach((n2) => n2.remove());
+              const m2 = markerHtmlForPos(enX, enY);
+              if (m2) {
+                nextEl.insertAdjacentHTML("beforeend", m2);
+                nextEl.classList.add("interactive");
+              }
+              nextEl.classList.add("interactive");
+              const nextTip = tooltipLabelForTile(getTile(wanderingMap, tileIndex, enX, enY), wanderingMap.id);
+              if (nextTip)
+                nextEl.setAttribute("data-tooltip", nextTip);
+              else
+                nextEl.removeAttribute("data-tooltip");
+            }
+          }
+        }
+      };
+      const _scheduleEnemy = () => {
+        const _tid = setTimeout(() => {
+          _stepEnemy();
+          _scheduleEnemy();
+        }, Math.floor(Math.random() * 6e3) + 6e3);
+        wanderingTimers.push(_tid);
+      };
+      _scheduleEnemy();
+    }
   };
   if (opts.start) {
     try {
@@ -83904,11 +84575,61 @@ var init_mapRenderer_web = __esm({
   }
 });
 
+// dist/world/npcDefs.js
+var NPC_FOREST_OLDMAN, NPC_FOREST_RUINS_SCOUT, NPC_BOARAVEN_VILLAGEOISE_1;
+var init_npcDefs = __esm({
+  "dist/world/npcDefs.js"() {
+    "use strict";
+    NPC_FOREST_OLDMAN = {
+      id: "forest_oldman",
+      title: "Vieux chasseur",
+      text: "Je garde l'entr\xE9e. Si tu t'aventures plus loin, pr\xE9pare-toi \xE0 combattre."
+    };
+    NPC_FOREST_RUINS_SCOUT = {
+      id: "forest_ruins_scout",
+      title: "\xC9claireuse",
+      text: "Des traces r\xE9centes... quelque chose r\xF4de dans les ruines."
+    };
+    NPC_BOARAVEN_VILLAGEOISE_1 = {
+      id: "boaraven_villageoise_auberge",
+      title: "Villageoise",
+      text: "Va \xE0 l'auberge, tu y trouveras un toit et de quoi te sustenter.",
+      imageSrc: "ImagesRPG/imagespersonnage/Villageoise_ Cartoon J.png",
+      wandering: { intervalMs: 3e3 },
+      choices: [
+        {
+          text: "O\xF9 se trouve l'auberge ?",
+          response: "L'auberge est juste l\xE0, \xE0 gauche. C'est l'auberge du Sanglier qui Rit ! Notre fabuleuse auberge de notre baronnie libre de Boaraven !"
+        },
+        {
+          text: "Qu'y sert-on \xE0 l'auberge ?",
+          response: "De la bonne soupe chaude et un lit douillet. Id\xE9al pour soigner ses blessures apr\xE8s une longue route."
+        },
+        {
+          text: "Le village est-il s\xFBr ?",
+          response: "Boaraven est bien gard\xE9, mais des rumeurs courent... Des voyageurs disparaissent en for\xEAt depuis quelques nuits. Restez prudents."
+        },
+        {
+          text: "Parlez-moi de Boaraven.",
+          response: "Boaraven est une baronnie libre ! Elle a \xE9t\xE9 cr\xE9\xE9e par l'alliance des villages guerriers de Boar et de Raven. Les chefs sont le Baron de Boar et le Baron de Raven. Boaraven est devenu le c\u0153ur de notre province.",
+          subChoices: [
+            {
+              text: "Qu'est-ce qu'une baronnie libre ?",
+              response: "Boaraven est un cas tr\xE8s particulier dans le royaume. Les barons de Boar et de Raven ont obtenu leur autonomie et ne sont pas sous l'autorit\xE9 d'un duc, comte, ou marquis ; ils sont directement sujets du roi qui les prot\xE8ge. Les baronnies de Boar et de Raven ont obtenu ce statut lors de la derni\xE8re grande guerre, il y a 30 ans."
+            }
+          ]
+        }
+      ]
+    };
+  }
+});
+
 // dist/world/maps.js
 var midIndex, findMapByGrid, ensureExitTile, applyGridExits, FOREST_MAPS, DEFAULT_FOREST_ENTRY;
 var init_maps = __esm({
   "dist/world/maps.js"() {
     "use strict";
+    init_npcDefs();
     midIndex = (size) => Math.max(0, Math.floor((Math.max(1, size) - 1) / 2));
     findMapByGrid = (maps, pos) => maps.find((m2) => m2.meta?.grid?.x === pos.x && m2.meta?.grid?.y === pos.y);
     ensureExitTile = (map, at, exit) => {
@@ -83976,15 +84697,7 @@ var init_maps = __esm({
             y: 3,
             exit: { dir: "east", to: "forest_2", entry: { x: 0, y: 3 }, label: "Vers la for\xEAt (est)" }
           },
-          {
-            x: 3,
-            y: 3,
-            npc: {
-              id: "forest_oldman",
-              title: "Vieux chasseur",
-              text: "Je garde l'entr\xE9e. Si tu t'aventures plus loin, pr\xE9pare-toi \xE0 combattre."
-            }
-          },
+          { x: 3, y: 3, npc: NPC_FOREST_OLDMAN },
           {
             x: 5,
             y: 5,
@@ -84020,6 +84733,7 @@ var init_maps = __esm({
           displayName: "Baronnie libre de Boaraven"
         },
         tiles: [
+          { x: 4, y: 3, blocked: true, npc: NPC_BOARAVEN_VILLAGEOISE_1 },
           { x: 6, y: 0, eventId: "marche" },
           { x: 8, y: 1, eventId: "maison" },
           { x: 4, y: 8, eventId: "auberge" },
@@ -84080,15 +84794,7 @@ var init_maps = __esm({
             y: 3,
             exit: { dir: "west", to: "forest_2", entry: { x: 8, y: 3 }, label: "Retour (ouest)" }
           },
-          {
-            x: 4,
-            y: 2,
-            npc: {
-              id: "forest_ruins_scout",
-              title: "\xC9claireuse",
-              text: "Des traces r\xE9centes... quelque chose r\xF4de dans les ruines."
-            }
-          },
+          { x: 4, y: 2, npc: NPC_FOREST_RUINS_SCOUT },
           {
             x: 6,
             y: 6,

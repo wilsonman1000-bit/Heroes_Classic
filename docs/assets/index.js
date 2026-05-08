@@ -696,8 +696,8 @@ var init_skillLibrary = __esm({
         return s2;
       },
       shuriken: () => {
-        const s2 = new Damageskill("TA", "Lance un shuriken \xE0 distance (80% de l'attaque). Port\xE9e diagonale (port\xE9e 4). CD 1.", "Shuriken", 0.8, 20, 1);
-        s2.tactical = { kind: "single", aim: "diagonal", range: 4, stopAtFirstUnit: true };
+        const s2 = new Damageskill("TA", "Lance un shuriken \xE0 distance (80% de l'attaque). Port\xE9e 4 en cercle. CD 1.", "Shuriken", 0.8, 20, 1);
+        s2.tactical = { kind: "single", aim: "circle", range: 4, stopAtFirstUnit: true };
         return s2;
       },
       tir_gobelin: () => {
@@ -5709,7 +5709,7 @@ function createQuickSkirmishFromParty(alliesParty, enemySetup = {}) {
     const pv = Math.min(maxPv, Math.max(1, Math.floor(actor.pv)));
     const attack = Math.max(1, Math.floor(actor.effectiveAttack ?? actor.baseAttack ?? 5));
     const cls = String(actor.characterClass ?? "").toLowerCase();
-    const apMax = team === "allies" ? cls === "voleur" ? 4 : 3 : Math.max(1, Math.floor(actor.actionPointsMax ?? 2));
+    const apMax = team === "allies" ? ["voleur", "mage", "guerrier"].includes(cls) ? 4 : 3 : Math.max(1, Math.floor(actor.actionPointsMax ?? 2));
     actor.actionPointsMax = apMax;
     actor.actionPoints = apMax;
     const speed = getBaseSpeedForActor(actor, team, enemyIndex);
@@ -5911,7 +5911,7 @@ function startUnitTurn(state2, unitId) {
     const afterActorPv = Math.max(0, Math.floor(unit.actor.pv));
     const dmgFromTicks = Math.max(0, beforeActorPv - afterActorPv);
     if (state2.__adventureMode && unit.team === "allies" && dmgFromTicks > 0) {
-      const wound = Math.max(0, Math.floor(dmgFromTicks * 0.2));
+      const wound = Math.max(0, Math.floor(dmgFromTicks * 0.4));
       if (wound > 0) {
         const prev = Math.max(0, Math.floor(Number(unit.actor.__adventureMaxHpPenalty ?? 0)));
         unit.actor.__adventureMaxHpPenalty = prev + wound;
@@ -7529,7 +7529,7 @@ function applyAdventureWoundIfNeeded(state2, targetActor, actualDamage) {
   const dmg = Math.max(0, Math.floor(Number(actualDamage ?? 0)));
   if (dmg <= 0)
     return;
-  const wound = Math.max(0, Math.floor(dmg * 0.2));
+  const wound = Math.max(0, Math.floor(dmg * 0.4));
   if (wound <= 0)
     return;
   const prev = Math.max(0, Math.floor(Number(targetActor?.__adventureMaxHpPenalty ?? 0)));
@@ -9388,7 +9388,7 @@ function bindTacticalGridInput(grid, deps) {
       }
       if (state2.__adventureMode && res.damageFlashOnTarget && res.damageFlashOnTarget.actualDamage > 0) {
         const dmg = Math.max(0, Math.floor(Number(res.damageFlashOnTarget.actualDamage ?? 0)));
-        const wound = Math.max(0, Math.floor(dmg * 0.2));
+        const wound = Math.max(0, Math.floor(dmg * 0.4));
         if (wound > 0) {
           const a2 = activeNow.actor;
           a2.__adventureMaxHpPenalty = Math.max(0, Math.floor(Number(a2.__adventureMaxHpPenalty ?? 0))) + wound;
@@ -75708,2011 +75708,6 @@ var init_world = __esm({
   }
 });
 
-// dist/crafting/craftRecipes.js
-var CRAFT_RECIPES;
-var init_craftRecipes = __esm({
-  "dist/crafting/craftRecipes.js"() {
-    "use strict";
-    init_item();
-    CRAFT_RECIPES = [
-      {
-        id: "potion_small",
-        label: "Potion (co\xFBt 5 herbes)",
-        category: "consumable",
-        cost: { herb: 5 },
-        craftDurationMs: 900,
-        minigame: "memory",
-        create: () => new Consumable("potion_small", "Potion de soin", "Soigne 50 PV", "heal", 50)
-      },
-      {
-        id: "bombe_fumigene_item",
-        label: "Bombe fumig\xE8ne (co\xFBt 1 bois + 1 herbe)",
-        category: "other",
-        cost: { wood: 1, herb: 1 },
-        craftDurationMs: 700,
-        minigame: "memory",
-        create: () => new Item("bombe_fumigene_item", "Bombe fumig\xE8ne", "Ressource de comp\xE9tence (non utilisable en tant qu'objet).", { stackable: true })
-      },
-      {
-        id: "staff_novice",
-        label: "B\xE2ton de novice (co\xFBt 6 bois)",
-        category: "equipment",
-        cost: { wood: 6 },
-        craftDurationMs: 1400,
-        minigame: "sewing",
-        create: () => new Equipment("staff_novice", "B\xE2ton de novice", "B\xE2ton simple (+10 mana maximum)", "weapon", 0, 0, 0, 10)
-      },
-      {
-        id: "sword_wood",
-        label: "\xC9p\xE9e en bois (co\xFBt 4 bois)",
-        category: "equipment",
-        cost: { wood: 4 },
-        craftDurationMs: 1200,
-        minigame: "forge",
-        create: () => new Equipment("sword_wood", "\xC9p\xE9e en bois", "\xC9p\xE9e l\xE9g\xE8re (+1 attaque)", "weapon", 1, 0, 0, 0)
-      },
-      {
-        id: "sword_1",
-        label: "\xC9p\xE9e basique (co\xFBt 8 fer)",
-        category: "equipment",
-        cost: { fer: 8 },
-        craftDurationMs: 1600,
-        minigame: "forge",
-        create: () => new Equipment("sword_1", "\xC9p\xE9e basique", "\xC9p\xE9e en fer (+5 attaque)", "weapon", 5, 0, 0, 0)
-      },
-      {
-        id: "sword_bronze",
-        label: "\xC9p\xE9e de bronze (co\xFBt 5 fer)",
-        category: "equipment",
-        cost: { fer: 5 },
-        craftDurationMs: 1500,
-        minigame: "forge",
-        create: () => new Equipment("sword_bronze", "\xC9p\xE9e de bronze", "\xC9p\xE9e en bronze (+2 attaque)", "weapon", 2, 0, 0, 0)
-      },
-      {
-        id: "dague_fer",
-        label: "Dague de fer (co\xFBt 6 fer)",
-        category: "equipment",
-        cost: { fer: 6 },
-        craftDurationMs: 1400,
-        minigame: "forge",
-        create: () => new Equipment("dague_fer", "Dague de fer", "Dague en fer (+2 attaque, +2 critique)", "weapon", 2, 0, 0, 0, 2)
-      },
-      {
-        id: "dagues_rouille",
-        label: "Dagues rouill\xE9es (co\xFBt 3 fer)",
-        category: "equipment",
-        cost: { fer: 3 },
-        craftDurationMs: 1100,
-        minigame: "forge",
-        create: () => new Equipment("dagues_rouille", "Dagues rouill\xE9es", "Dagues us\xE9es (+1 critique)", "weapon", 0, 0, 0, 0, 1)
-      },
-      {
-        id: "armor_1",
-        label: "Armure de cuir (co\xFBt 6 cuir)",
-        category: "equipment",
-        cost: { cuir: 6 },
-        craftDurationMs: 1700,
-        minigame: "sewing",
-        create: () => new Equipment("armor_1", "Armure de cuir", "Armure l\xE9g\xE8re (+20 PV)", "armor", 0, 0, 20, 0)
-      },
-      {
-        id: "ring_1",
-        label: "Anneau de mana (co\xFBt 4 fer)",
-        category: "equipment",
-        cost: { fer: 4 },
-        craftDurationMs: 1300,
-        minigame: "forge",
-        create: () => new Equipment("ring_1", "Anneau de mana", "Anneau (+10 mana)", "ring", 0, 0, 0, 10)
-      },
-      {
-        id: "campfire",
-        label: "Feu de camp (co\xFBt 5 bois)",
-        category: "other",
-        cost: { wood: 5 },
-        craftDurationMs: 2200,
-        minigame: "memory",
-        create: () => new Campfire()
-      }
-    ];
-  }
-});
-
-// dist/crafting/forgeMinigame.web.js
-async function runForgeMinigame(options) {
-  const { root, panel } = createOverlayRoot();
-  let cancelled = false;
-  const cleanup = () => {
-    try {
-      root.remove();
-    } catch {
-    }
-  };
-  const cancel = () => {
-    if (cancelled)
-      return;
-    cancelled = true;
-    try {
-      options.onCancel?.();
-    } catch {
-    }
-    cleanup();
-  };
-  const onKeyDown = (e2) => {
-    if (e2.key === "Escape") {
-      e2.preventDefault();
-      cancel();
-    }
-  };
-  document.addEventListener("keydown", onKeyDown);
-  const safeCleanup = () => {
-    document.removeEventListener("keydown", onKeyDown);
-    cleanup();
-  };
-  const setHeader = (title, subtitle) => {
-    panel.innerHTML = "";
-    const top = document.createElement("div");
-    top.style.cssText = "display:flex;align-items:flex-start;gap:12px;justify-content:space-between;";
-    top.innerHTML = `
-			<div>
-				<div style="font-weight:950;font-size:18px;">Forge \u2014 ${title}</div>
-				<div style="color:#bbb;font-size:12px;margin-top:3px;">${subtitle}</div>
-			</div>
-			<button class="btn" id="forgeMinigameCloseBtn" style="min-width:110px;">Annuler</button>
-		`;
-    panel.appendChild(top);
-    panel.querySelector("#forgeMinigameCloseBtn")?.addEventListener("click", (e2) => {
-      e2.stopPropagation();
-      cancel();
-    });
-    const recipe = document.createElement("div");
-    recipe.style.cssText = "margin-top:10px;color:#ffd700;font-weight:800;";
-    recipe.textContent = options.recipeLabel;
-    panel.appendChild(recipe);
-  };
-  try {
-    setHeader("Chauffe", "Maintiens le clic pour chauffer. Rel\xE2che sur le trait bleu (80%) ou juste apr\xE8s, en d\xE9passant le moins possible.");
-    const bar = createCraftBar({ targetPercent: 80 });
-    bar.label.textContent = "Astuce: si tu rel\xE2ches trop t\xF4t, tu peux maintenir \xE0 nouveau pour continuer.";
-    panel.appendChild(document.createElement("div")).style.cssText = "height:12px;";
-    panel.appendChild(bar.wrap);
-    panel.appendChild(bar.label);
-    const heatInfo = document.createElement("div");
-    heatInfo.style.cssText = "margin-top:10px;color:#ddd;font-size:13px;";
-    panel.appendChild(heatInfo);
-    let heatPercent = 0;
-    let heatHolding = false;
-    let heatDone = false;
-    let lastT = 0;
-    let currentHoldSeconds = 0;
-    const updateHeatInfo = () => {
-      const bonusPreview = computeHeatBonus(heatPercent);
-      heatInfo.textContent = `Chauffe: ${heatPercent.toFixed(1)}% \u2014 Bonus si valid\xE9 maintenant: +${bonusPreview.toFixed(1)}`;
-    };
-    updateHeatInfo();
-    const heatRAF = (t2) => {
-      if (cancelled)
-        return;
-      if (heatDone)
-        return;
-      if (!heatHolding) {
-        lastT = t2;
-        requestAnimationFrame(heatRAF);
-        return;
-      }
-      const dt = Math.max(0, (t2 - lastT) / 1e3);
-      lastT = t2;
-      currentHoldSeconds += dt;
-      const minRate = 15;
-      const accel = 5;
-      const maxRate = 260;
-      const velocity = clamp2(minRate * Math.exp(accel * currentHoldSeconds), 0, maxRate);
-      heatPercent = clamp2(heatPercent + velocity * dt, 0, 100);
-      bar.fill.style.width = percentToWidth(heatPercent);
-      updateHeatInfo();
-      requestAnimationFrame(heatRAF);
-    };
-    requestAnimationFrame(heatRAF);
-    const heatPointerDown = (e2) => {
-      if (heatDone)
-        return;
-      if (e2.button !== 0)
-        return;
-      try {
-        window.game?.audioManager?.play("bouledefeu");
-      } catch {
-      }
-      currentHoldSeconds = 0;
-      heatHolding = true;
-      try {
-        e2.target.setPointerCapture?.(e2.pointerId);
-      } catch {
-      }
-    };
-    const heatPointerUp = () => {
-      if (heatDone)
-        return;
-      heatHolding = false;
-      if (heatPercent >= 80) {
-        heatDone = true;
-      }
-    };
-    bar.wrap.addEventListener("pointerdown", heatPointerDown);
-    window.addEventListener("pointerup", heatPointerUp);
-    await new Promise((resolve) => {
-      const check = () => {
-        if (cancelled)
-          return resolve();
-        if (heatDone)
-          return resolve();
-        requestAnimationFrame(check);
-      };
-      requestAnimationFrame(check);
-    });
-    bar.wrap.removeEventListener("pointerdown", heatPointerDown);
-    window.removeEventListener("pointerup", heatPointerUp);
-    if (cancelled) {
-      safeCleanup();
-      return null;
-    }
-    const heatBonus = computeHeatBonus(heatPercent);
-    const heatResult = { finalPercent: heatPercent, bonus: heatBonus };
-    setHeader("Forge (Marteau)", "Clique pour lancer le coup, puis clique pour arr\xEAter le trait au plus pr\xE8s du curseur (50%).");
-    const hammerBar = createCraftBar({ targetPercent: 50 });
-    hammerBar.label.textContent = "4 coups. Chaque coup parfait donne +1.3, sinon proportionnel \xE0 ta pr\xE9cision (max 1.3).";
-    panel.appendChild(document.createElement("div")).style.cssText = "height:12px;";
-    panel.appendChild(hammerBar.wrap);
-    panel.appendChild(hammerBar.label);
-    const zoneLeft = 40;
-    const zoneRight = 60;
-    const zone = document.createElement("div");
-    zone.style.cssText = [
-      "position:absolute",
-      "top:0",
-      "bottom:0",
-      `left:${zoneLeft}%`,
-      `width:${zoneRight - zoneLeft}%`,
-      "background:rgba(110,231,255,0.12)",
-      "border-radius:8px",
-      "pointer-events:none"
-    ].join(";");
-    hammerBar.wrap.appendChild(zone);
-    const makeTick = (pct2) => {
-      const t2 = document.createElement("div");
-      t2.style.cssText = [
-        "position:absolute",
-        "top:-6px",
-        "bottom:-6px",
-        `left:${pct2}%`,
-        "width:2px",
-        "background:#6ee7ff",
-        "box-shadow:0 0 0 6px rgba(110,231,255,0.06)",
-        "pointer-events:none"
-      ].join(";");
-      return t2;
-    };
-    hammerBar.wrap.appendChild(makeTick(zoneLeft));
-    hammerBar.wrap.appendChild(makeTick(zoneRight));
-    const hammerInfo = document.createElement("div");
-    hammerInfo.style.cssText = "margin-top:10px;color:#ddd;font-size:13px;white-space:pre-line;";
-    panel.appendChild(hammerInfo);
-    const moving = document.createElement("div");
-    moving.style.cssText = [
-      "position:absolute",
-      "top:-6px",
-      "bottom:-6px",
-      "left:0%",
-      "width:2px",
-      "background:#fff",
-      "box-shadow:0 0 0 3px rgba(255,255,255,0.12)",
-      "opacity:0"
-    ].join(";");
-    hammerBar.wrap.appendChild(moving);
-    const hammerHits = [];
-    let hitIndex = 0;
-    let running = false;
-    let startTime = 0;
-    let pendingResolve = null;
-    const HAMMER_RUN_MS = 1e3;
-    const renderHammerInfo = (last) => {
-      const lines = [];
-      lines.push(`Coup ${Math.min(hitIndex + 1, 5)}/5`);
-      if (last) {
-        lines.push(`R\xE9sultat: ${last.finalPercent.toFixed(1)}% \u2014 Pr\xE9cision: ${last.precisionPercent.toFixed(0)}% \u2014 Bonus: +${last.bonus.toFixed(2)}`);
-      }
-      const total = hammerHits.reduce((s4, h3) => s4 + h3.bonus, 0);
-      lines.push(`Total marteau: +${total.toFixed(2)}`);
-      hammerInfo.textContent = lines.join("\n");
-    };
-    renderHammerInfo();
-    const hammerRAF = (t2) => {
-      if (cancelled)
-        return;
-      if (!running) {
-        requestAnimationFrame(hammerRAF);
-        return;
-      }
-      const elapsed = t2 - startTime;
-      const pct2 = clamp2(elapsed / HAMMER_RUN_MS * 100, 0, 100);
-      moving.style.left = `${pct2}%`;
-      moving.style.opacity = "1";
-      if (elapsed >= HAMMER_RUN_MS) {
-        running = false;
-        moving.style.opacity = "0.85";
-        const { precisionPercent, bonus } = computeHammerBonus(100);
-        const res = { finalPercent: 100, precisionPercent, bonus };
-        hammerHits.push(res);
-        try {
-          window.game?.audioManager?.play(res.precisionPercent >= 90 ? "forge_crit" : "forge_bad");
-        } catch {
-        }
-        hitIndex++;
-        renderHammerInfo(res);
-        setTimeout(() => {
-          moving.style.opacity = "0";
-          if (pendingResolve) {
-            const r2 = pendingResolve;
-            pendingResolve = null;
-            r2();
-          }
-        }, 220);
-      }
-      requestAnimationFrame(hammerRAF);
-    };
-    requestAnimationFrame(hammerRAF);
-    const waitOneHammerHit = async () => {
-      await new Promise((resolve) => {
-        pendingResolve = resolve;
-      });
-    };
-    const clickHandler = async () => {
-      if (cancelled)
-        return;
-      if (hitIndex >= 4)
-        return;
-      if (!running) {
-        running = true;
-        startTime = performance.now();
-        moving.style.opacity = "1";
-        moving.style.left = "0%";
-        renderHammerInfo();
-        return;
-      }
-      running = false;
-      const elapsed = performance.now() - startTime;
-      const pct2 = clamp2(elapsed / HAMMER_RUN_MS * 100, 0, 100);
-      moving.style.left = `${pct2}%`;
-      const { precisionPercent, bonus } = computeHammerBonus(pct2);
-      const res = { finalPercent: pct2, precisionPercent, bonus };
-      hammerHits.push(res);
-      try {
-        window.game?.audioManager?.play(res.precisionPercent >= 90 ? "forge_crit" : "forge_bad");
-      } catch {
-      }
-      hitIndex++;
-      renderHammerInfo(res);
-      setTimeout(() => {
-        moving.style.opacity = "0";
-        if (pendingResolve) {
-          const r2 = pendingResolve;
-          pendingResolve = null;
-          r2();
-        }
-      }, 220);
-    };
-    hammerBar.wrap.addEventListener("click", (e2) => {
-      e2.stopPropagation();
-      void clickHandler();
-    });
-    while (hitIndex < 4 && !cancelled) {
-      await waitOneHammerHit();
-    }
-    if (cancelled) {
-      safeCleanup();
-      return null;
-    }
-    const hammerBonusTotal = hammerHits.reduce((s4, h3) => s4 + h3.bonus, 0);
-    const scoreBeforeSharpen = heatResult.bonus + hammerBonusTotal;
-    setHeader("Aff\xFBtage", "Arr\xEAte le curseur au plus pr\xE8s de 100% (avant). Si tu d\xE9passes 100%, bonus = 0.");
-    const sharpenBar = createCraftBar({ show100Marker: true });
-    sharpenBar.label.textContent = "Clique pour d\xE9marrer, puis clique pour arr\xEAter. (Dur\xE9e: ~1.5s jusqu\u2019\xE0 100%).";
-    panel.appendChild(document.createElement("div")).style.cssText = "height:12px;";
-    panel.appendChild(sharpenBar.wrap);
-    panel.appendChild(sharpenBar.label);
-    const sharpenInfo = document.createElement("div");
-    sharpenInfo.style.cssText = "margin-top:10px;color:#ddd;font-size:13px;white-space:pre-line;";
-    panel.appendChild(sharpenInfo);
-    const sharpenTick = document.createElement("div");
-    sharpenTick.style.cssText = [
-      "position:absolute",
-      "top:-6px",
-      "bottom:-6px",
-      "left:0%",
-      "width:2px",
-      "background:#fff",
-      "box-shadow:0 0 0 3px rgba(255,255,255,0.12)"
-    ].join(";");
-    sharpenBar.wrap.appendChild(sharpenTick);
-    const SHARP_TO_100_MS = 1500;
-    const SHARP_EXTRA_MS = 320;
-    const SHARP_MAX_PCT = 110;
-    let sharpenRunning = false;
-    let sharpenStarted = false;
-    let sharpenStart = 0;
-    let sharpenFinal = 0;
-    let sharpenDone = false;
-    const renderSharpenInfo = (p6) => {
-      const preview = computeSharpenBonus(p6, scoreBeforeSharpen);
-      const bonusText = preview.overshot ? "+0 (d\xE9pass\xE9)" : `+${preview.bonus.toFixed(2)}`;
-      sharpenInfo.textContent = `Aff\xFBtage: ${p6.toFixed(1)}%
-Bonus: ${bonusText}`;
-    };
-    renderSharpenInfo(0);
-    const sharpenRAF = (t2) => {
-      if (cancelled)
-        return;
-      if (!sharpenRunning) {
-        requestAnimationFrame(sharpenRAF);
-        return;
-      }
-      const elapsed = t2 - sharpenStart;
-      const totalMs = SHARP_TO_100_MS + SHARP_EXTRA_MS;
-      const pct2 = clamp2(elapsed / totalMs * SHARP_MAX_PCT, 0, SHARP_MAX_PCT);
-      sharpenTick.style.left = `${pct2}%`;
-      renderSharpenInfo(pct2);
-      if (elapsed >= totalMs) {
-        sharpenRunning = false;
-        sharpenFinal = pct2;
-        sharpenDone = true;
-      }
-      requestAnimationFrame(sharpenRAF);
-    };
-    requestAnimationFrame(sharpenRAF);
-    const sharpenClick = () => {
-      if (cancelled)
-        return;
-      if (sharpenDone)
-        return;
-      if (!sharpenStarted) {
-        try {
-          window.game?.audioManager?.play("forge_meule");
-        } catch {
-        }
-        sharpenStarted = true;
-        sharpenRunning = true;
-        sharpenStart = performance.now();
-        return;
-      }
-      if (sharpenRunning) {
-        try {
-          window.game?.audioManager?.pause("forge_meule");
-        } catch {
-        }
-        sharpenRunning = false;
-        const elapsed = performance.now() - sharpenStart;
-        const totalMs = SHARP_TO_100_MS + SHARP_EXTRA_MS;
-        sharpenFinal = clamp2(elapsed / totalMs * SHARP_MAX_PCT, 0, SHARP_MAX_PCT);
-        sharpenTick.style.left = `${sharpenFinal}%`;
-        sharpenDone = true;
-      }
-    };
-    sharpenBar.wrap.addEventListener("click", (e2) => {
-      e2.stopPropagation();
-      sharpenClick();
-    });
-    await new Promise((resolve) => {
-      const check = () => {
-        if (cancelled)
-          return resolve();
-        if (sharpenDone)
-          return resolve();
-        requestAnimationFrame(check);
-      };
-      requestAnimationFrame(check);
-    });
-    if (cancelled) {
-      safeCleanup();
-      return null;
-    }
-    const sharpenRes = computeSharpenBonus(sharpenFinal, scoreBeforeSharpen);
-    const totalScore = heatResult.bonus + hammerBonusTotal + sharpenRes.bonus;
-    const result = {
-      heat: heatResult,
-      hammer: { hits: hammerHits, bonusTotal: hammerBonusTotal },
-      sharpen: sharpenRes,
-      totalScore
-    };
-    const clampScore = (s4) => Math.max(14, Math.min(20, s4));
-    const scoreForQuality = clampScore(totalScore);
-    const k_U = 3, c_U = 17;
-    const k_H = 1.2, c_H = 20;
-    const k2 = 1, c2 = 16.5;
-    const k3 = 1.2, c3 = 17;
-    const sigmoid = (k4, c4, x2) => 1 / (1 + Math.exp(-k4 * (x2 - c4)));
-    const U = sigmoid(k_U, c_U, scoreForQuality);
-    const h2 = sigmoid(k_H, c_H, scoreForQuality);
-    const s2 = sigmoid(k2, c2, scoreForQuality);
-    const s3 = sigmoid(k3, c3, scoreForQuality);
-    const p5 = U * h2;
-    const p4 = U * (1 - h2);
-    const base = 1 - U;
-    const p1 = base * (1 - s2);
-    const p2 = base * s2 * (1 - s3);
-    const p3 = base * s2 * s3;
-    const sum = p1 + p2 + p3 + p4 + p5;
-    const probs = [p1 / sum, p2 / sum, p3 / sum, p4 / sum, p5 / sum];
-    const rnd = Math.random();
-    let acc = 0;
-    let chosenQuality = 1;
-    for (let i2 = 0; i2 < probs.length; i2++) {
-      acc += probs[i2] ?? 0;
-      if (rnd <= acc) {
-        chosenQuality = i2 + 1;
-        break;
-      }
-    }
-    let createdName = "";
-    try {
-      const craftResult = await options.onCraft(result, probs, chosenQuality);
-      createdName = String(craftResult?.itemName ?? "Objet");
-    } catch {
-      createdName = "Objet";
-    }
-    panel.innerHTML = `
-			<div style="display:flex;align-items:flex-start;gap:12px;justify-content:space-between;">
-				<div>
-					<div style="font-weight:950;font-size:18px;">Forge \u2014 R\xE9sultat</div>
-					<div style="color:#bbb;font-size:12px;margin-top:3px;">Objet cr\xE9\xE9: <span style="color:#fff;font-weight:800;">${createdName}</span></div>
-				</div>
-				<button class="btn" id="forgeMinigameDoneBtn" style="min-width:120px;">Fermer</button>
-			</div>
-
-			<div style="margin-top:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;">
-				<div style="font-weight:900;color:#ffd700;">Score de fabrication: ${totalScore.toFixed(2)}</div>
-				<div style="color:#bbb;font-size:12px;margin-top:6px;">(Pour l'instant, ce score n'influence pas les stats de l'objet \u2014 il est juste affich\xE9/stock\xE9.)</div>
-				<div id="forgeMinigameBreakdown" style="margin-top:8px;color:#ddd;font-size:13px;white-space:pre-line;"></div>
-				<div id="forgeMinigameQuality" style="margin-top:8px;color:#ddd;font-size:13px;white-space:pre-line;"></div>
-		`;
-    const breakdownEl = panel.querySelector("#forgeMinigameBreakdown");
-    if (breakdownEl) {
-      const lines = [];
-      lines.push(`Chauffe: ${heatResult.finalPercent.toFixed(1)}% \u2192 +${heatResult.bonus.toFixed(1)}`);
-      lines.push(`Marteau: +${hammerBonusTotal.toFixed(2)} (4 coups)`);
-      let i2 = 0;
-      for (const h3 of hammerHits) {
-        lines.push(`  - Coup ${i2 + 1}: ${h3.finalPercent.toFixed(1)}% (pr\xE9cision ${h3.precisionPercent.toFixed(0)}%) \u2192 +${h3.bonus.toFixed(2)}`);
-        i2++;
-      }
-      const s4 = sharpenRes;
-      lines.push(`Aff\xFBtage: ${s4.finalPercent.toFixed(1)}% \u2192 ${s4.overshot ? "+0 (d\xE9pass\xE9)" : `+${s4.bonus.toFixed(1)}`}`);
-      breakdownEl.textContent = lines.join("\n");
-    }
-    const qualEl = panel.querySelector("#forgeMinigameQuality");
-    if (qualEl) {
-      const colorMap = ["#ffffff", "#4caf50", "#2196f3", "#9c27b0", "#ffb300"];
-      const nameMap = ["Blanc", "Vert", "Bleu", "Violet", "Orange/Dor\xE9"];
-      let html = `<div style="font-weight:700;margin-bottom:6px;color:#ffd700;">Chances par qualit\xE9:</div>`;
-      html += '<div style="font-family:monospace;color:#ddd;">';
-      for (let q2 = 1; q2 <= probs.length; q2++) {
-        html += `<div>Q${q2}: ${((probs[q2 - 1] ?? 0) * 100).toFixed(2)}%</div>`;
-      }
-      html += "</div>";
-      const q = chosenQuality;
-      const badgeColor = colorMap[Math.max(0, Math.min(colorMap.length - 1, q - 1))];
-      const badgeName = nameMap[Math.max(0, Math.min(nameMap.length - 1, q - 1))];
-      html += `<div style="margin-top:8px;display:flex;align-items:center;gap:8px;"><div style="width:12px;height:12px;border-radius:2px;background:${badgeColor};box-shadow:0 0 8px ${badgeColor};"></div><div style="color:#fff;font-weight:800;">Qualit\xE9 obtenue: ${q} (${badgeName})</div></div>`;
-      qualEl.innerHTML = html;
-    }
-    await new Promise((resolve) => {
-      panel.querySelector("#forgeMinigameDoneBtn")?.addEventListener("click", (e2) => {
-        e2.stopPropagation();
-        safeCleanup();
-        resolve();
-      });
-    });
-    return result;
-  } finally {
-    document.removeEventListener("keydown", onKeyDown);
-    if (!cancelled && document.body.contains(root)) {
-      try {
-        root.remove();
-      } catch {
-      }
-    }
-  }
-}
-var clamp2, percentToWidth, createOverlayRoot, createCraftBar, computeHeatBonus, computeHammerBonus, computeSharpenBonus;
-var init_forgeMinigame_web = __esm({
-  "dist/crafting/forgeMinigame.web.js"() {
-    "use strict";
-    clamp2 = (n2, min, max) => Math.max(min, Math.min(max, n2));
-    percentToWidth = (p2) => `${clamp2(p2, 0, 100).toFixed(2)}%`;
-    createOverlayRoot = () => {
-      const root = document.createElement("div");
-      root.id = "forgeMinigameOverlay";
-      root.style.cssText = [
-        "position:fixed",
-        "inset:0",
-        "background:rgba(0,0,0,0.72)",
-        "display:flex",
-        "align-items:center",
-        "justify-content:center",
-        "z-index:20000",
-        "padding:16px",
-        "user-select:none",
-        "-webkit-user-select:none",
-        "touch-action:none"
-      ].join(";");
-      const panel = document.createElement("div");
-      panel.style.cssText = [
-        "width:min(860px, 96vw)",
-        "background:rgba(17,17,17,0.96)",
-        "border:1px solid rgba(255,255,255,0.10)",
-        "border-radius:14px",
-        "padding:16px",
-        "color:#fff",
-        "box-shadow:0 12px 40px rgba(0,0,0,0.55)"
-      ].join(";");
-      root.appendChild(panel);
-      document.body.appendChild(root);
-      return { root, panel };
-    };
-    createCraftBar = (opts) => {
-      const wrap = document.createElement("div");
-      wrap.style.cssText = [
-        "position:relative",
-        "width:100%",
-        "height:22px",
-        "border-radius:12px",
-        "background:rgba(255,255,255,0.06)",
-        "overflow:hidden",
-        "border:1px solid rgba(255,255,255,0.10)"
-      ].join(";");
-      const fill = document.createElement("div");
-      fill.style.cssText = [
-        "position:absolute",
-        "left:0",
-        "top:0",
-        "bottom:0",
-        "width:0%",
-        "background:linear-gradient(90deg,#ffd700,#ffb84d)",
-        "transition:none"
-      ].join(";");
-      wrap.appendChild(fill);
-      if (typeof opts.targetPercent === "number") {
-        const marker = document.createElement("div");
-        marker.style.cssText = [
-          "position:absolute",
-          "top:-6px",
-          "bottom:-6px",
-          `left:${clamp2(opts.targetPercent, 0, 100)}%`,
-          "width:2px",
-          "background:#6ee7ff",
-          "box-shadow:0 0 0 3px rgba(110,231,255,0.15)"
-        ].join(";");
-        wrap.appendChild(marker);
-      }
-      if (opts.show100Marker) {
-        const marker100 = document.createElement("div");
-        marker100.style.cssText = [
-          "position:absolute",
-          "top:-6px",
-          "bottom:-6px",
-          "left:100%",
-          "width:2px",
-          "background:#fff",
-          "opacity:0.8"
-        ].join(";");
-        wrap.appendChild(marker100);
-      }
-      const label = document.createElement("div");
-      label.style.cssText = "margin-top:10px;color:#ddd;font-size:13px;line-height:1.3;";
-      return { wrap, fill, label };
-    };
-    computeHeatBonus = (percent) => {
-      const target = 80;
-      if (percent < target)
-        return 0;
-      return clamp2(10 - (percent - target) * 0.1, 0, 10);
-    };
-    computeHammerBonus = (percent) => {
-      const target = 50;
-      const halfRange = 10;
-      const deadzoneHalf = 0.4;
-      const dist = Math.abs(percent - target);
-      let precisionPercent = 0;
-      if (dist <= deadzoneHalf) {
-        precisionPercent = 100;
-      } else {
-        precisionPercent = clamp2(100 * (1 - (dist - deadzoneHalf) / (halfRange - deadzoneHalf)), 0, 100);
-      }
-      const PENALTY_MIN = 0.15;
-      const BOOST_LOW = 90;
-      const BOOST_SRC_HIGH = 96;
-      const BOOST_SCALE = (100 - BOOST_LOW) / (BOOST_SRC_HIGH - BOOST_LOW);
-      let effectivePrecision = 0;
-      if (precisionPercent <= 0) {
-        effectivePrecision = 0;
-      } else if (precisionPercent < 90) {
-        const t2 = precisionPercent / 90;
-        const mul = PENALTY_MIN + (1 - PENALTY_MIN) * t2;
-        effectivePrecision = precisionPercent * mul;
-      } else {
-        effectivePrecision = BOOST_LOW + (precisionPercent - BOOST_LOW) * BOOST_SCALE;
-        effectivePrecision = Math.min(100, effectivePrecision);
-      }
-      const maxPerHit = 1.3;
-      return { precisionPercent, bonus: clamp2(effectivePrecision / 100 * maxPerHit, 0, maxPerHit) };
-    };
-    computeSharpenBonus = (percent, currentScore) => {
-      const overshot = percent > 100;
-      if (overshot)
-        return { finalPercent: percent, bonus: 0, overshot: true };
-      const pct2 = clamp2(percent, 0, 100);
-      const mult = pct2 / 100 * 0.1;
-      return { finalPercent: percent, bonus: Math.max(0, currentScore) * mult, overshot: false };
-    };
-  }
-});
-
-// dist/crafting/sewingMinigame.web.js
-async function runSewingMinigame(options) {
-  const { root, panel } = createOverlayRoot2();
-  let cancelled = false;
-  const safeCleanup = () => {
-    try {
-      root.remove();
-    } catch {
-    }
-  };
-  const waitMs2 = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
-  const raceCancel = async (p2) => {
-    const cancelP = new Promise((resolve) => {
-      const tick = () => {
-        if (cancelled)
-          return resolve(null);
-        requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-    });
-    return await Promise.race([p2, cancelP]);
-  };
-  const rand = (min, max) => min + Math.random() * (max - min);
-  const tremorSeed = Math.floor(Math.random() * 1e9);
-  const tremor2D = (nowMs, ampPx, phase) => {
-    const t2 = nowMs / 1e3;
-    const f1 = 11;
-    const f2 = 17;
-    const dx = (Math.sin(t2 * f1 + phase) + 0.55 * Math.sin(t2 * f2 + phase * 1.9)) * ampPx;
-    const dy = (Math.cos(t2 * f1 * 0.92 + phase * 1.3) + 0.55 * Math.cos(t2 * f2 * 0.88 + phase * 2.1)) * ampPx;
-    return { dx, dy };
-  };
-  const tremorRotDeg = (nowMs, ampDeg, phase) => {
-    const t2 = nowMs / 1e3;
-    return (Math.sin(t2 * 9.5 + phase * 1.7) + 0.45 * Math.sin(t2 * 15.5 + phase * 0.6)) * ampDeg;
-  };
-  const closeBtnId = "sewingMinigameCloseBtn";
-  const setHeader = (title, subtitle) => {
-    panel.innerHTML = `
-			<div style="display:flex;align-items:flex-start;gap:12px;justify-content:space-between;">
-				<div>
-					<div style="font-weight:950;font-size:18px;">Couture \u2014 ${title}</div>
-					<div style="color:#bbb;font-size:12px;margin-top:3px;">${subtitle}</div>
-					<div style="color:#999;font-size:12px;margin-top:6px;">Recette: <span style="color:#fff;font-weight:800;">${options.recipeLabel}</span></div>
-				</div>
-				<button class="btn" id="${closeBtnId}" style="min-width:110px;">Annuler</button>
-			</div>
-		`;
-    panel.querySelector(`#${closeBtnId}`)?.addEventListener("click", (e2) => {
-      e2.stopPropagation();
-      cancelled = true;
-      try {
-        options.onCancel?.();
-      } catch {
-      }
-      safeCleanup();
-    });
-  };
-  setHeader("D\xE9coupe", "D\xE9marre au point A, puis rejoins le point B (sans trop sortir du gabarit).");
-  const cutWrap = document.createElement("div");
-  cutWrap.style.cssText = [
-    "margin-top:14px",
-    "display:grid",
-    "grid-template-columns: 1fr 260px",
-    "gap:12px",
-    "align-items:start"
-  ].join(";");
-  const cutStage = document.createElement("div");
-  cutStage.style.cssText = [
-    "position:relative",
-    "height:360px",
-    "border-radius:14px",
-    "border:1px solid rgba(255,255,255,0.10)",
-    "background: linear-gradient(0deg, rgba(255,255,255,0.02), rgba(255,255,255,0.02))",
-    "overflow:hidden",
-    "touch-action:none"
-  ].join(";");
-  const canvas = document.createElement("canvas");
-  canvas.width = 900;
-  canvas.height = 520;
-  canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;";
-  cutStage.appendChild(canvas);
-  const blade = document.createElement("div");
-  blade.style.cssText = [
-    "position:absolute",
-    "width:18px",
-    "height:18px",
-    "border-radius:6px",
-    "background:#e5e7eb",
-    "box-shadow:0 10px 22px rgba(0,0,0,0.45)",
-    "border:1px solid rgba(0,0,0,0.35)",
-    "transform: translate(-50%, -50%)",
-    "left: 18%",
-    "top: 35%",
-    "pointer-events:none"
-  ].join(";");
-  cutStage.appendChild(blade);
-  const cutSide = document.createElement("div");
-  cutSide.style.cssText = [
-    "background:rgba(255,255,255,0.04)",
-    "border:1px solid rgba(255,255,255,0.08)",
-    "border-radius:12px",
-    "padding:12px"
-  ].join(";");
-  const stabilityBarOuter = document.createElement("div");
-  stabilityBarOuter.style.cssText = "height:12px;border-radius:999px;background:rgba(255,255,255,0.10);overflow:hidden;border:1px solid rgba(255,255,255,0.10)";
-  const stabilityBarInner = document.createElement("div");
-  stabilityBarInner.style.cssText = "height:100%;width:100%;background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);transform-origin:left center;transform:scaleX(0.0);";
-  stabilityBarOuter.appendChild(stabilityBarInner);
-  const cutInfo = document.createElement("div");
-  cutInfo.style.cssText = "margin-top:10px;color:#ddd;font-size:13px;white-space:pre-line;line-height:1.4;";
-  const cutScoreEl = document.createElement("div");
-  cutScoreEl.style.cssText = "margin-top:10px;font-weight:900;color:#ffd700;";
-  const cutDoneBtn = document.createElement("button");
-  cutDoneBtn.className = "btn";
-  cutDoneBtn.textContent = "Terminer la d\xE9coupe";
-  cutDoneBtn.style.cssText = "margin-top:12px;width:100%;min-height:40px;";
-  cutDoneBtn.disabled = true;
-  const cutLabel = document.createElement("div");
-  cutLabel.style.cssText = "font-weight:800;color:#ddd;margin-bottom:8px;";
-  cutLabel.textContent = "Stabilit\xE9 / D\xE9viation";
-  cutSide.appendChild(cutLabel);
-  cutSide.appendChild(stabilityBarOuter);
-  cutSide.appendChild(cutInfo);
-  cutSide.appendChild(cutScoreEl);
-  cutSide.appendChild(cutDoneBtn);
-  cutWrap.appendChild(cutStage);
-  cutWrap.appendChild(cutSide);
-  panel.appendChild(cutWrap);
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    cancelled = true;
-    try {
-      options.onCancel?.();
-    } catch {
-    }
-    safeCleanup();
-    return null;
-  }
-  const idealPath = [
-    { x: 0.18, y: 0.35 },
-    { x: 0.3, y: 0.3 },
-    { x: 0.42, y: 0.36 },
-    { x: 0.55, y: 0.58 },
-    { x: 0.7, y: 0.62 },
-    { x: 0.82, y: 0.48 }
-  ];
-  const getStageSize = () => {
-    const r2 = cutStage.getBoundingClientRect();
-    return { w: r2.width, h: r2.height };
-  };
-  const toPx2 = (p2, size) => ({ x: p2.x * size.w, y: p2.y * size.h });
-  const drawTemplate = () => {
-    const size = getStageSize();
-    canvas.width = Math.max(1, Math.floor(size.w * devicePixelRatio));
-    canvas.height = Math.max(1, Math.floor(size.h * devicePixelRatio));
-    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
-    ctx.clearRect(0, 0, size.w, size.h);
-    const pts = idealPath.map((p2) => toPx2(p2, size));
-    const corridor = 18;
-    ctx.save();
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "rgba(110,231,255,0.12)";
-    ctx.lineWidth = corridor * 2;
-    ctx.beginPath();
-    for (let i2 = 0; i2 < pts.length; i2++) {
-      const p2 = pts[i2];
-      if (!p2)
-        continue;
-      if (i2 === 0)
-        ctx.moveTo(p2.x, p2.y);
-      else
-        ctx.lineTo(p2.x, p2.y);
-    }
-    ctx.stroke();
-    ctx.restore();
-    ctx.save();
-    ctx.setLineDash([8, 10]);
-    ctx.strokeStyle = "rgba(255,255,255,0.65)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    for (let i2 = 0; i2 < pts.length; i2++) {
-      const p2 = pts[i2];
-      if (!p2)
-        continue;
-      if (i2 === 0)
-        ctx.moveTo(p2.x, p2.y);
-      else
-        ctx.lineTo(p2.x, p2.y);
-    }
-    ctx.stroke();
-    ctx.restore();
-    const A = pts[0];
-    const B = pts[pts.length - 1];
-    if (A && B) {
-      const drawMarker = (p2, label, color) => {
-        ctx.save();
-        ctx.fillStyle = color;
-        ctx.strokeStyle = "rgba(0,0,0,0.55)";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(p2.x, p2.y, 10, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = "#fff";
-        ctx.font = "900 12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(label, p2.x, p2.y);
-        ctx.restore();
-      };
-      drawMarker(A, "A", "#22c55e");
-      drawMarker(B, "B", "#f59e0b");
-    }
-  };
-  drawTemplate();
-  window.addEventListener("resize", drawTemplate);
-  const samples = [];
-  let cutPointerId = null;
-  let cutStarted = false;
-  let maxProgress = 0;
-  let cutStartedAtA = false;
-  const startRadius = 26;
-  const endRadius = 28;
-  const resumeRadius = 44;
-  let lastRawPoint = null;
-  const cutTremorPhase = tremorSeed % 997 * 0.017 + 1;
-  const getPointerXY = (e2) => {
-    const r2 = cutStage.getBoundingClientRect();
-    return { x: e2.clientX - r2.left, y: e2.clientY - r2.top };
-  };
-  const computeProgressAlongPath = (x2, y2, pts) => {
-    let totalLen = 0;
-    for (let i2 = 0; i2 < pts.length - 1; i2++) {
-      const a2 = pts[i2];
-      const b2 = pts[i2 + 1];
-      if (!a2 || !b2)
-        continue;
-      totalLen += Math.hypot(b2.x - a2.x, b2.y - a2.y);
-    }
-    if (totalLen <= 1e-9)
-      return 0;
-    let bestDist = Number.POSITIVE_INFINITY;
-    let bestS = 0;
-    let cum = 0;
-    for (let i2 = 0; i2 < pts.length - 1; i2++) {
-      const a2 = pts[i2];
-      const b2 = pts[i2 + 1];
-      if (!a2 || !b2)
-        continue;
-      const abx = b2.x - a2.x;
-      const aby = b2.y - a2.y;
-      const abLen = Math.hypot(abx, aby);
-      if (abLen <= 1e-9)
-        continue;
-      const apx = x2 - a2.x;
-      const apy = y2 - a2.y;
-      let t2 = (apx * abx + apy * aby) / (abLen * abLen);
-      t2 = clamp3(t2, 0, 1);
-      const cx = a2.x + abx * t2;
-      const cy = a2.y + aby * t2;
-      const dist = Math.hypot(x2 - cx, y2 - cy);
-      const s2 = (cum + t2 * abLen) / totalLen;
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestS = s2;
-      }
-      cum += abLen;
-    }
-    return clamp3(bestS, 0, 1);
-  };
-  const computeCutPhase = () => {
-    const size = getStageSize();
-    const pts = idealPath.map((p2) => toPx2(p2, size));
-    const maxAllowedDistance = 18;
-    const distances = [];
-    let outside = 0;
-    for (const s2 of samples) {
-      let best = Number.POSITIVE_INFINITY;
-      for (let i2 = 0; i2 < pts.length - 1; i2++) {
-        const a2 = pts[i2];
-        const b2 = pts[i2 + 1];
-        if (!a2 || !b2)
-          continue;
-        const d2 = distancePointToSegment(s2.x, s2.y, a2.x, a2.y, b2.x, b2.y);
-        if (d2 < best)
-          best = d2;
-      }
-      distances.push(best);
-      if (best > maxAllowedDistance)
-        outside++;
-    }
-    const { mean, std } = computeMeanAndStd(distances);
-    const devNorm = clamp3(mean / maxAllowedDistance, 0, 1);
-    const maxSigma = 14;
-    const instabNorm = clamp3(std / maxSigma, 0, 1);
-    const outPct = samples.length ? outside / samples.length : 1;
-    const w1 = 0.45, w2 = 0.45, w3 = 0.1;
-    const score = 100 * clamp3(1 - (w1 * devNorm + w2 * instabNorm + w3 * outPct), 0, 1);
-    const partialFailThreshold = 0.35;
-    const partialFail = outPct > partialFailThreshold;
-    return {
-      samples: samples.length,
-      meanDistancePx: mean,
-      stdDistancePx: std,
-      outsidePercent: outPct,
-      score,
-      partialFail
-    };
-  };
-  const redrawPathOverlay = () => {
-    drawTemplate();
-    const size = getStageSize();
-    const pts = idealPath.map((p2) => toPx2(p2, size));
-    const maxAllowedDistance = 18;
-    const A = pts[0];
-    const B = pts[pts.length - 1];
-    ctx.save();
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.lineWidth = 3;
-    for (let i2 = 1; i2 < samples.length; i2++) {
-      const a2 = samples[i2 - 1];
-      const b2 = samples[i2];
-      if (!a2 || !b2)
-        continue;
-      let best = Number.POSITIVE_INFINITY;
-      for (let j2 = 0; j2 < pts.length - 1; j2++) {
-        const p0 = pts[j2];
-        const p1 = pts[j2 + 1];
-        if (!p0 || !p1)
-          continue;
-        const d2 = distancePointToSegment(b2.x, b2.y, p0.x, p0.y, p1.x, p1.y);
-        if (d2 < best)
-          best = d2;
-      }
-      ctx.strokeStyle = best > maxAllowedDistance ? "rgba(239,68,68,0.95)" : "rgba(255,255,255,0.90)";
-      ctx.beginPath();
-      ctx.moveTo(a2.x, a2.y);
-      ctx.lineTo(b2.x, b2.y);
-      ctx.stroke();
-    }
-    ctx.restore();
-    const r2 = computeCutPhase();
-    const devNorm = clamp3(r2.meanDistancePx / 18, 0, 1);
-    const instabNorm = clamp3(r2.stdDistancePx / 14, 0, 1);
-    const meter = clamp3(1 - (0.5 * devNorm + 0.5 * instabNorm), 0, 1);
-    stabilityBarInner.style.transform = `scaleX(${meter.toFixed(3)})`;
-    const last = samples.length ? samples[samples.length - 1] : null;
-    let canFinish = false;
-    if (cutStartedAtA && last && B) {
-      const distToB = Math.hypot(last.x - B.x, last.y - B.y);
-      canFinish = maxProgress >= 0.97 && distToB <= endRadius;
-    }
-    cutDoneBtn.disabled = !canFinish;
-    cutInfo.textContent = [
-      `\xC9chantillons: ${r2.samples}`,
-      `D\xE9viation moyenne: ${r2.meanDistancePx.toFixed(1)} px`,
-      `Instabilit\xE9 (\u03C3): ${r2.stdDistancePx.toFixed(1)} px`,
-      `Hors gabarit: ${fmtPct(r2.outsidePercent)}`,
-      `Progression A\u2192B: ${(maxProgress * 100).toFixed(0)}%`,
-      "",
-      cutStartedAtA ? "" : "Commence au point A (cercle vert).",
-      canFinish ? "OK: tu as atteint le point B." : "Objectif: rejoindre B (cercle orange).",
-      r2.partialFail ? "" : "OK: tu restes assez dans le gabarit.",
-      r2.partialFail ? "\xC9CHEC PARTIEL: trop de sorties (mat\xE9riaux perdus)." : "",
-      "",
-      "Conseils:",
-      "- prends ton temps, \xE9vite les zig-zags",
-      "- vise le centre de la zone bleut\xE9e"
-    ].filter(Boolean).join("\n");
-    cutScoreEl.textContent = `Score D\xE9coupe: ${r2.score.toFixed(1)} / 100`;
-  };
-  const onCutPointerDown = (e2) => {
-    if (cancelled)
-      return;
-    e2.preventDefault();
-    const raw = getPointerXY(e2);
-    const size = getStageSize();
-    const pts = idealPath.map((pp) => toPx2(pp, size));
-    const A = pts[0];
-    const last = samples.length ? samples[samples.length - 1] : null;
-    if (!cutStarted) {
-      if (!A)
-        return;
-      const distToA = Math.hypot(raw.x - A.x, raw.y - A.y);
-      if (distToA > startRadius) {
-        cutStartedAtA = false;
-        repaintSoon();
-        return;
-      }
-      cutStartedAtA = true;
-      cutStarted = true;
-      samples.length = 0;
-      maxProgress = 0;
-      try {
-        window.game?.audioManager?.play("couture_predecoupe");
-      } catch {
-      }
-    } else {
-      if (last) {
-        const d2 = Math.hypot(raw.x - last.x, raw.y - last.y);
-        if (d2 > resumeRadius) {
-          repaintSoon();
-          return;
-        }
-      }
-    }
-    const now = performance.now();
-    const speed01 = 0;
-    const amp = 2.2 + speed01 * 3.6;
-    const tr = tremor2D(now, amp, cutTremorPhase);
-    const p2 = { x: raw.x + tr.dx, y: raw.y + tr.dy };
-    cutStage.setPointerCapture(e2.pointerId);
-    cutPointerId = e2.pointerId;
-    lastRawPoint = { x: raw.x, y: raw.y, t: now };
-    samples.push({ x: p2.x, y: p2.y, t: now });
-    maxProgress = Math.max(maxProgress, computeProgressAlongPath(p2.x, p2.y, pts));
-    blade.style.left = `${p2.x}px`;
-    blade.style.top = `${p2.y}px`;
-    repaintSoon();
-  };
-  const onCutPointerMove = (e2) => {
-    if (cancelled)
-      return;
-    if (cutPointerId == null || e2.pointerId !== cutPointerId)
-      return;
-    const raw = getPointerXY(e2);
-    const now = performance.now();
-    let speed01 = 0;
-    if (lastRawPoint) {
-      const dt = Math.max(1, now - lastRawPoint.t);
-      const dist = Math.hypot(raw.x - lastRawPoint.x, raw.y - lastRawPoint.y);
-      const speed = dist / dt * 1e3;
-      speed01 = clamp3(speed / 1400, 0, 1);
-    }
-    lastRawPoint = { x: raw.x, y: raw.y, t: now };
-    const amp = 2 + speed01 * 4;
-    const tr = tremor2D(now, amp, cutTremorPhase);
-    const p2 = { x: raw.x + tr.dx, y: raw.y + tr.dy };
-    samples.push({ x: p2.x, y: p2.y, t: now });
-    const size = getStageSize();
-    const pts = idealPath.map((pp) => toPx2(pp, size));
-    maxProgress = Math.max(maxProgress, computeProgressAlongPath(p2.x, p2.y, pts));
-    blade.style.left = `${p2.x}px`;
-    blade.style.top = `${p2.y}px`;
-    repaintSoon();
-  };
-  const onCutPointerUp = (e2) => {
-    if (cutPointerId == null || e2.pointerId !== cutPointerId)
-      return;
-    cutPointerId = null;
-    lastRawPoint = null;
-    repaintSoon();
-  };
-  cutStage.addEventListener("pointerdown", onCutPointerDown);
-  cutStage.addEventListener("pointermove", onCutPointerMove);
-  cutStage.addEventListener("pointerup", onCutPointerUp);
-  cutStage.addEventListener("pointercancel", () => {
-    cutPointerId = null;
-  });
-  let repaintRaf = null;
-  const repaintSoon = () => {
-    if (repaintRaf != null)
-      return;
-    repaintRaf = requestAnimationFrame(() => {
-      repaintRaf = null;
-      redrawPathOverlay();
-    });
-  };
-  redrawPathOverlay();
-  const cutResult = await raceCancel(new Promise((resolve) => {
-    cutDoneBtn.addEventListener("click", (e2) => {
-      e2.stopPropagation();
-      try {
-        window.game?.audioManager?.play("couture_decoupe");
-      } catch {
-      }
-      resolve(computeCutPhase());
-    });
-  }));
-  window.removeEventListener("resize", drawTemplate);
-  if (!cutResult || cancelled) {
-    safeCleanup();
-    return null;
-  }
-  const alignRounds = [];
-  const CUT_MAX = 10;
-  const ALIGN_ROUND_MAX = 3.3;
-  const cutContribution = CUT_MAX * (cutResult.score / 100);
-  const alignContributionFromScore = (score100) => {
-    if (score100 <= 50)
-      return 0;
-    const t2 = (score100 - 50) / 50;
-    return ALIGN_ROUND_MAX * clamp3(t2, 0, 1);
-  };
-  let totalScore = 14;
-  if (!cutResult.partialFail) {
-    const totalRounds = 3;
-    for (let round2 = 1; round2 <= totalRounds; round2++) {
-      setHeader(`Aligner le motif (${round2}/${totalRounds})`, "Drag = d\xE9placer. Shift + drag ou molette = tourner. Objectif: centrer et aligner (0\xB0).");
-      const stageWrap = document.createElement("div");
-      stageWrap.style.cssText = [
-        "margin-top:14px",
-        "display:grid",
-        "grid-template-columns: 1fr 260px",
-        "gap:12px",
-        "align-items:start"
-      ].join(";");
-      const fabric = document.createElement("div");
-      fabric.style.cssText = [
-        "position:relative",
-        "height:340px",
-        "border-radius:14px",
-        "border:1px solid rgba(255,255,255,0.10)",
-        "background: linear-gradient(0deg, rgba(255,255,255,0.02), rgba(255,255,255,0.02))",
-        "overflow:hidden",
-        "touch-action:none"
-      ].join(";");
-      const centerCross = document.createElement("div");
-      centerCross.style.cssText = [
-        "position:absolute",
-        "left:50%",
-        "top:50%",
-        "width:0",
-        "height:0",
-        "pointer-events:none"
-      ].join(";");
-      centerCross.innerHTML = `
-				<div style="position:absolute;left:-12px;top:0;width:24px;height:2px;background:#6ee7ff;opacity:0.75"></div>
-				<div style="position:absolute;left:0;top:-12px;width:2px;height:24px;background:#6ee7ff;opacity:0.75"></div>
-			`;
-      fabric.appendChild(centerCross);
-      const motif = document.createElement("div");
-      motif.style.cssText = [
-        "position:absolute",
-        "left:50%",
-        "top:50%",
-        "width:190px",
-        "height:120px",
-        "border-radius:12px",
-        "border:1px dashed rgba(255,255,255,0.55)",
-        "background: repeating-linear-gradient(45deg, rgba(255,255,255,0.12) 0, rgba(255,255,255,0.12) 10px, rgba(255,255,255,0.03) 10px, rgba(255,255,255,0.03) 20px)",
-        "box-shadow: 0 10px 26px rgba(0,0,0,0.45)",
-        "cursor:grab",
-        "transform-origin:center center",
-        "touch-action:none"
-      ].join(";");
-      fabric.appendChild(motif);
-      const side = document.createElement("div");
-      side.style.cssText = [
-        "background:rgba(255,255,255,0.04)",
-        "border:1px solid rgba(255,255,255,0.08)",
-        "border-radius:12px",
-        "padding:12px"
-      ].join(";");
-      const alignInfo = document.createElement("div");
-      alignInfo.style.cssText = "color:#ddd;font-size:13px;white-space:pre-line;line-height:1.4;";
-      const alignReveal = document.createElement("div");
-      alignReveal.style.cssText = "margin-top:10px;font-weight:900;color:#ffd700;display:none;";
-      const alignNextBtn = document.createElement("button");
-      alignNextBtn.className = "btn";
-      alignNextBtn.textContent = "Valider alignement";
-      alignNextBtn.style.cssText = "margin-top:12px;width:100%;min-height:40px;";
-      side.appendChild(alignInfo);
-      side.appendChild(alignReveal);
-      side.appendChild(alignNextBtn);
-      stageWrap.appendChild(fabric);
-      stageWrap.appendChild(side);
-      panel.appendChild(stageWrap);
-      let translateX = 0;
-      let translateY = 0;
-      let rotationDeg = 0;
-      for (let tries = 0; tries < 6; tries++) {
-        translateX = rand(-160, 160);
-        translateY = rand(-105, 105);
-        rotationDeg = rand(-26, 26);
-        if (Math.hypot(translateX, translateY) > 35 || Math.abs(rotationDeg) > 7)
-          break;
-      }
-      let dragPointerId = null;
-      let dragStartClient = { x: 0, y: 0 };
-      let dragStartTranslate = { x: 0, y: 0 };
-      let dragStartRotationDeg = 0;
-      const alignTremorPhase = tremorSeed % 1009 * 0.013 + round2 * 3.17;
-      let alignAnimating = true;
-      const getFabricRect = () => fabric.getBoundingClientRect();
-      const alignTransAmp = 12;
-      const alignRotAmp = 4;
-      const alignTremorImpact = 1;
-      const applyMotifTransform = (nowMs = performance.now()) => {
-        const tr = tremor2D(nowMs, alignTransAmp, alignTremorPhase);
-        motif.style.transform = `translate(calc(-50% + ${translateX + tr.dx}px), calc(-50% + ${translateY + tr.dy}px)) rotate(${rotationDeg}deg)`;
-      };
-      applyMotifTransform();
-      requestAnimationFrame(function tick() {
-        if (cancelled || !alignAnimating)
-          return;
-        applyMotifTransform();
-        requestAnimationFrame(tick);
-      });
-      const computeAlignPhase = () => {
-        const rect = getFabricRect();
-        const diag = Math.hypot(rect.width, rect.height);
-        const maxTransl = diag * 0.22;
-        const maxRot = 28;
-        const nowMs = performance.now();
-        const trem = tremor2D(nowMs, alignTransAmp, alignTremorPhase);
-        const effX = translateX + trem.dx * alignTremorImpact;
-        const effY = translateY + trem.dy * alignTremorImpact;
-        const translationErrorPx = Math.hypot(effX, effY);
-        const rotationErrorDeg = Math.abs((rotationDeg % 360 + 540) % 360 - 180);
-        const rotForScore = Math.min(rotationErrorDeg, 180);
-        const motifW = 190;
-        const motifH = 120;
-        const motifRect = { x: rect.width / 2 + effX - motifW / 2, y: rect.height / 2 + effY - motifH / 2, w: motifW, h: motifH };
-        const fabricRect = { x: 0, y: 0, w: rect.width, h: rect.height };
-        const overlapArea = rectIntersectionArea(motifRect, fabricRect);
-        const overlapPercent = clamp3(overlapArea / (motifW * motifH), 0, 1);
-        const tNorm = clamp3(translationErrorPx / maxTransl, 0, 1);
-        const rNorm = clamp3(rotForScore / maxRot, 0, 1);
-        const a2 = 0.5, b2 = 0.4, c2 = 0.1;
-        const rawScore = 100 * clamp3(1 - (a2 * tNorm + b2 * rNorm + c2 * (1 - overlapPercent)), 0, 1);
-        const score = rawScore <= 50 ? 0 : clamp3((rawScore - 50) * 2, 0, 100);
-        return {
-          finalTranslatePx: { x: effX, y: effY },
-          finalRotationDeg: rotationDeg,
-          translationErrorPx,
-          rotationErrorDeg: rotForScore,
-          overlapPercent,
-          score
-        };
-      };
-      const updateAlignUI = () => {
-        const r2 = computeAlignPhase();
-        alignInfo.textContent = [
-          `Centrage: ${r2.translationErrorPx.toFixed(1)} px`,
-          `Rotation: ${r2.rotationErrorDeg.toFixed(1)}\xB0`,
-          `Motif dans le tissu: ${fmtPct(r2.overlapPercent)}`,
-          "",
-          "Conseils:",
-          "- vise le centre (croix bleue)",
-          "- vise 0\xB0 (motif horizontal)",
-          "",
-          "Score masqu\xE9 pendant la phase."
-        ].join("\n");
-      };
-      updateAlignUI();
-      motif.addEventListener("pointerdown", (e2) => {
-        e2.preventDefault();
-        if (cancelled)
-          return;
-        motif.setPointerCapture(e2.pointerId);
-        dragPointerId = e2.pointerId;
-        dragStartClient = { x: e2.clientX, y: e2.clientY };
-        dragStartTranslate = { x: translateX, y: translateY };
-        dragStartRotationDeg = rotationDeg;
-        motif.style.cursor = "grabbing";
-      });
-      motif.addEventListener("pointermove", (e2) => {
-        if (cancelled)
-          return;
-        if (dragPointerId == null || e2.pointerId !== dragPointerId)
-          return;
-        const dx = e2.clientX - dragStartClient.x;
-        const dy = e2.clientY - dragStartClient.y;
-        if (e2.shiftKey) {
-          rotationDeg = dragStartRotationDeg + dx * 0.18;
-        } else {
-          translateX = dragStartTranslate.x + dx;
-          translateY = dragStartTranslate.y + dy;
-        }
-        applyMotifTransform();
-        updateAlignUI();
-      });
-      motif.addEventListener("pointerup", (e2) => {
-        if (dragPointerId == null || e2.pointerId !== dragPointerId)
-          return;
-        dragPointerId = null;
-        motif.style.cursor = "grab";
-        updateAlignUI();
-      });
-      motif.addEventListener("pointercancel", () => {
-        dragPointerId = null;
-        motif.style.cursor = "grab";
-      });
-      motif.addEventListener("wheel", (e2) => {
-        if (cancelled)
-          return;
-        e2.preventDefault();
-        rotationDeg += (e2.deltaY > 0 ? 1 : -1) * 2.2;
-        applyMotifTransform();
-        updateAlignUI();
-      }, { passive: false });
-      const roundRes = await raceCancel(new Promise((resolve) => {
-        alignNextBtn.addEventListener("click", (e2) => {
-          e2.stopPropagation();
-          try {
-            window.game?.audioManager?.play("couture_alignement");
-          } catch {
-          }
-          resolve(computeAlignPhase());
-        });
-      }));
-      if (!roundRes || cancelled) {
-        safeCleanup();
-        return null;
-      }
-      alignAnimating = false;
-      alignReveal.style.display = "block";
-      alignReveal.textContent = `Score Alignement: ${roundRes.score.toFixed(1)} / 100`;
-      alignNextBtn.disabled = true;
-      await raceCancel(waitMs2(1e3));
-      if (cancelled) {
-        safeCleanup();
-        return null;
-      }
-      alignRounds.push(roundRes);
-    }
-  }
-  const alignContributions = alignRounds.map((r2) => alignContributionFromScore(r2.score));
-  const totalBonus = cutContribution + alignContributions.reduce((a2, b2) => a2 + b2, 0);
-  totalScore = totalBonus;
-  const result = {
-    alignRounds,
-    cut: cutResult,
-    cutContribution,
-    alignContributions: alignRounds.map((r2) => alignContributionFromScore(r2.score)),
-    totalScore
-  };
-  let createdName = "";
-  let probs = [1, 0, 0, 0, 0];
-  let chosenQuality = 1;
-  let crafted = false;
-  if (cutResult.partialFail) {
-    try {
-      options.onPartialFail?.(result);
-    } catch {
-    }
-    createdName = "\u2014";
-    crafted = false;
-  } else {
-    ({ probs, chosenQuality } = computeQualityFromScore14_20(totalScore));
-    try {
-      const craftResult = await options.onCraft(result, probs, chosenQuality);
-      createdName = String(craftResult?.itemName ?? "Objet");
-      crafted = true;
-    } catch {
-      createdName = "Objet";
-      crafted = true;
-    }
-  }
-  panel.innerHTML = `
-		<div style="display:flex;align-items:flex-start;gap:12px;justify-content:space-between;">
-			<div>
-				<div style="font-weight:950;font-size:18px;">Couture \u2014 R\xE9sultat</div>
-				<div style="color:#bbb;font-size:12px;margin-top:3px;">${crafted ? `Objet cr\xE9\xE9: <span style="color:#fff;font-weight:800;">${createdName}</span>` : `Objet cr\xE9\xE9: <span style="color:#fff;font-weight:800;">\u2014</span>`}</div>
-				<div style="color:#999;font-size:12px;margin-top:6px;">Recette: <span style="color:#fff;font-weight:800;">${options.recipeLabel}</span></div>
-			</div>
-			<button class="btn" id="sewingMinigameDoneBtn" style="min-width:120px;">Fermer</button>
-		</div>
-
-		<div style="margin-top:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;">
-			<div style="font-weight:900;color:#ffd700;">Score de fabrication: ${totalScore.toFixed(2)}</div>
-			<div style="color:#bbb;font-size:12px;margin-top:6px;">(Score 14..20 = 14 + 6 * moyenne phases)</div>
-			<div id="sewingMinigameBreakdown" style="margin-top:8px;color:#ddd;font-size:13px;white-space:pre-line;"></div>
-			<div id="sewingMinigameQuality" style="margin-top:8px;color:#ddd;font-size:13px;white-space:pre-line;"></div>
-		</div>
-	`;
-  const breakdownEl = panel.querySelector("#sewingMinigameBreakdown");
-  if (breakdownEl) {
-    const lines = [];
-    lines.push(`D\xE9coupe: ${cutResult.score.toFixed(1)} / 100 \u2192 +${cutContribution.toFixed(2)} (dev ${cutResult.meanDistancePx.toFixed(1)}px, \u03C3 ${cutResult.stdDistancePx.toFixed(1)}px, hors ${fmtPct(cutResult.outsidePercent)})`);
-    if (alignRounds.length) {
-      lines.push(`Alignements (x${alignRounds.length}):`);
-      for (let i2 = 0; i2 < alignRounds.length; i2++) {
-        const r2 = alignRounds[i2];
-        if (!r2)
-          continue;
-        const contrib = alignContributionFromScore(r2.score);
-        lines.push(`  - ${i2 + 1}: ${r2.score.toFixed(1)} / 100 \u2192 +${contrib.toFixed(2)} (centre ${r2.translationErrorPx.toFixed(0)}px)`);
-      }
-      lines.push("(50% de pr\xE9cision = +0 ; 100% = +3.3 ; contributions additionn\xE9es au bonus total.)");
-    }
-    lines.push(`Score final (somme des contributions): ${totalScore.toFixed(2)}`);
-    if (cutResult.partialFail)
-      lines.push("\u26A0 \xC9chec partiel: trop de sorties du gabarit \u2192 mat\xE9riaux perdus, aucun objet cr\xE9\xE9.");
-    breakdownEl.textContent = lines.join("\n");
-  }
-  const qualEl = panel.querySelector("#sewingMinigameQuality");
-  if (qualEl) {
-    if (!crafted) {
-      qualEl.innerHTML = '<div style="color:#ef4444;font-weight:800;">Qualit\xE9: \u2014</div>';
-    } else {
-      let html = '<div style="font-weight:800;">Chances par qualit\xE9:</div>';
-      for (let q = 1; q <= probs.length; q++) {
-        html += `<div>Q${q}: ${((probs[q - 1] ?? 0) * 100).toFixed(2)}%</div>`;
-      }
-      html += `<div style="margin-top:8px;font-weight:800;">Qualit\xE9 obtenue: ${qualityBadgeHtml(chosenQuality)}</div>`;
-      qualEl.innerHTML = html;
-    }
-  }
-  panel.querySelector("#sewingMinigameDoneBtn")?.addEventListener("click", (e2) => {
-    e2.stopPropagation();
-    safeCleanup();
-  });
-  return result;
-}
-var clamp3, createOverlayRoot2, computeQualityFromScore14_20, fmtPct, qualityBadgeHtml, distancePointToSegment, computeMeanAndStd, rectIntersectionArea;
-var init_sewingMinigame_web = __esm({
-  "dist/crafting/sewingMinigame.web.js"() {
-    "use strict";
-    clamp3 = (n2, min, max) => Math.max(min, Math.min(max, n2));
-    createOverlayRoot2 = () => {
-      const root = document.createElement("div");
-      root.id = "sewingMinigameOverlay";
-      root.style.cssText = [
-        "position:fixed",
-        "inset:0",
-        "background:rgba(0,0,0,0.72)",
-        "display:flex",
-        "align-items:center",
-        "justify-content:center",
-        "z-index:20000",
-        "padding:16px",
-        "user-select:none",
-        "-webkit-user-select:none",
-        "touch-action:none"
-      ].join(";");
-      const panel = document.createElement("div");
-      panel.style.cssText = [
-        "width:min(920px, 96vw)",
-        "background:rgba(17,17,17,0.96)",
-        "border:1px solid rgba(255,255,255,0.10)",
-        "border-radius:14px",
-        "padding:16px",
-        "color:#fff",
-        "box-shadow:0 12px 40px rgba(0,0,0,0.55)"
-      ].join(";");
-      root.appendChild(panel);
-      document.body.appendChild(root);
-      return { root, panel };
-    };
-    computeQualityFromScore14_20 = (score14_20) => {
-      const clampScore = (s4) => Math.max(14, Math.min(20, s4));
-      const scoreForQuality = clampScore(score14_20);
-      const k_U = 3, c_U = 17;
-      const k_H = 1.2, c_H = 20;
-      const k2 = 1, c2 = 16.5;
-      const k3 = 1.2, c3 = 17;
-      const sigmoid = (k4, c4, x2) => 1 / (1 + Math.exp(-k4 * (x2 - c4)));
-      const U = sigmoid(k_U, c_U, scoreForQuality);
-      const h2 = sigmoid(k_H, c_H, scoreForQuality);
-      const s2 = sigmoid(k2, c2, scoreForQuality);
-      const s3 = sigmoid(k3, c3, scoreForQuality);
-      const p5 = U * h2;
-      const p4 = U * (1 - h2);
-      const base = 1 - U;
-      const p1 = base * (1 - s2);
-      const p2 = base * s2 * (1 - s3);
-      const p3 = base * s2 * s3;
-      const sum = p1 + p2 + p3 + p4 + p5;
-      const probs = [p1 / sum, p2 / sum, p3 / sum, p4 / sum, p5 / sum];
-      const rnd = Math.random();
-      let acc = 0;
-      let chosenQuality = 1;
-      for (let i2 = 0; i2 < probs.length; i2++) {
-        acc += probs[i2] ?? 0;
-        if (rnd <= acc) {
-          chosenQuality = i2 + 1;
-          break;
-        }
-      }
-      return { probs, chosenQuality };
-    };
-    fmtPct = (n01) => `${(clamp3(n01, 0, 1) * 100).toFixed(2)}%`;
-    qualityBadgeHtml = (q) => {
-      const colors2 = ["#ffffff", "#4caf50", "#2196f3", "#9c27b0", "#ffb300"];
-      const color = colors2[q - 1 | 0] ?? "#ffffff";
-      return `<span style="display:inline-flex;align-items:center;gap:8px;">
-		<span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${color};box-shadow:0 0 0 2px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.08) inset;"></span>
-		<span style="font-weight:900;">Q${q}</span>
-	</span>`;
-    };
-    distancePointToSegment = (px, py, ax, ay, bx, by) => {
-      const abx = bx - ax;
-      const aby = by - ay;
-      const apx = px - ax;
-      const apy = py - ay;
-      const abLen2 = abx * abx + aby * aby;
-      if (abLen2 <= 1e-9)
-        return Math.hypot(px - ax, py - ay);
-      let t2 = (apx * abx + apy * aby) / abLen2;
-      t2 = clamp3(t2, 0, 1);
-      const cx = ax + abx * t2;
-      const cy = ay + aby * t2;
-      return Math.hypot(px - cx, py - cy);
-    };
-    computeMeanAndStd = (values) => {
-      if (!values.length)
-        return { mean: 0, std: 0 };
-      let sum = 0;
-      for (const v2 of values)
-        sum += v2;
-      const mean = sum / values.length;
-      let varSum = 0;
-      for (const v2 of values) {
-        const d2 = v2 - mean;
-        varSum += d2 * d2;
-      }
-      const std = Math.sqrt(varSum / values.length);
-      return { mean, std };
-    };
-    rectIntersectionArea = (a2, b2) => {
-      const x1 = Math.max(a2.x, b2.x);
-      const y1 = Math.max(a2.y, b2.y);
-      const x2 = Math.min(a2.x + a2.w, b2.x + b2.w);
-      const y2 = Math.min(a2.y + a2.h, b2.y + b2.h);
-      const w2 = x2 - x1;
-      const h2 = y2 - y1;
-      if (w2 <= 0 || h2 <= 0)
-        return 0;
-      return w2 * h2;
-    };
-  }
-});
-
-// dist/crafting/otherMinigame.web.js
-async function runOtherMinigame(options) {
-  const { root, panel } = createOverlayRoot3();
-  let cancelled = false;
-  let ended = false;
-  const safeRemove = () => {
-    try {
-      root.remove();
-    } catch {
-    }
-  };
-  const cancel = () => {
-    if (cancelled || ended)
-      return;
-    cancelled = true;
-    try {
-      options.onCancel?.();
-    } catch {
-    }
-    safeRemove();
-  };
-  const onKeyDown = (e2) => {
-    if (e2.key === "Escape") {
-      e2.preventDefault();
-      cancel();
-    }
-  };
-  document.addEventListener("keydown", onKeyDown);
-  const cleanup = () => {
-    document.removeEventListener("keydown", onKeyDown);
-    safeRemove();
-  };
-  const stepsMax = 6;
-  const pairsMax = 6;
-  let stepsUsed = 0;
-  let pairsFound = 0;
-  let points = 0;
-  const motifs = [
-    { key: "coffre", imgSrc: "ImagesRPG/imagesobjets/coffre.png", label: "Coffre" },
-    { key: "gobelin_archer", imgSrc: "ImagesRPG/imagespersonnage/gobelin_archer.png", label: "Gobelin archer" },
-    { key: "potionsoin", imgSrc: "ImagesRPG/imagesobjets/potion_vert.png", label: "Potion de soin" },
-    { key: "pomme", imgSrc: "ImagesRPG/imagesobjets/bouclier2.png", label: "Pomme" },
-    { key: "epee", imgSrc: "ImagesRPG/imagesobjets/dague_tier2.png", label: "\xC9p\xE9e" },
-    { key: "potionmana", imgSrc: "ImagesRPG/imagesobjets/chope.png", label: "Potion de mana" }
-  ];
-  const cards = shuffleInPlace(motifs.flatMap((m2, idx) => [
-    { id: idx * 2 + 0, key: m2.key, imgSrc: m2.imgSrc },
-    { id: idx * 2 + 1, key: m2.key, imgSrc: m2.imgSrc }
-  ]));
-  const closeBtnId = "otherMinigameCloseBtn";
-  panel.innerHTML = `
-		<div style="display:flex;align-items:flex-start;gap:12px;justify-content:space-between;">
-			<div>
-				<div style="font-weight:950;font-size:18px;">Fabrication \u2014 Jeu de paires</div>
-				<div style="color:#bbb;font-size:12px;margin-top:3px;">Recette: <span style="color:#fff;font-weight:800;">${options.recipeLabel}</span></div>
-				<div style="color:#999;font-size:12px;margin-top:6px;">${stepsMax} \xE9tapes \u2022 Retourne 2 cartes par \xE9tape \u2022 1 paire = 1 point</div>
-			</div>
-			<button class="btn" id="${closeBtnId}" style="min-width:110px;">Annuler</button>
-		</div>
-		<div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-			<div id="otherMinigameHud" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;"></div>
-		</div>
-		<div style="margin-top:12px;display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;">
-			<div id="otherMinigameGrid" style="display:contents;"></div>
-		</div>
-		<div id="otherMinigameHint" style="margin-top:12px;color:#ddd;font-size:13px;line-height:1.35;"></div>
-	`;
-  panel.querySelector(`#${closeBtnId}`)?.addEventListener("click", (e2) => {
-    e2.stopPropagation();
-    cancel();
-  });
-  const hudEl = panel.querySelector("#otherMinigameHud");
-  const gridEl = panel.querySelector("#otherMinigameGrid");
-  const hintEl = panel.querySelector("#otherMinigameHint");
-  const updateHud = () => {
-    if (!hudEl)
-      return;
-    const stepsLeft = Math.max(0, stepsMax - stepsUsed);
-    hudEl.innerHTML = `
-			<div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:10px;">\xC9tapes: <b>${stepsUsed}</b> / ${stepsMax}</div>
-			<div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:10px;">Restantes: <b>${stepsLeft}</b></div>
-			<div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:10px;">Paires: <b>${pairsFound}</b></div>
-			<div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:10px;">Points: <b>${points}</b></div>
-		`;
-  };
-  const setHint = (html) => {
-    if (hintEl)
-      hintEl.innerHTML = html;
-  };
-  updateHud();
-  setHint("Clique sur deux cartes pour tenter de trouver une paire.");
-  if (!gridEl) {
-    cleanup();
-    return null;
-  }
-  const matched = /* @__PURE__ */ new Set();
-  const revealed = /* @__PURE__ */ new Set();
-  let pickA = null;
-  let pickB = null;
-  let locked = false;
-  const cardButtons = [];
-  const renderCard = (idx) => {
-    const c2 = cards[idx];
-    const isMatched = matched.has(idx);
-    const isFaceUp = revealed.has(idx) || isMatched;
-    const btn = cardButtons[idx];
-    if (!btn)
-      return;
-    btn.disabled = cancelled || ended || locked || isMatched;
-    btn.setAttribute("aria-pressed", isFaceUp ? "true" : "false");
-    btn.innerHTML = "";
-    btn.style.cssText = [
-      "width:100%",
-      "aspect-ratio: 1 / 1",
-      "border-radius:12px",
-      "border:1px solid rgba(255,255,255,0.12)",
-      "background:rgba(255,255,255,0.04)",
-      "padding:0",
-      "cursor:pointer",
-      "position:relative",
-      "overflow:hidden",
-      "transition:transform 80ms ease",
-      "outline:none",
-      "box-shadow:0 10px 24px rgba(0,0,0,0.35)",
-      isMatched ? "box-shadow:0 10px 24px rgba(0,0,0,0.35), 0 0 0 2px rgba(34,197,94,0.35) inset" : ""
-    ].filter(Boolean).join(";");
-    btn.onmouseenter = () => {
-      if (btn.disabled)
-        return;
-      btn.style.transform = "translateY(-1px)";
-    };
-    btn.onmouseleave = () => {
-      btn.style.transform = "none";
-    };
-    if (!isFaceUp) {
-      btn.innerHTML = `
-				<div style="position:absolute;inset:0;background:radial-gradient(circle at 30% 30%, rgba(255,255,255,0.10), rgba(255,255,255,0.02) 45%, rgba(0,0,0,0.25));"></div>
-				<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:950;color:rgba(255,255,255,0.65);text-shadow:0 6px 18px rgba(0,0,0,0.55);">?</div>
-				<div style="position:absolute;inset:10px;border-radius:10px;border:1px dashed rgba(255,255,255,0.18);"></div>
-			`;
-      return;
-    }
-    btn.innerHTML = `
-			<div style="position:absolute;inset:0;background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.25));"></div>
-			<img alt="" src="${c2?.imgSrc ?? ""}" style="position:absolute;inset:10px;width:calc(100% - 20px);height:calc(100% - 20px);object-fit:contain;filter:drop-shadow(0 8px 18px rgba(0,0,0,0.55));" />
-		`;
-  };
-  const rerenderAll = () => {
-    for (let i2 = 0; i2 < cards.length; i2++)
-      renderCard(i2);
-    updateHud();
-  };
-  const tryEnd = async () => {
-    if (ended || cancelled)
-      return;
-    if (stepsUsed < stepsMax && pairsFound < pairsMax)
-      return;
-    ended = true;
-    locked = true;
-    rerenderAll();
-    const result = {
-      stepsMax,
-      stepsUsed,
-      pairsFound,
-      points,
-      completed: true
-    };
-    let craftInfo = null;
-    try {
-      craftInfo = await options.onCraft(result);
-    } catch {
-      craftInfo = { itemName: "Objet", craftedCount: 0 };
-    }
-    const craftedCount = Math.max(0, Math.floor(craftInfo?.craftedCount ?? 0));
-    const itemName = String(craftInfo?.itemName ?? "Objet");
-    const stepsLeft = Math.max(0, stepsMax - stepsUsed);
-    panel.innerHTML = `
-			<div style="display:flex;align-items:flex-start;gap:12px;justify-content:space-between;">
-				<div>
-					<div style="font-weight:950;font-size:18px;">R\xE9sultat \u2014 Jeu de paires</div>
-					<div style="color:#bbb;font-size:12px;margin-top:3px;">Recette: <span style="color:#fff;font-weight:800;">${options.recipeLabel}</span></div>
-				</div>
-				<button class="btn" id="otherMinigameDoneBtn" style="min-width:120px;">Fermer</button>
-			</div>
-			<div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-				<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;">
-					<div style="font-weight:900;color:#ffd700;">Score</div>
-					<div style="margin-top:8px;color:#ddd;font-size:13px;white-space:pre-line;">Paires trouv\xE9es: ${pairsFound}
-Points: ${points}
-\xC9tapes restantes: ${stepsLeft}</div>
-				</div>
-				<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;">
-					<div style="font-weight:900;color:#6ee7ff;">Fabrication</div>
-					<div style="margin-top:8px;color:#ddd;font-size:13px;white-space:pre-line;">Objets cr\xE9\xE9s: ${craftedCount}
-Objet: ${itemName}</div>
-				</div>
-			</div>
-			<div style="margin-top:12px;color:#999;font-size:12px;">Astuce: m\xE9morise la position des motifs pour optimiser tes ${stepsMax} \xE9tapes.</div>
-		`;
-    panel.querySelector("#otherMinigameDoneBtn")?.addEventListener("click", (e2) => {
-      e2.stopPropagation();
-      cleanup();
-    });
-  };
-  for (let i2 = 0; i2 < cards.length; i2++) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.setAttribute("aria-label", `Carte ${i2 + 1}`);
-    btn.style.cssText = "appearance:none;-webkit-appearance:none;";
-    cardButtons.push(btn);
-    gridEl.appendChild(btn);
-    btn.addEventListener("click", async () => {
-      if (cancelled || ended)
-        return;
-      if (locked)
-        return;
-      if (matched.has(i2))
-        return;
-      if (revealed.has(i2))
-        return;
-      revealed.add(i2);
-      if (pickA == null) {
-        pickA = i2;
-        rerenderAll();
-        setHint("Choisis une deuxi\xE8me carte.");
-        return;
-      }
-      if (pickB == null) {
-        pickB = i2;
-        locked = true;
-        stepsUsed = clamp4(stepsUsed + 1, 0, stepsMax);
-        rerenderAll();
-        const a2 = pickA;
-        const b2 = pickB;
-        const aKey = cards[a2]?.key ?? "";
-        const bKey = cards[b2]?.key ?? "";
-        if (aKey && bKey && aKey === bKey) {
-          matched.add(a2);
-          matched.add(b2);
-          pairsFound = clamp4(pairsFound + 1, 0, pairsMax);
-          points = pairsFound;
-          setHint('<span style="color:#22c55e;font-weight:900;">Paire trouv\xE9e !</span> Elle reste visible et tu gagnes 1 point.');
-          pickA = null;
-          pickB = null;
-          locked = false;
-          rerenderAll();
-          await tryEnd();
-          return;
-        }
-        setHint('<span style="color:#f87171;font-weight:900;">Pas une paire.</span> Les cartes vont se remasquer.');
-        rerenderAll();
-        await waitMs(650);
-        revealed.delete(a2);
-        revealed.delete(b2);
-        pickA = null;
-        pickB = null;
-        locked = false;
-        rerenderAll();
-        await tryEnd();
-        return;
-      }
-    });
-  }
-  rerenderAll();
-  try {
-    while (!cancelled && !ended) {
-      await waitMs(50);
-    }
-    if (cancelled)
-      return null;
-    return {
-      stepsMax,
-      stepsUsed,
-      pairsFound,
-      points,
-      completed: true
-    };
-  } finally {
-    if (cancelled)
-      cleanup();
-  }
-}
-var clamp4, shuffleInPlace, createOverlayRoot3, waitMs;
-var init_otherMinigame_web = __esm({
-  "dist/crafting/otherMinigame.web.js"() {
-    "use strict";
-    clamp4 = (n2, min, max) => Math.max(min, Math.min(max, n2));
-    shuffleInPlace = (arr) => {
-      for (let i2 = arr.length - 1; i2 > 0; i2--) {
-        const j2 = Math.floor(Math.random() * (i2 + 1));
-        const tmp = arr[i2];
-        arr[i2] = arr[j2];
-        arr[j2] = tmp;
-      }
-      return arr;
-    };
-    createOverlayRoot3 = () => {
-      const root = document.createElement("div");
-      root.id = "otherMinigameOverlay";
-      root.style.cssText = [
-        "position:fixed",
-        "inset:0",
-        "background:rgba(0,0,0,0.72)",
-        "display:flex",
-        "align-items:center",
-        "justify-content:center",
-        "z-index:20000",
-        "padding:16px",
-        "user-select:none",
-        "-webkit-user-select:none",
-        "touch-action:manipulation"
-      ].join(";");
-      const panel = document.createElement("div");
-      panel.style.cssText = [
-        "width:min(860px, 96vw)",
-        "background:rgba(17,17,17,0.96)",
-        "border:1px solid rgba(255,255,255,0.10)",
-        "border-radius:14px",
-        "padding:16px",
-        "color:#fff",
-        "box-shadow:0 12px 40px rgba(0,0,0,0.55)"
-      ].join(";");
-      root.appendChild(panel);
-      document.body.appendChild(root);
-      return { root, panel };
-    };
-    waitMs = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
-  }
-});
-
 // dist/talents/talentTree.js
 function getCharacterClassId(p2) {
   const cls = norm2(String(p2?.characterClass ?? ""));
@@ -77820,7 +75815,7 @@ var init_talentTree = __esm({
 });
 
 // dist/talents/talentTree.web.js
-function clamp5(n2, min, max) {
+function clamp2(n2, min, max) {
   return Math.max(min, Math.min(max, n2));
 }
 function getSkillPoints(p2) {
@@ -78052,8 +76047,8 @@ function buildLayout(classId, w2, h2, unlockLevelBySkillId) {
     }
   }
   for (const n2 of nodes) {
-    n2.x = clamp5(n2.x, margin, w2 - margin);
-    n2.y = clamp5(n2.y, margin, h2 - margin);
+    n2.x = clamp2(n2.x, margin, w2 - margin);
+    n2.y = clamp2(n2.y, margin, h2 - margin);
   }
   return { def, nodes, edges };
 }
@@ -78442,1667 +76437,6 @@ var init_talentTree_web = __esm({
   }
 });
 
-// dist/village/competences.web.js
-function getLearnedSkillIds2(p2) {
-  return (p2?.learnedSkillIds ?? []).filter(Boolean);
-}
-function hasLearnedSkill(p2, skill) {
-  const id = String(skill.skillId ?? "");
-  if (id)
-    return getLearnedSkillIds2(p2).includes(id);
-  return (p2?.skills ?? []).some((hs) => hs?.name === skill?.name);
-}
-function goVillage() {
-  void Promise.resolve().then(() => (init_villageMain_web(), villageMain_web_exports)).then((m2) => m2.showVillage());
-}
-function showCompetences() {
-  const app2 = document.getElementById("app");
-  if (!app2)
-    return;
-  const party2 = getPartyMembers();
-  app2.innerHTML = `
-        <img src="https://img.freepik.com/photos-premium/interieur-ecole-magie-est-rempli-bureaux-bois-pour-eleves-enseignants-tableau-noir-ecritures-craie-chaudron-potion-chapeaux-sorciere-sorts-livres-magie-baguettes-balai-dessin-anime_76964-82543.jpg" class="background background-competences" alt="Comp\xE9tences">
-        <div class="centered-content">
-            <h1>Comp\xE9tences</h1>
-            <p>S\xE9lectionner un personnage :</p>
-            <div style="display:flex;flex-direction:column;gap:14px;align-items:center;margin-top:18px;">
-                ${party2.map((p2, idx) => {
-    const label = `${p2.name} \u2014 ${getPartyClassLabel(p2)} (Niv ${p2.level})`;
-    return `<button class="btn" data-pidx="${idx}" style="min-width:320px;">${label}</button>`;
-  }).join("")}
-                <button class="btn" id="retourVillageBtn">Retour village</button>
-            </div>
-        </div>
-    `;
-  document.querySelectorAll("[data-pidx]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const idx = Number(btn.getAttribute("data-pidx"));
-      showCompetencesFor(idx);
-    });
-  });
-  document.getElementById("retourVillageBtn")?.addEventListener("click", goVillage);
-}
-function getPartyCategoryForIdx(idx) {
-  const p2 = getPartyMember(idx);
-  const cls = String(p2.characterClass ?? "").toLowerCase();
-  if (cls === "mage")
-    return "mage";
-  if (cls === "voleur")
-    return "voleur";
-  return "guerrier";
-}
-function showCompetencesFor(idx) {
-  const app2 = document.getElementById("app");
-  if (!app2)
-    return;
-  const p2 = getPartyMember(idx);
-  const skills = p2.skills ?? [];
-  const skillsHtml = skills.length ? `<ul style="list-style:none;padding:0;">${skills.map((skill) => `<li data-skill-desc="${encodeSkillTooltip(skill)}" style="cursor:help;"><b>${skill.key}</b> : ${escapeHtml(skill.name)}</li>`).join("")}</ul>` : "<p>Aucune comp\xE9tence apprise.</p>";
-  app2.innerHTML = `
-        <img src="https://img.freepik.com/photos-premium/interieur-ecole-magie-est-rempli-bureaux-bois-pour-eleves-enseignants-tableau-noir-ecritures-craie-chaudron-potion-chapeaux-sorciere-sorts-livres-magie-baguettes-balai-dessin-anime_76964-82543.jpg" class="background background-competences" alt="Comp\xE9tences">
-        <div class="centered-content">
-            <h1>Comp\xE9tences \u2014 ${p2.name}</h1>
-            <p>Points de comp\xE9tence : <b>${p2.skillPoints}</b></p>
-            ${skillsHtml}
-            <button class="btn" id="showTalentTreeBtn">Arbre de talents</button>
-            <button class="btn" id="showUnlearnedBtn">Comp\xE9tences non apprises</button>
-            <button class="btn" id="showPassifsBtn">Passifs</button>
-            <button class="btn" id="retourSelectionBtn">Retour s\xE9lection</button>
-            <button class="btn" id="retourVillageBtn">Retour village</button>
-        </div>
-    `;
-  installHoverTooltip(app2, { selector: "[data-skill-desc]" });
-  document.getElementById("showTalentTreeBtn")?.addEventListener("click", () => {
-    showTalentTree({ selectedIdx: idx, onBack: (backIdx) => showCompetencesFor(backIdx) });
-  });
-  document.getElementById("showUnlearnedBtn")?.addEventListener("click", () => showUnlearnedCompetences(idx));
-  document.getElementById("showPassifsBtn")?.addEventListener("click", () => showPassiveCompetences(idx));
-  document.getElementById("retourSelectionBtn")?.addEventListener("click", showCompetences);
-  document.getElementById("retourVillageBtn")?.addEventListener("click", goVillage);
-}
-function showPassiveCompetences(selectedIdx = 0) {
-  const app2 = document.getElementById("app");
-  if (!app2)
-    return;
-  const selected = getPartyMember(selectedIdx);
-  const passives = Object.values(PASSIVE_DEFS).slice().sort((a2, b2) => a2.unlockLevel - b2.unlockLevel);
-  const learnedItems = [];
-  const unlockedItems = [];
-  const lockedItems = [];
-  const blockLearned = ["blocage_voleur", "blocage_guerrier", "blocage_mage"].find((pid) => selected.hasPassive?.(pid));
-  for (const passive of passives) {
-    if (blockLearned && ["blocage_voleur", "blocage_guerrier", "blocage_mage"].includes(passive.id) && !selected.hasPassive?.(passive.id))
-      continue;
-    const learned = selected.hasPassive?.(passive.id) ?? false;
-    const unlocked = selected.level >= passive.unlockLevel;
-    const meetsCat = true;
-    let status = "";
-    let actionBtn = "";
-    if (learned) {
-      status = `<span style='color:#4caf50;'>(Appris)</span>`;
-    } else if (unlocked) {
-      status = `<span style='color:#ffd700;'>(D\xE9bloqu\xE9)</span>`;
-      if (selected.skillPoints >= passive.costSkillPoints) {
-        actionBtn = `<button class='btn' style='margin-left:12px;min-width:120px;padding:6px 18px;font-size:0.95em;' data-passive-id='${passive.id}'>Apprendre</button>`;
-      } else {
-        actionBtn = `<span style='color:#aaa;margin-left:12px;'>(Pas assez de points)</span>`;
-      }
-    } else {
-      status = `<span style='color:#f55;'>(Niveau ${passive.unlockLevel} requis)</span>`;
-    }
-    const line = `<li data-skill-desc='${encodeURIComponent(passive.description)}' style='margin-bottom:10px;cursor:help;'><b>${passive.name}</b> ${status} <span style='color:#bbb;'>(co\xFBt ${passive.costSkillPoints})</span> ${actionBtn}</li>`;
-    if (learned)
-      learnedItems.push(line);
-    else if (unlocked)
-      unlockedItems.push(line);
-    else
-      lockedItems.push(line);
-  }
-  const learnedHtml = learnedItems.length ? `<ul style="list-style:none;padding:0;">${learnedItems.join("")}</ul>` : `<p style="color:#ccc;">Aucun passif appris.</p>`;
-  const unlockedHtml = unlockedItems.length ? `<ul style="list-style:none;padding:0;">${unlockedItems.join("")}</ul>` : `<p style="color:#ccc;">Aucun passif d\xE9bloqu\xE9.</p>`;
-  const lockedHtml = lockedItems.length ? `<ul style="list-style:none;padding:0;">${lockedItems.join("")}</ul>` : `<p style="color:#ccc;">Aucun passif verrouill\xE9.</p>`;
-  app2.innerHTML = `
-        <img src="https://img.freepik.com/photos-premium/interieur-ecole-magie-est-rempli-bureaux-bois-pour-eleves-enseignants-tableau-noir-ecritures-craie-chaudron-potion-chapeaux-sorciere-sorts-livres-magie-baguettes-balai-dessin-anime_76964-82543.jpg" class="background background-competences" alt="Passifs">
-        <div class="centered-content" style="max-width:1000px;">
-            <h1>Passifs \u2014 ${selected.name}</h1>
-            <p>Points de comp\xE9tence : <b id='skillPointsVal'>${selected.skillPoints}</b></p>
-            <div class="skills-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;align-items:start;">
-                <div class="skills-column" style="background:rgba(0,0,0,0.25);padding:12px;border-radius:8px;">
-                    <h3>Appris</h3>
-                    ${learnedHtml}
-                </div>
-                <div class="skills-column" style="background:rgba(0,0,0,0.18);padding:12px;border-radius:8px;">
-                    <h3>D\xE9bloqu\xE9s</h3>
-                    ${unlockedHtml}
-                </div>
-                <div class="skills-column" style="background:rgba(0,0,0,0.18);padding:12px;border-radius:8px;">
-                    <h3>Verrouill\xE9s</h3>
-                    ${lockedHtml}
-                </div>
-            </div>
-            <div style="margin-top:12px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-                <button class="btn" id="retourCompetencesBtn">Retour comp\xE9tences</button>
-                <button class="btn" id="retourVillageBtn">Retour village</button>
-            </div>
-        </div>
-    `;
-  installHoverTooltip(app2, { selector: "[data-skill-desc]" });
-  document.querySelectorAll("[data-passive-id]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = btn.getAttribute("data-passive-id");
-      getPartyMember(selectedIdx).learnPassive(id);
-      showPassiveCompetences(selectedIdx);
-    });
-  });
-  document.getElementById("retourCompetencesBtn")?.addEventListener("click", () => showCompetencesFor(selectedIdx));
-  document.getElementById("retourVillageBtn")?.addEventListener("click", goVillage);
-}
-function showUnlearnedCompetences(selectedIdx = 0) {
-  const app2 = document.getElementById("app");
-  const skillTree = window.game?.skillTree ?? [];
-  const p2 = getPartyMember(selectedIdx);
-  let allHtml = '<ul style="list-style:none;padding:0;">';
-  const selectedCat = getPartyCategoryForIdx(selectedIdx);
-  skillTree.forEach((s2, idx) => {
-    const cat = s2.skill.category;
-    const specialShownToVoleur = selectedCat === "voleur" && String(s2.skill.name ?? "").toLowerCase() === "buff permanent";
-    if (cat !== selectedCat && !specialShownToVoleur)
-      return;
-    const learned = hasLearnedSkill(p2, s2.skill);
-    const unlocked = p2.level >= s2.unlockLevel;
-    const meetsCat = true;
-    let status = "";
-    let actionBtn = "";
-    if (learned) {
-      status = `<span style='color:#4caf50;'>(Apprise)</span>`;
-    } else if (unlocked) {
-      status = `<span style='color:#ffd700;'>(D\xE9bloqu\xE9e)</span>`;
-      if (p2.skillPoints > 0) {
-        actionBtn = `<button class='btn' style='margin-left:12px;min-width:120px;padding:6px 18px;font-size:1em;' data-idx='${idx}'>Apprendre</button>`;
-      } else {
-        actionBtn = `<span style='color:#aaa;margin-left:12px;'>(Pas assez de points)</span>`;
-      }
-    } else {
-      status = `<span style='color:#f55;'>(Niveau ${s2.unlockLevel} requis)</span>`;
-    }
-    allHtml += `<li data-skill-desc='${encodeSkillTooltip(s2.skill)}' style='margin-bottom:10px;cursor:help;'><b>${s2.skill.key}</b> : ${s2.skill.name} ${status} ${actionBtn}</li>`;
-  });
-  allHtml += "</ul>";
-  const learnedItems = [];
-  const unlockedNotLearnedItems = [];
-  const lockedItems = [];
-  const categoryOrder = ["guerrier", "mage", "voleur"];
-  const getCategoryIndex = (cat) => {
-    if (!cat)
-      return 999;
-    const idx = categoryOrder.indexOf(cat);
-    return idx >= 0 ? idx : 999;
-  };
-  skillTree.forEach((s2, idx) => {
-    const cat = s2.skill.category;
-    const specialShownToVoleur = selectedCat === "voleur" && String(s2.skill.name ?? "").toLowerCase() === "buff permanent";
-    if (cat !== selectedCat && !specialShownToVoleur)
-      return;
-    const learned = hasLearnedSkill(p2, s2.skill);
-    const unlocked = p2.level >= s2.unlockLevel;
-    const meetsCat = true;
-    let status = "";
-    let actionBtn = "";
-    if (learned) {
-      status = `<span style='color:#4caf50;'>(Apprise)</span>`;
-    } else if (unlocked) {
-      status = `<span style='color:#ffd700;'>(D\xE9bloqu\xE9e)</span>`;
-      if (p2.skillPoints > 0) {
-        actionBtn = `<button class='btn' style='margin-left:12px;min-width:120px;padding:6px 18px;font-size:0.95em;' data-idx='${idx}'>Apprendre</button>`;
-      } else {
-        actionBtn = `<span style='color:#aaa;margin-left:12px;'>(Pas assez de points)</span>`;
-      }
-    } else {
-      status = `<span style='color:#f55;'>(Niveau ${s2.unlockLevel} requis)</span>`;
-    }
-    const li = (inner) => `<li data-skill-desc='${encodeSkillTooltip(s2.skill)}' style='margin-bottom:10px;cursor:help;'>${inner}</li>`;
-    if (learned) {
-      learnedItems.push(li(`<b>${s2.skill.key}</b> : ${escapeHtml(s2.skill.name)} ${status}`));
-    } else if (unlocked) {
-      const itemHtml = li(`<b>${s2.skill.key}</b> : ${escapeHtml(s2.skill.name)} ${status} ${actionBtn}`);
-      const sortKey = `${String(getCategoryIndex(cat)).padStart(3, "0")}_${String(s2.unlockLevel).padStart(4, "0")}_${String(idx).padStart(4, "0")}`;
-      unlockedNotLearnedItems.push({ sortKey, html: itemHtml });
-    } else {
-      lockedItems.push(li(`<b>${s2.skill.key}</b> : ${escapeHtml(s2.skill.name)} ${status}`));
-    }
-  });
-  const baseSkills = (p2.skills ?? []).filter((hs) => hs.category === selectedCat).filter((hs) => !skillTree.some((s2) => s2.skill.name === hs.name));
-  let baseHtml = "";
-  if (baseSkills.length) {
-    const items = baseSkills.map((bs) => `<li data-skill-desc='${encodeSkillTooltip(bs)}' style='margin-bottom:10px;cursor:help;'><b>${bs.key}</b> : ${escapeHtml(bs.name)} <span style='color:#ccc;'>(Comp\xE9tence de base)</span></li>`);
-    baseHtml = `<h4 style="margin-bottom:8px;">Comp\xE9tences de base</h4><ul style="list-style:none;padding:0;">${items.join("")}</ul>`;
-  }
-  const otherLearnedHtml = learnedItems.length ? `<h4 style="margin-top:12px;">Autres apprises</h4><ul style="list-style:none;padding:0;">${learnedItems.join("")}</ul>` : "";
-  const learnedHtml = baseHtml || otherLearnedHtml ? `${baseHtml}${otherLearnedHtml}` : '<p style="color:#ccc;">Aucune comp\xE9tence apprise.</p>';
-  const unlockedSorted = unlockedNotLearnedItems.slice().sort((a2, b2) => a2.sortKey < b2.sortKey ? -1 : a2.sortKey > b2.sortKey ? 1 : 0).map((x2) => x2.html);
-  const unlockedHtml = unlockedSorted.length ? `<ul style="list-style:none;padding:0;">${unlockedSorted.join("")}</ul>` : '<p style="color:#ccc;">Aucune comp\xE9tence d\xE9bloqu\xE9e.</p>';
-  const lockedCols = [];
-  for (let i2 = 0; i2 < lockedItems.length; i2 += 10) {
-    lockedCols.push(`<ul style="list-style:none;padding:0;">${lockedItems.slice(i2, i2 + 10).join("")}</ul>`);
-  }
-  const firstColHtml = lockedCols[0] || "";
-  const secondColHtml = lockedCols[1] || "";
-  const extraCols = lockedCols.slice(2);
-  let extraGridHtml = "";
-  if (extraCols.length) {
-    extraGridHtml = `<div class="extra-grid" style="display:grid;grid-template-columns:repeat(${extraCols.length},1fr);gap:18px;margin-top:12px;">` + extraCols.map((c2) => `<div class="skills-column" style="background:rgba(0,0,0,0.18);padding:12px;border-radius:8px;">${c2}</div>`).join("") + `</div>`;
-  }
-  if (!app2)
-    return;
-  app2.innerHTML = `
-        <img src="https://img.freepik.com/photos-premium/interieur-ecole-magie-est-rempli-bureaux-bois-pour-eleves-enseignants-tableau-noir-ecritures-craie-chaudron-potion-chapeaux-sorciere-sorts-livres-magie-baguettes-balai-dessin-anime_76964-82543.jpg" class="background background-competences" alt="Comp\xE9tences">
-        <div class="centered-content" style="max-width:1000px;">
-            <h1>Comp\xE9tences \u2014 ${getPartyMember(selectedIdx).name}</h1>
-            <p>Points de comp\xE9tence : <b id='skillPointsVal'>${p2.skillPoints}</b></p>
-            <div class="skills-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;align-items:start;">
-                <div class="skills-column" style="background:rgba(0,0,0,0.25);padding:12px;border-radius:8px;">
-                    <h3>Apprises</h3>
-                    ${learnedHtml}
-                </div>
-                <div class="skills-column" style="background:rgba(0,0,0,0.18);padding:12px;border-radius:8px;">
-                    <h3>D\xE9bloqu\xE9es</h3>
-                    ${unlockedHtml}
-                </div>
-                <div class="skills-column" style="background:rgba(0,0,0,0.18);padding:12px;border-radius:8px;">
-                    <h3>Non apprises</h3>
-                    ${firstColHtml}
-                </div>
-            </div>
-            ${extraGridHtml ? `<div style="display:flex;justify-content:flex-end;gap:18px;margin-top:12px;">${extraCols.map((c2) => `<div style="background:rgba(0,0,0,0.18);padding:12px;border-radius:8px;">${c2}</div>`).join("")}</div>` : ""}
-            <div style="margin-top:12px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
-                <button class="btn" id="retourCompetencesBtn">Retour comp\xE9tences</button>
-                <button class="btn" id="retourSelectionBtn">Retour s\xE9lection</button>
-            </div>
-        </div>
-    `;
-  installHoverTooltip(app2, { selector: "[data-skill-desc]" });
-  skillTree.forEach((s2, idx) => {
-    const cat = s2.skill.category;
-    const specialShownToVoleur = selectedCat === "voleur" && String(s2.skill.name ?? "").toLowerCase() === "buff permanent";
-    if (cat !== selectedCat && !specialShownToVoleur)
-      return;
-    const meetsCat = true;
-    if (!hasLearnedSkill(p2, s2.skill) && p2.level >= s2.unlockLevel && p2.skillPoints > 0 && meetsCat) {
-      const btn = document.querySelector(`[data-idx='${idx}']`);
-      if (btn) {
-        btn.addEventListener("click", () => {
-          const sid = String(s2.skill.skillId ?? "");
-          if (sid) {
-            const learned = getLearnedSkillIds2(p2);
-            if (!learned.includes(sid))
-              learned.push(sid);
-            p2.learnedSkillIds = learned;
-          }
-          p2.skillPoints = Math.max(0, Math.floor(p2.skillPoints ?? 0) - 1);
-          showUnlearnedCompetences(selectedIdx);
-        });
-      }
-    }
-  });
-  document.getElementById("retourCompetencesBtn")?.addEventListener("click", () => showCompetencesFor(selectedIdx));
-  document.getElementById("retourSelectionBtn")?.addEventListener("click", showCompetences);
-}
-var init_competences_web = __esm({
-  "dist/village/competences.web.js"() {
-    "use strict";
-    init_index_web();
-    init_utils_web();
-    init_skillUi_web();
-    init_utils_web();
-    init_passives();
-    init_party_web();
-    init_talentTree_web();
-  }
-});
-
-// dist/questJournalModal.web.js
-var questJournalModal_web_exports = {};
-__export(questJournalModal_web_exports, {
-  closeQuestJournalModal: () => closeQuestJournalModal,
-  openQuestJournalModal: () => openQuestJournalModal
-});
-var questJournalModalEl, closeQuestJournalModal, openQuestJournalModal;
-var init_questJournalModal_web = __esm({
-  "dist/questJournalModal.web.js"() {
-    "use strict";
-    init_utils_web();
-    questJournalModalEl = null;
-    closeQuestJournalModal = () => {
-      questJournalModalEl?.remove();
-      questJournalModalEl = null;
-    };
-    openQuestJournalModal = () => {
-      if (questJournalModalEl)
-        return;
-      questJournalModalEl = document.createElement("div");
-      questJournalModalEl.id = "questJournalModal";
-      questJournalModalEl.style.cssText = [
-        "position:fixed",
-        "inset:0",
-        "display:flex",
-        "align-items:center",
-        "justify-content:center",
-        "background:rgba(0,0,0,0.65)",
-        "z-index:10000",
-        "padding:18px"
-      ].join(";");
-      const panel = document.createElement("div");
-      panel.style.cssText = [
-        "width:min(860px, 96vw)",
-        "max-height:min(84vh, 820px)",
-        "overflow:auto",
-        "background:#111",
-        "border:1px solid rgba(255,255,255,0.10)",
-        "border-radius:12px",
-        "padding:14px",
-        "color:#fff"
-      ].join(";");
-      let tab = "active";
-      const renderStatus = (p2) => {
-        const s2 = String(p2?.status ?? "");
-        if (s2 === "claimed")
-          return "Termin\xE9e";
-        if (s2 === "completed")
-          return "\xC0 valider";
-        if (s2 === "active")
-          return "En cours";
-        return "Non d\xE9marr\xE9e";
-      };
-      const renderProgress = (def, p2) => {
-        if (!p2 || p2.status === void 0)
-          return '<div style="color:#bbb;">Non d\xE9marr\xE9e.</div>';
-        const stepIndex = Math.max(0, Math.floor(Number(p2.stepIndex ?? 0)));
-        const step = Array.isArray(def?.steps) ? def.steps[stepIndex] : null;
-        if (!step) {
-          if (p2?.status === "claimed" || p2?.status === "completed") {
-            return '<div style="margin-top:10px;color:#c8e6c9;font-weight:700;">Objectifs termin\xE9s.</div>';
-          }
-          return '<div style="color:#bbb;">Aucune \xE9tape.</div>';
-        }
-        const objectives = Array.isArray(step.objectives) ? step.objectives : [];
-        const objState = p2.objectives ?? {};
-        return `
-			<div style="margin-top:10px;">
-				<div style="font-weight:700;">\xC9tape: ${escapeHtml(String(step.title ?? step.id ?? ""))}</div>
-				<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-					${objectives.map((o2) => {
-          const cur = Math.max(0, Math.floor(Number(objState?.[String(o2.id)] ?? 0)));
-          const t2 = String(o2.type ?? "");
-          if (t2 === "counter") {
-            const target = Math.max(1, Math.floor(Number(o2.target ?? 1)));
-            const done2 = cur >= target;
-            return `<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
-									<div style="color:${done2 ? "#c8e6c9" : "#ddd"};">${done2 ? "\u2714" : "\u2022"} ${escapeHtml(String(o2.description ?? o2.id ?? ""))}</div>
-									<div style="color:#bbb;white-space:nowrap;">${cur}/${target}</div>
-								</div>`;
-          }
-          const done = cur >= 1;
-          return `<div style="color:${done ? "#c8e6c9" : "#ddd"};">${done ? "\u2714" : "\u2022"} ${escapeHtml(String(o2.description ?? o2.id ?? ""))}</div>`;
-        }).join("")}
-				</div>
-			</div>
-		`;
-      };
-      const renderModal = () => {
-        const qm = window.game?.questManager;
-        const items = typeof qm?.getAll === "function" ? qm.getAll() : [];
-        const list = items.filter(({ progress }) => {
-          const status = String(progress?.status ?? "");
-          if (tab === "completed")
-            return status === "claimed";
-          return status === "active" || status === "completed";
-        });
-        panel.innerHTML = `
-			<div style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
-				<div style="font-weight:900;font-size:18px;">Qu\xEAtes</div>
-				<button class="btn" id="questJournalModalCloseBtn">Fermer</button>
-			</div>
-			<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:10px;">
-				<button class="btn" id="questJournalTabActiveBtn" style="min-width:220px;${tab === "active" ? "border:2px solid #ffd700;" : ""}">Qu\xEAtes en cours</button>
-				<button class="btn" id="questJournalTabCompletedBtn" style="min-width:220px;${tab === "completed" ? "border:2px solid #ffd700;" : ""}">Qu\xEAtes termin\xE9es</button>
-			</div>
-			${!qm ? '<div style="margin-top:12px;background:rgba(0,0,0,0.55);padding:14px;border-radius:10px;">Qu\xEAtes indisponibles (questManager manquant).</div>' : ""}
-			<div style="display:flex;flex-direction:column;gap:14px;margin-top:14px;text-align:left;">
-				${list.map(({ def, progress }) => {
-          const status = renderStatus(progress);
-          return `
-							<div style="background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.08);padding:14px;border-radius:12px;">
-								<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
-									<div>
-										<div style="font-size:1.1em;font-weight:800;">${escapeHtml(String(def?.name ?? def?.id ?? "Qu\xEAte"))}</div>
-										<div style="color:#ddd;margin-top:4px;">${escapeHtml(String(def?.description ?? ""))}</div>
-									</div>
-									<div style="text-align:right;min-width:120px;">
-										<div style="font-weight:800;color:#ffd700;">${escapeHtml(status)}</div>
-									</div>
-								</div>
-								${renderProgress(def, progress)}
-							</div>
-						`;
-        }).join("")}
-				${list.length === 0 ? '<div style="background:rgba(0,0,0,0.55);padding:14px;border-radius:10px;">Aucune qu\xEAte.</div>' : ""}
-			</div>
-		`;
-        panel.querySelector("#questJournalModalCloseBtn")?.addEventListener("click", () => {
-          closeQuestJournalModal();
-        });
-        panel.querySelector("#questJournalTabActiveBtn")?.addEventListener("click", () => {
-          tab = "active";
-          renderModal();
-        });
-        panel.querySelector("#questJournalTabCompletedBtn")?.addEventListener("click", () => {
-          tab = "completed";
-          renderModal();
-        });
-      };
-      renderModal();
-      questJournalModalEl.appendChild(panel);
-      questJournalModalEl.addEventListener("click", (e2) => {
-        if (e2.target === questJournalModalEl)
-          closeQuestJournalModal();
-      });
-      document.body.appendChild(questJournalModalEl);
-    };
-  }
-});
-
-// dist/movement/houseMovement.web.js
-function showMaisonDeplacement(options) {
-  const app2 = document.getElementById("app");
-  if (!app2)
-    return;
-  ensureTacticalStyles();
-  const party2 = getPartyMembers().slice(0, 3);
-  const leader = party2[0];
-  const followerSprites = party2.slice(1).map((p2) => {
-    const cls = String(p2?.characterClass ?? "").toLowerCase();
-    const stun = Math.max(0, Math.floor(Number(p2?.stunTurns ?? 0)));
-    const temp = String(p2?.__tempSprite ?? "");
-    if (temp)
-      return temp;
-    if (cls === "guerrier" && stun > 0)
-      return "./ImagesRPG/imagespersonnage/perso_guerrier_mort.png";
-    return spriteForClass(p2?.characterClass);
-  });
-  const leaderSprite = (() => {
-    const cls = String(leader?.characterClass ?? "").toLowerCase();
-    const stun = Math.max(0, Math.floor(Number(leader?.stunTurns ?? 0)));
-    const temp = String(leader?.__tempSprite ?? "");
-    if (temp)
-      return temp;
-    if (cls === "guerrier" && stun > 0)
-      return "./ImagesRPG/imagespersonnage/perso_guerrier_mort.png";
-    return spriteForClass(leader?.characterClass);
-  })();
-  const onTempSpriteChangedHouse = () => {
-    render();
-  };
-  window.addEventListener("tempSpriteChanged", onTempSpriteChangedHouse);
-  const onGameDayAdvance = (e2) => {
-    const d2 = e2?.detail?.day ?? getGameDay(hero);
-    try {
-      const el = document.getElementById("houseDayVal");
-      if (el)
-        el.innerText = String(d2);
-    } catch {
-    }
-  };
-  window.addEventListener(GAME_DAY_EVENT, onGameDayAdvance);
-  const GRID_SIZE = 8;
-  const MOVE_STEP_MS = 220;
-  const HOUSE_GRID_STYLE_ID = "house-grid-style";
-  {
-    const s2 = document.getElementById(HOUSE_GRID_STYLE_ID) ?? document.createElement("style");
-    s2.id = HOUSE_GRID_STYLE_ID;
-    s2.innerHTML = `
-			.house-board-wrap { position: relative; display: inline-block; overflow: visible; --houseBgScale: 1.5; }
-			/* Keep the plateau placement independent from the background; move the plateau down by 5% relative to current (6% -> 11%). */
-			.house-board-wrap .house-grid-wrap { transform: translateY(11%); transform-origin: center; }
-			.house-board-wrap .house-bg {
-				position: absolute;
-				left: 50%;
-				/* Move ONLY the image up by 5% (plateau stays in .house-grid-wrap). */
-				top: calc(50% - 5%);
-				width: 100%;
-				height: 100%;
-				object-fit: contain;
-				transform: translate(-50%, -50%) scale(var(--houseBgScale, 1));
-				transform-origin: center;
-				z-index: 0;
-				filter: brightness(0.75);
-				background: #000;
-				pointer-events: none;
-				clip-path: inset(0 3% 0 3%);
-				-webkit-clip-path: inset(0 3% 0 3%);
-			}
-			.tactical-grid.house-grid {
-				background-image: none !important;
-				background: transparent !important;
-				position: relative;
-				z-index: 1;
-			}
-			.tactical-center.house-overflow { overflow: visible; }
-		`;
-    if (!s2.parentNode)
-      document.head.appendChild(s2);
-    const s22 = document.getElementById("house-grid-style-override") ?? document.createElement("style");
-    s22.id = "house-grid-style-override";
-    s22.innerHTML = `
-			/* Make tiles feel "integrated" into the terrain: each tile shows the corresponding cutout
-			   of the background image instead of a visible grid overlay. */
-			.tactical-grid.house-grid.iso .iso-grid-overlay { opacity: 0; pointer-events: none; }
-			.tactical-grid.house-grid .tile { position: absolute; }
-			.tactical-grid.house-grid .tile-bg {
-				position: absolute;
-				left: 50%;
-				top: 50%;
-				width: var(--isoTileW, 64px);
-				height: var(--isoTileH, 32px);
-				transform: translate(-50%, -50%);
-				pointer-events: none;
-				clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
-				-webkit-clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
-				background-image: var(--houseBgImage, none);
-				background-size: var(--houseBgSize, auto);
-				background-position: var(--houseBgPosX, 0px) var(--houseBgPosY, 0px);
-				background-repeat: no-repeat;
-				z-index: 0;
-			}
-			.tactical-grid.house-grid .tile > :not(.tile-bg) { position: relative; z-index: 1; }
-			.tactical-grid.house-grid .tile:hover .tile-bg { filter: brightness(1.07) saturate(1.05); }
-			.tactical-grid.house-grid .tile.interactive .tile-bg { box-shadow: inset 0 0 0 1px rgba(255, 215, 0, 0.16); }
-			.tactical-grid.house-grid .tile.blocked .tile-bg { filter: saturate(0.92) brightness(0.98); }
-		`;
-    if (!s22.parentNode)
-      document.head.appendChild(s22);
-    const s3 = document.getElementById("house-grid-sprite-override") ?? document.createElement("style");
-    s3.id = "house-grid-sprite-override";
-    s3.innerHTML = `
-			.tactical-grid.house-grid .unit-sprite { width: 129% !important; height: 145% !important; }
-			.tactical-grid.house-grid .unit-sprite-wrap { align-items: center; justify-content: center; }
-		`;
-    if (!s3.parentNode)
-      document.head.appendChild(s3);
-    const s4 = document.getElementById("house-grid-forge-highlight") ?? document.createElement("style");
-    s4.id = "house-grid-forge-highlight";
-    s4.innerHTML = `
-			.tactical-grid.house-grid .tile.forge { position: relative; }
-			.tactical-grid.house-grid .tile.forge::before {
-				content: '';
-				position: absolute;
-				left: 50%;
-				top: 50%;
-				width: var(--isoTileW, 64px);
-				height: var(--isoTileH, 32px);
-				transform: translate(-50%, -50%);
-				pointer-events: none;
-				clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
-				-webkit-clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
-				border: 1px solid rgba(255,215,0,0.6);
-				background: transparent;
-				box-shadow: 0 6px 14px rgba(0,0,0,0.18);
-				z-index: 2;
-			}
-			.tactical-grid.house-grid .tile.forge::after {
-				content: '';
-				position: absolute;
-				left: 50%;
-				top: 50%;
-				width: calc(var(--isoTileW, 64px) - 6px);
-				height: calc(var(--isoTileH, 32px) - 6px);
-				transform: translate(-50%, -50%);
-				pointer-events: none;
-				clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
-				-webkit-clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
-				background: linear-gradient(180deg, rgba(255,215,0,0.12), rgba(255,215,0,0.03));
-				z-index: 1;
-			}
-		`;
-    if (!s4.parentNode)
-      document.head.appendChild(s4);
-  }
-  let isoResizeBound = false;
-  const layoutIsoGrid = () => {
-    const gridEl = document.getElementById("exploreGrid");
-    if (!gridEl)
-      return;
-    if (!gridEl.classList.contains("iso"))
-      return;
-    const cols = GRID_SIZE;
-    const rows = GRID_SIZE;
-    const gridW = Math.max(0, gridEl.clientWidth);
-    const gridH = Math.max(0, gridEl.clientHeight);
-    if (gridW < 80 || gridH < 80)
-      return;
-    const pad = 10;
-    const gap = 6;
-    const baseTileW = Math.max(26, (gridW - pad * 2 - gap * (cols - 1)) / cols);
-    const SCALE = 1.5 * 0.92 * 0.9 * 0.8 * 1.1 * 1.1;
-    const tileW = Math.max(28, Math.floor(baseTileW * SCALE));
-    const tileH = Math.max(16, Math.floor(tileW * 0.68));
-    const halfW = tileW / 2;
-    const halfH = tileH / 2;
-    const isoGapX = Math.max(0, Math.floor(gap * 1));
-    const isoGapY = Math.max(0, Math.floor(gap * 0.65));
-    const stepW = halfW + isoGapX;
-    const stepH = halfH + isoGapY;
-    gridEl.style.setProperty("--isoTileW", `${tileW}px`);
-    gridEl.style.setProperty("--isoTileH", `${tileH}px`);
-    const BG_SCALE = 1.5;
-    const wrap = gridEl.closest(".house-board-wrap");
-    if (wrap)
-      wrap.style.setProperty("--houseBgScale", String(BG_SCALE));
-    const BG_SHIFT_Y = -gridH * 0.05;
-    const bgEl = wrap?.querySelector("img.house-bg");
-    const bgSrc = bgEl?.getAttribute("src") ?? "";
-    let bgDrawW = 0;
-    let bgDrawH = 0;
-    let bgOffsetX = 0;
-    let bgOffsetY = 0;
-    const natW = Number(bgEl?.naturalWidth ?? 0);
-    const natH = Number(bgEl?.naturalHeight ?? 0);
-    if (bgEl && natW > 0 && natH > 0 && gridW > 10 && gridH > 10) {
-      const fitScale = Math.min(gridW / natW, gridH / natH);
-      const scale = fitScale * BG_SCALE;
-      bgDrawW = natW * scale;
-      bgDrawH = natH * scale;
-      bgOffsetX = (gridW - bgDrawW) / 2;
-      bgOffsetY = (gridH - bgDrawH) / 2 + BG_SHIFT_Y;
-      gridEl.style.setProperty("--houseBgImage", bgSrc ? `url("${bgSrc}")` : "none");
-      gridEl.style.setProperty("--houseBgSize", `${Math.round(bgDrawW)}px ${Math.round(bgDrawH)}px`);
-    } else {
-      gridEl.style.setProperty("--houseBgImage", bgSrc ? `url("${bgSrc}")` : "none");
-      gridEl.style.setProperty("--houseBgSize", "auto");
-    }
-    const minX = -(rows - 1) * stepW;
-    const maxX = (cols - 1) * stepW;
-    const minY = 0;
-    const maxY = (cols + rows - 2) * stepH;
-    const fullW = maxX - minX + tileW;
-    const fullH = maxY - minY + tileH;
-    const offsetX = (gridW - fullW) / 2 + tileW / 2 - minX;
-    const offsetY = (gridH - fullH) / 2 + tileH / 2 - minY;
-    const tiles = gridEl.querySelectorAll(".tile[data-x][data-y]");
-    let overlay = gridEl.querySelector("svg.iso-grid-overlay");
-    if (!overlay) {
-      overlay = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      overlay.classList.add("iso-grid-overlay");
-      gridEl.insertBefore(overlay, gridEl.firstChild);
-    }
-    overlay.setAttribute("viewBox", `0 0 ${gridW} ${gridH}`);
-    overlay.setAttribute("preserveAspectRatio", "none");
-    const hoverKey = String(gridEl.dataset?.isoHoverKey ?? "");
-    const polygonFor = (cx, cy) => {
-      const p1 = `${cx},${cy - halfH}`;
-      const p2 = `${cx + halfW},${cy}`;
-      const p3 = `${cx},${cy + halfH}`;
-      const p4 = `${cx - halfW},${cy}`;
-      return `${p1} ${p2} ${p3} ${p4}`;
-    };
-    const polyParts = [];
-    for (const el of tiles) {
-      const x2 = Number(el.dataset.x);
-      const y2 = Number(el.dataset.y);
-      if (!Number.isFinite(x2) || !Number.isFinite(y2))
-        continue;
-      const cx = offsetX + (x2 - y2) * stepW;
-      const cy = offsetY + (x2 + y2) * stepH;
-      el.style.left = `${cx}px`;
-      el.style.top = `${cy}px`;
-      el.style.zIndex = String(Math.floor((x2 + y2) * 100 + x2));
-      if (bgDrawW > 10 && bgDrawH > 10) {
-        const desiredBgPosX = bgOffsetX - cx + tileW / 2;
-        const desiredBgPosY = bgOffsetY - cy + tileH / 2;
-        el.style.setProperty("--houseBgPosX", `${Math.round(desiredBgPosX)}px`);
-        el.style.setProperty("--houseBgPosY", `${Math.round(desiredBgPosY)}px`);
-      } else {
-        el.style.setProperty("--houseBgPosX", "0px");
-        el.style.setProperty("--houseBgPosY", "0px");
-      }
-      const tileKey = `${x2},${y2}`;
-      const classes = ["iso-tile"];
-      if (tileKey === hoverKey)
-        classes.push("hovered");
-      const pts = polygonFor(cx, cy);
-      polyParts.push(`<polygon class="${classes.join(" ")}" points="${pts}"></polygon>`);
-    }
-    overlay.innerHTML = polyParts.join("");
-  };
-  const scheduleIsoLayout2 = () => {
-    requestAnimationFrame(() => {
-      layoutIsoGrid();
-      setTimeout(() => layoutIsoGrid(), 80);
-    });
-    const gridEl = document.getElementById("exploreGrid");
-    const wrap = gridEl?.closest(".house-board-wrap");
-    const bgEl = wrap?.querySelector("img.house-bg");
-    if (bgEl && !bgEl.complete) {
-      bgEl.addEventListener("load", () => {
-        requestAnimationFrame(() => {
-          layoutIsoGrid();
-          setTimeout(() => layoutIsoGrid(), 80);
-        });
-      }, { once: true });
-    }
-  };
-  let pos = { x: 3, y: 6 };
-  let moveQueue = [];
-  let moveTimer = null;
-  let fabricationModalEl = null;
-  let inventoryModalEl = null;
-  const clamp7 = (n2, min, max) => Math.max(min, Math.min(max, Math.floor(n2)));
-  const FORGE_KEY = "0,4";
-  const CHEST_KEY = "6,0";
-  const GRIMOIRE_KEY = "6,6";
-  const QUEST_JOURNAL_KEY = "0,6";
-  const SLEEP_KEY = "1,1";
-  const blockedTiles = /* @__PURE__ */ new Set([FORGE_KEY, CHEST_KEY, GRIMOIRE_KEY, QUEST_JOURNAL_KEY, SLEEP_KEY]);
-  const key2 = (p2) => `${p2.x},${p2.y}`;
-  const isBlocked = (p2) => blockedTiles.has(key2(p2));
-  const isForge = (p2) => key2(p2) === FORGE_KEY;
-  const isChest = (p2) => key2(p2) === CHEST_KEY;
-  const isGrimoire = (p2) => key2(p2) === GRIMOIRE_KEY;
-  const isQuestJournal = (p2) => key2(p2) === QUEST_JOURNAL_KEY;
-  const isSleep = (p2) => key2(p2) === SLEEP_KEY;
-  const findPathBFS = (from, to) => {
-    if (isBlocked(to) && !isForge(to))
-      return [];
-    const q = [from];
-    const visited = /* @__PURE__ */ new Set([key2(from)]);
-    const cameFrom = /* @__PURE__ */ new Map();
-    cameFrom.set(key2(from), null);
-    const neighbors = (p2) => {
-      const list = [];
-      const deltas = [
-        { x: 1, y: 0 },
-        { x: -1, y: 0 },
-        { x: 0, y: 1 },
-        { x: 0, y: -1 }
-      ];
-      for (const d2 of deltas) {
-        const nx = p2.x + d2.x;
-        const ny = p2.y + d2.y;
-        if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE)
-          continue;
-        if (isBlocked({ x: nx, y: ny }) && !(nx === to.x && ny === to.y && isForge(to)))
-          continue;
-        list.push({ x: nx, y: ny });
-      }
-      return list;
-    };
-    while (q.length) {
-      const cur = q.shift();
-      if (cur.x === to.x && cur.y === to.y)
-        break;
-      for (const n2 of neighbors(cur)) {
-        const k2 = key2(n2);
-        if (visited.has(k2))
-          continue;
-        visited.add(k2);
-        cameFrom.set(k2, key2(cur));
-        q.push(n2);
-      }
-    }
-    const destKey = key2(to);
-    if (!cameFrom.has(destKey))
-      return [];
-    const path2 = [];
-    let curKey = destKey;
-    while (curKey && curKey !== key2(from)) {
-      const [sx, sy] = curKey.split(",");
-      path2.unshift({ x: Number(sx), y: Number(sy) });
-      curKey = cameFrom.get(curKey) ?? null;
-    }
-    return path2;
-  };
-  const stopMovement = () => {
-    if (moveTimer != null) {
-      window.clearInterval(moveTimer);
-      moveTimer = null;
-    }
-    moveQueue = [];
-  };
-  const closeFabricationModal = () => {
-    fabricationModalEl?.remove();
-    fabricationModalEl = null;
-  };
-  const closeInventoryModal = () => {
-    inventoryModalEl?.remove();
-    inventoryModalEl = null;
-  };
-  const closeQuestJournalModal2 = () => closeQuestJournalModal();
-  const openQuestJournalModal2 = () => openQuestJournalModal();
-  const openFabricationModal = () => {
-    if (fabricationModalEl)
-      return;
-    fabricationModalEl = document.createElement("div");
-    fabricationModalEl.id = "fabricationModalHouse";
-    fabricationModalEl.style.cssText = [
-      "position:fixed",
-      "inset:0",
-      "display:flex",
-      "align-items:center",
-      "justify-content:center",
-      "background:rgba(0,0,0,0.65)",
-      "z-index:10000",
-      "padding:18px"
-    ].join(";");
-    const panel = document.createElement("div");
-    panel.style.cssText = [
-      "width:min(720px, 96vw)",
-      "max-height: min(84vh, 760px)",
-      "overflow:auto",
-      "background:#111",
-      "border:1px solid rgba(255,255,255,0.10)",
-      "border-radius:12px",
-      "padding:14px",
-      "color:#fff"
-    ].join(";");
-    let craftingItemId = null;
-    let craftingTimer = null;
-    const renderModal = () => {
-      const haveWood = Math.max(0, Math.floor(hero.wood ?? 0));
-      const haveHerb = Math.max(0, Math.floor(hero.herb ?? 0));
-      const haveCuir = Math.max(0, Math.floor(hero.cuir ?? 0));
-      const haveFer = Math.max(0, Math.floor(hero.fer ?? 0));
-      const partyMembers = getPartyMembers();
-      const items = CRAFT_RECIPES;
-      panel.innerHTML = `
-				<div style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
-					<div style="font-weight:900;font-size:18px;">Fabrication</div>
-					<button class="btn" id="fabricationModalCloseBtn">Fermer</button>
-				</div>
-				<div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-					<div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:10px;">Bois: <b>${haveWood}</b></div>
-					<div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:10px;">Herbes: <b>${haveHerb}</b></div>
-					<div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:10px;">Cuir: <b>${haveCuir}</b></div>
-					<div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:10px;">Fer: <b>${haveFer}</b></div>
-					<div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-						<label style="color:#ddd;">Filtre:</label>
-						<select id="fabricationCategorySelect" style="margin-right:8px;">
-							<option value="all">Tous</option>
-							<option value="equipment">\xC9quipement</option>
-							<option value="consumable">Consommables</option>
-							<option value="other">Autres</option>
-						</select>
-						<label style="color:#ddd;margin-left:6px"><input type="checkbox" id="fabricationAffordableChk"/> Fabricable</label>
-						<label style="color:#ddd;margin-left:8px">Recevoir:</label>
-						<select id="fabricationRecipientSelect">
-							${partyMembers.map((p2, idx) => `<option value="${idx}">${escapeHtml(p2.name)}</option>`).join("")}
-						</select>
-					</div>
-				</div>
-				<div id="fabricationList" style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
-				</div>
-			`;
-      const closeBtn = panel.querySelector("#fabricationModalCloseBtn");
-      closeBtn?.addEventListener("click", () => {
-        if (typeof craftingTimer !== "undefined" && craftingTimer != null) {
-          window.clearTimeout(craftingTimer);
-        }
-        closeFabricationModal();
-      });
-      const categorySelect = panel.querySelector("#fabricationCategorySelect");
-      const affordableChk = panel.querySelector("#fabricationAffordableChk");
-      const listEl = panel.querySelector("#fabricationList");
-      const renderList = () => {
-        if (!listEl)
-          return;
-        const sel = categorySelect?.value || "all";
-        const onlyAffordable = !!affordableChk?.checked;
-        const haveW = Math.max(0, Math.floor(hero.wood ?? 0));
-        const haveH = Math.max(0, Math.floor(hero.herb ?? 0));
-        const haveC = Math.max(0, Math.floor(hero.cuir ?? 0));
-        const haveF = Math.max(0, Math.floor(hero.fer ?? 0));
-        const filtered = items.filter((it) => (sel === "all" || it.category === sel) && (!onlyAffordable || (it.cost.wood ?? 0) <= haveW && (it.cost.herb ?? 0) <= haveH && (it.cost.cuir ?? 0) <= haveC && (it.cost.fer ?? 0) <= haveF));
-        if (sel === "all") {
-          const groups = {};
-          for (const it of filtered) {
-            let arr = groups[it.category];
-            if (!arr) {
-              arr = [];
-              groups[it.category] = arr;
-            }
-            arr.push(it);
-          }
-          listEl.innerHTML = Object.keys(groups).map((cat) => `
-						<div>
-							<div style="font-weight:800;color:#ffd700;margin-bottom:6px;">${escapeHtml(cat === "equipment" ? "\xC9quipement" : cat === "consumable" ? "Consommables" : "Autres")}</div>
-							${(groups[cat] || []).map((it) => {
-            const affordable = (it.cost.wood ?? 0) <= haveW && (it.cost.herb ?? 0) <= haveH && (it.cost.cuir ?? 0) <= haveC && (it.cost.fer ?? 0) <= haveF;
-            const costStr = `${it.cost.wood ? `${it.cost.wood} bois ` : ""}${it.cost.herb ? `${it.cost.herb} herbes ` : ""}${it.cost.cuir ? `${it.cost.cuir} cuir ` : ""}${it.cost.fer ? `${it.cost.fer} fer ` : ""}`.trim();
-            const isPotionSoin = it.id === "potion_small";
-            const title = isPotionSoin ? "Soigne 50 PV" : "";
-            const labelHtml = isPotionSoin ? `<img src="ImagesRPG/imagesobjets/potionsoin.png" alt="Potion de soin" title="${escapeHtml(title)}" style="width:34px;height:34px;object-fit:contain;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.35));" />` : `<div style="font-weight:800;">${escapeHtml(it.label)}</div>`;
-            return `<div style="display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,0.04);padding:10px;border-radius:10px;margin-bottom:6px;gap:8px;">
-									<div style="flex:1;display:flex;gap:10px;align-items:flex-start;"><div style="width:40px;display:flex;justify-content:center;">${labelHtml}</div><div><div style="color:#bbb;font-size:12px;margin-top:3px;">Co\xFBt: ${escapeHtml(costStr || "\u2014")}</div></div></div><button class="btn" data-house-craft-id="${escapeHtml(it.id)}" ${!affordable ? "disabled" : ""}>Fabriquer</button></div>`;
-          }).join("")}
-						</div>
-					`).join("");
-        } else {
-          listEl.innerHTML = filtered.map((it) => {
-            const affordable = (it.cost.wood ?? 0) <= haveW && (it.cost.herb ?? 0) <= haveH && (it.cost.cuir ?? 0) <= haveC && (it.cost.fer ?? 0) <= haveF;
-            const costStr = `${it.cost.wood ? `${it.cost.wood} bois ` : ""}${it.cost.herb ? `${it.cost.herb} herbes ` : ""}${it.cost.cuir ? `${it.cost.cuir} cuir ` : ""}${it.cost.fer ? `${it.cost.fer} fer ` : ""}`.trim();
-            const isPotionSoin = it.id === "potion_small";
-            const title = isPotionSoin ? "Soigne 50 PV" : "";
-            const labelHtml = isPotionSoin ? `<img src="ImagesRPG/imagesobjets/potionsoin.png" alt="Potion de soin" title="${escapeHtml(title)}" style="width:34px;height:34px;object-fit:contain;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.35));" />` : `<div style="font-weight:800;">${escapeHtml(it.label)}</div>`;
-            return `<div style="display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,0.04);padding:10px;border-radius:10px;margin-bottom:6px;gap:8px;">
-							<div style="flex:1;display:flex;gap:10px;align-items:flex-start;"><div style="width:40px;display:flex;justify-content:center;">${labelHtml}</div><div><div style="color:#bbb;font-size:12px;margin-top:3px;">Co\xFBt: ${escapeHtml(costStr || "\u2014")}</div></div></div><button class="btn" data-house-craft-id="${escapeHtml(it.id)}" ${!affordable ? "disabled" : ""}>Fabriquer</button></div>`;
-          }).join("");
-        }
-        listEl.querySelectorAll("[data-house-craft-id]").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            const id = btn.getAttribute("data-house-craft-id") ?? "";
-            const entry = items.find((i2) => i2.id === id);
-            if (!entry)
-              return;
-            if (craftingItemId) {
-              showTemporaryMessage("Fabrication en cours...");
-              return;
-            }
-            const haveW2 = Math.max(0, Math.floor(hero.wood ?? 0));
-            const haveH2 = Math.max(0, Math.floor(hero.herb ?? 0));
-            const haveC2 = Math.max(0, Math.floor(hero.cuir ?? 0));
-            const haveF2 = Math.max(0, Math.floor(hero.fer ?? 0));
-            if ((entry.cost.wood ?? 0) > haveW2 || (entry.cost.herb ?? 0) > haveH2 || (entry.cost.cuir ?? 0) > haveC2 || (entry.cost.fer ?? 0) > haveF2) {
-              showTemporaryMessage("Ressources insuffisantes.");
-              return;
-            }
-            craftingItemId = entry.id;
-            closeFabricationModal();
-            const isForgeRecipe = entry.minigame === "forge";
-            const isSewingRecipe = entry.minigame === "sewing";
-            const isMemoryRecipe = entry.minigame === "memory";
-            const usesMinigame = Boolean(entry.minigame);
-            const addCreatedToRecipient = (created, score, chosenQuality) => {
-              created.fabricationScore = score;
-              if (typeof chosenQuality === "number")
-                created.fabricationQuality = chosenQuality;
-              const select = panel.querySelector("#fabricationRecipientSelect");
-              const recipientIdx = select ? Number(select.value) : 0;
-              const recipient = partyMembers[Math.max(0, Math.min(partyMembers.length - 1, recipientIdx))] ?? hero;
-              recipient.addItem(created);
-            };
-            if (!usesMinigame) {
-              hero.wood = Math.max(0, haveW2 - (entry.cost.wood ?? 0));
-              hero.herb = Math.max(0, haveH2 - (entry.cost.herb ?? 0));
-              const created = entry.create();
-              addCreatedToRecipient(created, 14);
-              try {
-                showTemporaryMessage(`Cr\xE9ation effectu\xE9e: ${created.name}`, 3200);
-              } catch (e2) {
-              }
-              craftingItemId = null;
-              try {
-                openFabricationModal();
-              } catch (e2) {
-              }
-              return;
-            }
-            if (isMemoryRecipe) {
-              const otherResult = await runOtherMinigame({
-                recipeLabel: entry.label,
-                onCancel: () => {
-                  craftingItemId = null;
-                },
-                onCraft: (r2) => {
-                  const want = Math.max(0, Math.floor(Number(r2.pairsFound ?? 0)));
-                  let craftedCount = 0;
-                  let lastName = "";
-                  const curW = Math.max(0, Math.floor(hero.wood ?? 0));
-                  const curH = Math.max(0, Math.floor(hero.herb ?? 0));
-                  const curC = Math.max(0, Math.floor(hero.cuir ?? 0));
-                  const curF = Math.max(0, Math.floor(hero.fer ?? 0));
-                  const costW = Math.max(0, Math.floor(entry.cost.wood ?? 0));
-                  const costH = Math.max(0, Math.floor(entry.cost.herb ?? 0));
-                  const costC = Math.max(0, Math.floor(entry.cost.cuir ?? 0));
-                  const costF = Math.max(0, Math.floor(entry.cost.fer ?? 0));
-                  const canAffordOnce = costW <= curW && costH <= curH && costC <= curC && costF <= curF;
-                  if (want > 0 && canAffordOnce) {
-                    hero.wood = Math.max(0, curW - costW);
-                    hero.herb = Math.max(0, curH - costH);
-                    hero.cuir = Math.max(0, curC - costC);
-                    hero.fer = Math.max(0, curF - costF);
-                    const probe = entry.create();
-                    const isStackable = Boolean(probe?.stackable);
-                    const isConsumable = entry.category === "consumable";
-                    if (isStackable || isConsumable) {
-                      probe.quantity = want;
-                      addCreatedToRecipient(probe, Math.max(0, Math.floor(Number(r2.points ?? r2.pairsFound ?? 0))));
-                      lastName = String(probe?.name ?? entry.label);
-                      craftedCount = want;
-                    } else {
-                      addCreatedToRecipient(probe, Math.max(0, Math.floor(Number(r2.points ?? r2.pairsFound ?? 0))));
-                      lastName = String(probe?.name ?? entry.label);
-                      craftedCount = 1;
-                      for (let k2 = 1; k2 < want; k2++) {
-                        const created = entry.create();
-                        addCreatedToRecipient(created, Math.max(0, Math.floor(Number(r2.points ?? r2.pairsFound ?? 0))));
-                        craftedCount++;
-                      }
-                    }
-                  }
-                  if (craftedCount > 0) {
-                    try {
-                      showTemporaryMessage(`Cr\xE9ation effectu\xE9e: ${lastName} x${craftedCount} (paires: ${r2.pairsFound})`, 4200);
-                    } catch (e2) {
-                    }
-                  } else {
-                    try {
-                      showTemporaryMessage("Aucune paire trouv\xE9e: aucun objet cr\xE9\xE9.", 3200);
-                    } catch (e2) {
-                    }
-                  }
-                  craftingItemId = null;
-                  return { itemName: String(lastName || entry?.label || "Objet"), craftedCount };
-                }
-              });
-              if (!otherResult) {
-                try {
-                  openFabricationModal();
-                } catch (e2) {
-                }
-                return;
-              }
-              try {
-                openFabricationModal();
-              } catch (e2) {
-              }
-              return;
-            }
-            if (isForgeRecipe) {
-              const minigameResult = await runForgeMinigame({
-                recipeLabel: entry.label,
-                onCancel: () => {
-                  craftingItemId = null;
-                },
-                onCraft: async (r2, probs, chosenQuality) => {
-                  hero.wood = Math.max(0, haveW2 - (entry.cost.wood ?? 0));
-                  hero.herb = Math.max(0, haveH2 - (entry.cost.herb ?? 0));
-                  const created = entry.create();
-                  addCreatedToRecipient(created, r2.totalScore, chosenQuality);
-                  try {
-                    showTemporaryMessage(`Cr\xE9ation effectu\xE9e: ${created.name} (score: ${r2.totalScore.toFixed(2)}, qualit\xE9: ${chosenQuality})`, 4200);
-                  } catch (e2) {
-                  }
-                  craftingItemId = null;
-                  return { itemName: String(created?.name ?? "Objet") };
-                }
-              });
-              if (!minigameResult) {
-                try {
-                  openFabricationModal();
-                } catch (e2) {
-                }
-                return;
-              }
-              try {
-                openFabricationModal();
-              } catch (e2) {
-              }
-              return;
-            }
-            const sewingResult = await runSewingMinigame({
-              recipeLabel: entry.label,
-              onCancel: () => {
-                craftingItemId = null;
-              },
-              onPartialFail: () => {
-                hero.wood = Math.max(0, haveW2 - (entry.cost.wood ?? 0));
-                hero.herb = Math.max(0, haveH2 - (entry.cost.herb ?? 0));
-                try {
-                  showTemporaryMessage("D\xE9coupe rat\xE9e: mat\xE9riaux perdus.", 3600);
-                } catch (e2) {
-                }
-                craftingItemId = null;
-              },
-              onCraft: async (r2, probs, chosenQuality) => {
-                hero.wood = Math.max(0, haveW2 - (entry.cost.wood ?? 0));
-                hero.herb = Math.max(0, haveH2 - (entry.cost.herb ?? 0));
-                const created = entry.create();
-                addCreatedToRecipient(created, r2.totalScore, chosenQuality);
-                try {
-                  showTemporaryMessage(`Cr\xE9ation effectu\xE9e: ${created.name} (score: ${r2.totalScore.toFixed(2)}, qualit\xE9: ${chosenQuality})`, 4200);
-                } catch (e2) {
-                }
-                craftingItemId = null;
-                return { itemName: String(created?.name ?? "Objet") };
-              }
-            });
-            if (!sewingResult) {
-              try {
-                openFabricationModal();
-              } catch (e2) {
-              }
-              return;
-            }
-            try {
-              openFabricationModal();
-            } catch (e2) {
-            }
-            return;
-          });
-        });
-      };
-      renderList();
-      categorySelect?.addEventListener("change", () => renderList());
-      affordableChk?.addEventListener("change", () => renderList());
-    };
-    renderModal();
-    fabricationModalEl.appendChild(panel);
-    fabricationModalEl.addEventListener("click", (e2) => {
-      if (e2.target === fabricationModalEl) {
-        if (craftingTimer) {
-          window.clearTimeout(craftingTimer);
-          craftingTimer = null;
-        }
-        closeFabricationModal();
-      }
-    });
-    document.body.appendChild(fabricationModalEl);
-  };
-  const openInventoryModal = () => {
-    if (inventoryModalEl)
-      return;
-    inventoryModalEl = document.createElement("div");
-    inventoryModalEl.id = "inventoryModalHouse";
-    inventoryModalEl.style.cssText = [
-      "position:fixed",
-      "inset:0",
-      "display:flex",
-      "align-items:center",
-      "justify-content:center",
-      "background:rgba(0,0,0,0.65)",
-      "z-index:10000",
-      "padding:18px"
-    ].join(";");
-    const panel = document.createElement("div");
-    panel.style.cssText = [
-      "width:min(860px, 96vw)",
-      "max-height: min(84vh, 860px)",
-      "overflow:auto",
-      "background:#111",
-      "border:1px solid rgba(255,255,255,0.10)",
-      "border-radius:12px",
-      "padding:14px",
-      "color:#fff"
-    ].join(";");
-    let selectedMemberIdx = 0;
-    const ensureSharedInventory = () => {
-      const partyMembers = getPartyMembers();
-      if (!hero.inventory)
-        hero.inventory = [];
-      for (const m2 of partyMembers) {
-        if (!m2 || m2 === hero)
-          continue;
-        const inv = m2.inventory ?? [];
-        if (inv.length) {
-          for (const it of inv) {
-            hero.addItem?.(it);
-          }
-          m2.inventory = [];
-        }
-      }
-    };
-    const unequipToShared = (target, slot) => {
-      const eq = target?.equipment ?? {};
-      const prev = eq?.[slot];
-      if (!prev)
-        return `Aucun \xE9quipement en ${slot}.`;
-      delete eq[slot];
-      target.equipment = eq;
-      hero.addItem?.(prev);
-      try {
-        target.pv = Math.min(target.pv, target.effectiveMaxPv ?? target.maxPv ?? target.pv);
-        target.currentMana = Math.min(target.currentMana, target.effectiveMaxMana ?? target.maxMana ?? target.currentMana);
-      } catch {
-      }
-      return `${target?.name ?? "Personnage"} retire ${prev?.name ?? slot} (slot: ${slot})`;
-    };
-    const equipFromShared = (target, invIndex) => {
-      const shared = hero.inventory ?? [];
-      if (invIndex < 0 || invIndex >= shared.length)
-        return "Objet introuvable.";
-      const item = shared[invIndex];
-      if (!(item instanceof Equipment))
-        return `${String(item?.name ?? "Objet")} ne peut pas \xEAtre \xE9quip\xE9.`;
-      const eqItem = item;
-      const slot = String(eqItem.slot ?? "");
-      if (!slot)
-        return "Slot \xE9quipement invalide.";
-      shared.splice(invIndex, 1);
-      hero.inventory = shared;
-      const eq = target?.equipment ?? {};
-      const previous = eq[slot];
-      if (previous) {
-        shared.push(previous);
-      }
-      eq[slot] = eqItem;
-      target.equipment = eq;
-      try {
-        if (eqItem.hpBonus && eqItem.hpBonus > 0) {
-          target.pv = Math.min((target.pv ?? 0) + eqItem.hpBonus, target.effectiveMaxPv ?? target.maxPv ?? (target.pv ?? 0));
-        }
-        if (eqItem.manaBonus && eqItem.manaBonus > 0) {
-          target.currentMana = Math.min((target.currentMana ?? 0) + eqItem.manaBonus, target.effectiveMaxMana ?? target.maxMana ?? (target.currentMana ?? 0));
-        }
-      } catch {
-      }
-      return `${target?.name ?? "Personnage"} \xE9quipe ${eqItem?.name ?? "\xC9quipement"} (slot: ${slot})`;
-    };
-    const useFromShared = (target, invIndex) => {
-      const shared = hero.inventory ?? [];
-      if (invIndex < 0 || invIndex >= shared.length)
-        return "Objet introuvable.";
-      const item = shared[invIndex];
-      if (!(item instanceof Consumable))
-        return `${String(item?.name ?? "Objet")} ne peut pas \xEAtre utilis\xE9.`;
-      let msg = "";
-      try {
-        msg = String(item.use?.(target) ?? "");
-      } catch {
-        msg = "Impossible d'utiliser cet objet.";
-      }
-      const q = Math.max(1, Math.floor(Number(item?.quantity ?? 1)));
-      if (Boolean(item?.stackable) && q > 1) {
-        item.quantity = q - 1;
-      } else {
-        shared.splice(invIndex, 1);
-      }
-      hero.inventory = shared;
-      return msg || `${String(item?.name ?? "Objet")} utilis\xE9.`;
-    };
-    const renderModal = () => {
-      ensureSharedInventory();
-      const partyMembers = getPartyMembers();
-      if (!partyMembers.length)
-        selectedMemberIdx = 0;
-      selectedMemberIdx = Math.max(0, Math.min(partyMembers.length - 1, Math.floor(selectedMemberIdx || 0)));
-      const target = partyMembers[selectedMemberIdx] ?? hero;
-      const inv = hero.inventory ?? [];
-      const eq = target.equipment ?? {};
-      const renderEquipmentRows = () => {
-        const entries = Object.entries(eq).filter(([, v2]) => !!v2);
-        if (!entries.length)
-          return '<div style="color:#bbb;">Aucun \xE9quipement \xE9quip\xE9.</div>';
-        return entries.map(([slot, item]) => {
-          const name = escapeHtml(String(item?.name ?? slot));
-          return `
-							<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;background:rgba(255,255,255,0.04);padding:10px;border-radius:10px;margin-bottom:6px;">
-								<div style="flex:1;">
-									<div style="font-weight:800;">${name}</div>
-									<div style="color:#bbb;font-size:12px;margin-top:3px;">Slot: ${escapeHtml(slot)}</div>
-								</div>
-								<button class="btn" data-house-unequip-slot="${escapeHtml(slot)}">Retirer</button>
-							</div>
-						`;
-        }).join("");
-      };
-      const renderInventoryRows = () => {
-        const specialRows = createSpecialInventoryItems(hero).map((item) => `
-						<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;background:rgba(255,255,255,0.04);padding:10px;border-radius:10px;margin-bottom:6px;">
-							<div style="flex:1;display:flex;align-items:center;gap:8px;">${renderItemIconHtml(item, { size: 51 })}<div><div style="font-weight:800;">${escapeHtml(String(item.name ?? "Objet"))}</div><div style="color:#bbb;font-size:12px;margin-top:3px;">x${Math.max(0, Math.floor(Number(item.quantity ?? 0)))}</div></div></div>
-							<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;"><span style="color:#777;font-size:12px;">\u2014</span></div>
-						</div>
-					`).join("");
-        if (!inv.length)
-          return specialRows;
-        return specialRows + inv.map((item, idx) => {
-          const baseName = String(item?.name ?? "Objet");
-          const q = Math.max(1, Math.floor(Number(item?.quantity ?? 1)));
-          const showQty = Boolean(item?.stackable) && q > 1;
-          const name = escapeHtml(baseName);
-          const desc = escapeHtml(String(item?.description ?? ""));
-          const isConsumable = item instanceof Consumable;
-          const isEquipment = item instanceof Equipment;
-          const actions = [
-            isConsumable ? `<button class="btn" data-house-use-idx="${idx}">Utiliser</button>` : "",
-            isEquipment ? `<button class="btn" data-house-equip-idx="${idx}">\xC9quiper</button>` : ""
-          ].filter(Boolean).join(" ");
-          const colorMap = ["#ffffff", "#4caf50", "#2196f3", "#9c27b0", "#ffb300"];
-          const nameMap = ["Blanc", "Vert", "Bleu", "Violet", "Orange/Dor\xE9"];
-          const qQuality = Number(item.fabricationQuality ?? 0);
-          let qualityBadgeHtml2 = "";
-          if (qQuality >= 1 && qQuality <= 5) {
-            const c2 = colorMap[Math.max(0, Math.min(colorMap.length - 1, qQuality - 1))];
-            const label = nameMap[Math.max(0, Math.min(nameMap.length - 1, qQuality - 1))];
-            qualityBadgeHtml2 = `<span title="Qualit\xE9: ${escapeHtml(String(label))}" style="display:inline-block;margin-left:8px;vertical-align:middle;"><span style="width:12px;height:12px;border-radius:2px;background:${c2};box-shadow:0 0 6px ${c2};display:inline-block;border:1px solid rgba(0,0,0,0.25);"></span></span>`;
-          }
-          const qtyHtml = showQty ? `<span style="margin-left:8px;opacity:0.9;font-weight:900;">x${q}</span>` : "";
-          return `
-							<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;background:rgba(255,255,255,0.04);padding:10px;border-radius:10px;margin-bottom:6px;">
-								<div style="flex:1;">
-									<div style="font-weight:800;">${name}${qualityBadgeHtml2}${qtyHtml}</div>
-									${desc ? `<div style="color:#bbb;font-size:12px;margin-top:3px;">${desc}</div>` : ""}
-								</div>
-								<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">${actions || '<span style="color:#777;font-size:12px;">\u2014</span>'}</div>
-							</div>
-						`;
-        }).join("");
-      };
-      panel.innerHTML = `
-				<div style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
-					<div style="font-weight:900;font-size:18px;display:flex;align-items:center;gap:10px;">
-						<span>Inventaire & \xC9quipement</span>
-						<img src="ImagesRPG/imagesobjets/coffre.png" alt="Coffre" style="width:34px;height:34px;object-fit:contain;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.35));" />
-					</div>
-					<button class="btn" id="inventoryModalCloseBtn">Fermer</button>
-				</div>
-				<div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-					<div style="display:flex;gap:8px;align-items:center;">
-						<label style="color:#ddd;">Perso:</label>
-						<select id="inventoryMemberSelect">
-							${partyMembers.map((p2, idx) => `<option value="${idx}" ${idx === selectedMemberIdx ? "selected" : ""}>${escapeHtml(p2.name)}</option>`).join("")}
-						</select>
-					</div>
-					<div style="margin-left:auto;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-						<div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:10px;">PV: <b>${Math.floor(target.pv ?? 0)}</b> / ${Math.floor(target.effectiveMaxPv ?? target.maxPv ?? 0)}</div>
-						<div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:10px;">Mana: <b>${Math.floor(target.currentMana ?? 0)}</b> / ${Math.floor(target.effectiveMaxMana ?? target.maxMana ?? 0)}</div>
-						<div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:10px;">ATK: <b>${Math.floor(target.effectiveAttack ?? target.baseAttack ?? 0)}</b></div>
-					</div>
-				</div>
-
-				<div style="margin-top:12px;display:grid;grid-template-columns: 1fr 1fr; gap:12px;">
-					<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;">
-						<div style="font-weight:900;margin-bottom:10px;">\xC9quipement</div>
-						${renderEquipmentRows()}
-					</div>
-					<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;">
-						<div style="font-weight:900;margin-bottom:10px;">Inventaire</div>
-						${renderInventoryRows()}
-					</div>
-				</div>
-			`;
-      panel.querySelector("#inventoryModalCloseBtn")?.addEventListener("click", () => {
-        closeInventoryModal();
-      });
-      panel.querySelector("#inventoryMemberSelect")?.addEventListener("change", (e2) => {
-        const v2 = Number(e2.target.value);
-        selectedMemberIdx = Number.isFinite(v2) ? v2 : 0;
-        renderModal();
-      });
-      panel.querySelectorAll("[data-house-unequip-slot]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const slot = btn.getAttribute("data-house-unequip-slot") ?? "";
-          if (!slot)
-            return;
-          try {
-            const msg = unequipToShared(target, slot);
-            if (msg)
-              showTemporaryMessage(String(msg), 2200);
-          } catch {
-            showTemporaryMessage("Impossible de retirer cet \xE9quipement.");
-          }
-          renderModal();
-        });
-      });
-      panel.querySelectorAll("[data-house-use-idx]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const idx = Number(btn.getAttribute("data-house-use-idx"));
-          if (!Number.isFinite(idx))
-            return;
-          try {
-            const msg = useFromShared(target, idx);
-            if (msg)
-              showTemporaryMessage(String(msg), 2400);
-          } catch {
-            showTemporaryMessage("Impossible d'utiliser cet objet.");
-          }
-          renderModal();
-        });
-      });
-      panel.querySelectorAll("[data-house-equip-idx]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const idx = Number(btn.getAttribute("data-house-equip-idx"));
-          if (!Number.isFinite(idx))
-            return;
-          try {
-            const msg = equipFromShared(target, idx);
-            if (msg)
-              showTemporaryMessage(String(msg), 2200);
-          } catch {
-            showTemporaryMessage("Impossible d'\xE9quiper cet objet.");
-          }
-          renderModal();
-        });
-      });
-    };
-    renderModal();
-    inventoryModalEl.appendChild(panel);
-    inventoryModalEl.addEventListener("click", (e2) => {
-      if (e2.target === inventoryModalEl)
-        closeInventoryModal();
-    });
-    document.body.appendChild(inventoryModalEl);
-  };
-  const renderUnitLeaderOnly = () => {
-    return `
-			<div class="unit-sprite-wrap unit-team-allies">
-				<img class="unit-sprite" src="${escapeHtml(leaderSprite)}" alt="Leader">
-				<div style="position:absolute;left:6px;bottom:6px;display:flex;gap:4px;align-items:flex-end;pointer-events:none;">
-					${followerSprites.map((src) => `<img src="${escapeHtml(src)}" alt="Suiveur" style="width:26px;height:26px;object-fit:contain;opacity:0.92;filter:drop-shadow(0 4px 6px rgba(0,0,0,0.25));">`).join("")}
-				</div>
-			</div>
-		`;
-  };
-  const render = () => {
-    app2.innerHTML = `
-			<div class="tactical-wrap" style="margin-top:-1%;">
-				<div class="tactical-hud">
-					<div class="tactical-panel" style="display:flex;gap:10px;align-items:center;">
-						<div style="font-weight:900;">Maison \u2014 D\xE9placement (plateau 8x8)</div>
-						<div style="color:#ddd;font-size:12px;">Clique une case pour te d\xE9placer (case par case).</div>
-					<div style="margin-left:auto;color:#ffd700;font-weight:800;">Jour <b id="houseDayVal">${getGameDay(hero)}</b></div>
-					</div>
-					<div class="tactical-actions">
-						<button class="btn" id="movementBackBtn">Retour</button>
-					</div>
-				</div>
-				<div class="tactical-center house-overflow">
-					<div class="house-board-wrap">
-						<img src="ImagesRPG/imagesfond/maison7.png" class="house-bg" alt="Maison RPG">
-						<!-- Important: remove the combat plateau background image so the house background is visible. -->
-						<div class="house-grid-wrap">
-							<div class="tactical-grid house-grid iso" id="exploreGrid" aria-label="Plateau 8x8">
-						${Array.from({ length: GRID_SIZE * GRID_SIZE }).map((_, i2) => {
-      const x2 = i2 % GRID_SIZE;
-      const y2 = Math.floor(i2 / GRID_SIZE);
-      const blocked = isBlocked({ x: x2, y: y2 });
-      const chest = isChest({ x: x2, y: y2 });
-      const forge = isForge({ x: x2, y: y2 });
-      const grimoire = isGrimoire({ x: x2, y: y2 });
-      const questJournal = isQuestJournal({ x: x2, y: y2 });
-      const sleep3 = isSleep({ x: x2, y: y2 });
-      const content = blocked ? forge ? `<img src="ImagesRPG/imagesobjets/craft_icon.svg" alt="Craft" title="Enclume (fabrication)" style="width:86%;height:86%;object-fit:contain;pointer-events:none;margin:auto;display:block;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.35));">` : chest ? `<img src="ImagesRPG/imagesobjets/coffre.png" alt="Coffre" style="width:86%;height:86%;object-fit:contain;pointer-events:none;margin:auto;display:block;">` : grimoire ? `<img src="ImagesRPG/imagesobjets/grimoire_image.png" alt="Grimoire" style="width:86%;height:86%;object-fit:contain;pointer-events:none;margin:auto;display:block;">` : questJournal ? `<img src="ImagesRPG/imagesobjets/journal_quete.png" alt="Journal de qu\xEAtes" style="width:86%;height:86%;object-fit:contain;pointer-events:none;margin:auto;display:block;">` : sleep3 ? `<img src="ImagesRPG/imagesobjets/sommeil.svg" alt="Dormir" title="Dormir (12h)" style="width:86%;height:86%;object-fit:contain;pointer-events:none;margin:auto;display:block;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.35));">` : "" : x2 === pos.x && y2 === pos.y ? renderUnitLeaderOnly() : "";
-      return `<div class="tile ${blocked ? "blocked" : ""} ${forge ? "forge" : ""} ${chest || grimoire || questJournal || sleep3 ? "interactive" : ""}" data-x="${x2}" data-y="${y2}"><div class="tile-bg" aria-hidden="true"></div>${content}</div>`;
-    }).join("")}
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-		`;
-    document.getElementById("movementBackBtn")?.addEventListener("click", () => {
-      stopMovement();
-      closeFabricationModal();
-      closeInventoryModal();
-      closeQuestJournalModal2();
-      try {
-        window.removeEventListener("tempSpriteChanged", onTempSpriteChangedHouse);
-      } catch (e2) {
-      }
-      try {
-        window.removeEventListener(GAME_DAY_EVENT, onGameDayAdvance);
-      } catch (e2) {
-      }
-      options.onBack();
-    });
-    const grid = document.getElementById("exploreGrid");
-    if (!grid)
-      return;
-    if (!isoResizeBound) {
-      isoResizeBound = true;
-      window.addEventListener("resize", () => scheduleIsoLayout2());
-    }
-    grid.addEventListener("mousemove", (e2) => {
-      const t2 = e2.target?.closest?.(".tile[data-x][data-y]");
-      const next = t2 ? `${t2.dataset.x},${t2.dataset.y}` : "";
-      const cur = String(grid.dataset?.isoHoverKey ?? "");
-      if (next === cur)
-        return;
-      grid.dataset.isoHoverKey = next;
-      layoutIsoGrid();
-    });
-    grid.addEventListener("mouseleave", () => {
-      grid.dataset.isoHoverKey = "";
-      layoutIsoGrid();
-    });
-    scheduleIsoLayout2();
-    grid.querySelectorAll(".tile[data-x][data-y]").forEach((tile) => {
-      tile.addEventListener("click", async () => {
-        const x2 = Number(tile.getAttribute("data-x"));
-        const y2 = Number(tile.getAttribute("data-y"));
-        if (!Number.isFinite(x2) || !Number.isFinite(y2))
-          return;
-        const target = { x: clamp7(x2, 0, GRID_SIZE - 1), y: clamp7(y2, 0, GRID_SIZE - 1) };
-        if (target.x === pos.x && target.y === pos.y)
-          return;
-        if (isForge(target)) {
-          openFabricationModal();
-          return;
-        }
-        if (isChest(target)) {
-          openInventoryModal();
-          return;
-        }
-        if (isGrimoire(target)) {
-          showCompetences();
-          return;
-        }
-        if (isSleep(target)) {
-          try {
-            const before = getGameTime(hero);
-            const res = advanceGameTimeHours(hero, 12, { reason: "sleep" });
-            const fromH = String(before.hour).padStart(2, "0");
-            const toH = String(res.hour).padStart(2, "0");
-            const market = res.market;
-            const extra = res.daysAdvanced > 0 ? market && market.soldCount > 0 ? ` \u2014 Ventes: ${market.soldCount} (+${market.soldTotal} argent \xE0 collecter)` : " \u2014 Aucune vente" : "";
-            showTemporaryMessage(`Sommeil 12h: Jour ${before.day} ${fromH}h \u2192 Jour ${res.day} ${toH}h${extra}`, 5200);
-          } catch (e2) {
-            console.error("[house] advanceGameTimeHours error", e2);
-            showTemporaryMessage("Impossible de dormir.", 2600);
-          }
-          render();
-          return;
-        }
-        if (isQuestJournal(target)) {
-          openQuestJournalModal2();
-          return;
-        }
-        if (isBlocked(target) && !isForge(target)) {
-          showTemporaryMessage("Case occup\xE9e.");
-          return;
-        }
-        const path2 = findPathBFS(pos, target);
-        if (!path2.length) {
-          showTemporaryMessage("Chemin bloqu\xE9.");
-          return;
-        }
-        const gridRect = grid.getBoundingClientRect();
-        const fromTile = grid.querySelector(`.tile[data-x="${pos.x}"][data-y="${pos.y}"]`);
-        if (!fromTile) {
-          pos = target;
-          render();
-          window.__houseMovementAnimating = false;
-          return;
-        }
-        const unitEl = fromTile.querySelector(".unit-badge, .unit-sprite-wrap, .unit-sprite")?.closest("div");
-        const fromRect = fromTile.getBoundingClientRect();
-        const tilePosPx = (p2) => {
-          const t2 = grid.querySelector(`.tile[data-x="${p2.x}"][data-y="${p2.y}"]`);
-          if (!t2)
-            return null;
-          const r2 = t2.getBoundingClientRect();
-          return { left: r2.left - gridRect.left, top: r2.top - gridRect.top };
-        };
-        const startPx = { left: fromRect.left - gridRect.left, top: fromRect.top - gridRect.top };
-        const keyframes = [];
-        keyframes.push({ transform: `translate(${startPx.left}px, ${startPx.top}px)` });
-        for (const p2 of path2) {
-          const px = tilePosPx(p2);
-          if (px)
-            keyframes.push({ transform: `translate(${px.left}px, ${px.top}px)` });
-        }
-        const duration = Math.max(80, path2.length * MOVE_STEP_MS);
-        const ghost = document.createElement("div");
-        ghost.className = "tactical-move-ghost";
-        ghost.style.width = `${fromRect.width}px`;
-        ghost.style.height = `${fromRect.height}px`;
-        ghost.style.transform = `translate(${startPx.left}px, ${startPx.top}px)`;
-        if (unitEl) {
-          const clone = unitEl.cloneNode(true);
-          clone.style.width = "100%";
-          clone.style.height = "100%";
-          ghost.appendChild(clone);
-          unitEl.style.opacity = "0";
-        } else {
-          ghost.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;">${escapeHtml(String(leader?.name ?? "Leader"))}</div>`;
-        }
-        grid.appendChild(ghost);
-        try {
-          const anim = ghost.animate(keyframes, { duration, easing: "linear", fill: "forwards" });
-          await (anim.finished ?? new Promise((resolve) => anim.addEventListener("finish", () => resolve())));
-          pos = target;
-          render();
-        } finally {
-          ghost.remove();
-          if (unitEl)
-            unitEl.style.opacity = "";
-          window.__houseMovementAnimating = false;
-        }
-      });
-    });
-  };
-  render();
-}
-var spriteForClass;
-var init_houseMovement_web = __esm({
-  "dist/movement/houseMovement.web.js"() {
-    "use strict";
-    init_party_web();
-    init_index_web();
-    init_item();
-    init_craftRecipes();
-    init_forgeMinigame_web();
-    init_sewingMinigame_web();
-    init_otherMinigame_web();
-    init_utils_web();
-    init_styles_web();
-    init_uiNotifications();
-    init_competences_web();
-    init_daySystem_web();
-    init_characterSprites_web();
-    init_ui();
-    init_itemIcons_web();
-    init_questJournalModal_web();
-    spriteForClass = (characterClass) => {
-      const cls = String(characterClass ?? "").toLowerCase();
-      if (cls === "mage")
-        return "./ImagesRPG/imagespersonnage/mage.png";
-      if (cls === "voleur")
-        return "./ImagesRPG/imagespersonnage/voleur.png";
-      if (cls === "guerrier")
-        return getIdleSpriteSrc(cls) ?? "./ImagesRPG/imagespersonnage/true_perso_guerrier.png";
-      return "./ImagesRPG/imagespersonnage/trueplayer.png";
-    };
-  }
-});
-
 // dist/pixi/worldMapPixi.web.js
 function enemyImageSrc(enemyId) {
   const id = String(enemyId ?? "");
@@ -80179,7 +76513,7 @@ function setSpriteSourceAsync2(PIXI, sprite, url, onReady) {
   }).catch(() => {
   });
 }
-function clamp6(n2, a2, b2) {
+function clamp3(n2, a2, b2) {
   return Math.max(a2, Math.min(b2, n2));
 }
 function getCanvasRect(app2) {
@@ -80226,8 +76560,8 @@ function toPx(v2, total) {
 }
 function computeIsoLayout(containerW, containerH, cols, rows, map) {
   const meta = map?.meta ?? {};
-  const SCALE = clamp6(Number(meta?.isoScale ?? 0.85), 0.6, 2.2);
-  const ASPECT = clamp6(Number(meta?.tileAspect ?? 0.68), 0.35, 0.9);
+  const SCALE = clamp3(Number(meta?.isoScale ?? 0.85), 0.6, 2.2);
+  const ASPECT = clamp3(Number(meta?.tileAspect ?? 0.68), 0.35, 0.9);
   const pad = 10;
   const gap = Math.max(0, Math.floor(Number(meta?.tileGap ?? 2)));
   const baseTileW = Math.max(26, (containerW - pad * 2 - gap * (cols - 1)) / Math.max(4, cols));
@@ -80380,7 +76714,7 @@ function drawBoard(PIXI, s2) {
       setSpriteSourceAsync2(PIXI, s2.bg, bgSrc);
       s2.bgFull.alpha = 0;
       const BG_SCALE_BASE = Number(map?.meta?.bgScale ?? 1.5);
-      const BG_SCALE = clamp6(BG_SCALE_BASE * 1.2, 0.5, 3);
+      const BG_SCALE = clamp3(BG_SCALE_BASE * 1.2, 0.5, 3);
       const txPx = toPx(map?.meta?.bgTranslateX, rectW);
       const tyPx = toPx(map?.meta?.bgTranslateY, rectH);
       const tex = s2.bg.texture;
@@ -80625,6 +76959,82 @@ function drawBoard(PIXI, s2) {
       });
       s2.markersLayer.addChild(sprite);
       s2.npcSpriteByTile.set(`${t2.x},${t2.y}`, sprite);
+      continue;
+    }
+    if (t2.eventId === "fabrication") {
+      const sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+      sprite.anchor.set(0.5, 0.64);
+      sprite.x = cx;
+      sprite.y = cy - layout.tileH * 0.04;
+      sprite.alpha = 0;
+      try {
+        sprite.zIndex = Math.floor((t2.x + t2.y) * 100 + t2.x + 50);
+      } catch {
+      }
+      const fabricationImg = "ImagesRPG/imagesobjets/enclume.png";
+      const desiredW = Math.max(10, layout.tileW * 0.61);
+      const desiredH = Math.max(10, layout.tileH * 0.78);
+      const applySize = (tex) => {
+        const t22 = tex ?? sprite.texture;
+        const natW = Math.max(1, Number(t22?.width ?? 1));
+        const natH = Math.max(1, Number(t22?.height ?? 1));
+        if (natW <= 1 || natH <= 1)
+          return;
+        const kW = desiredW / natW;
+        const kH = desiredH / natH;
+        const k2 = Math.max(0.01, Math.min(kW, kH));
+        try {
+          sprite.scale.set(k2, k2);
+        } catch {
+        }
+      };
+      applySize();
+      setSpriteSourceAsync2(PIXI, sprite, fabricationImg, (tex) => {
+        applySize(tex);
+        try {
+          sprite.alpha = 1;
+        } catch {
+        }
+      });
+      s2.markersLayer.addChild(sprite);
+      continue;
+    }
+    if (t2.eventId === "dormir") {
+      const sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+      sprite.anchor.set(0.5, 0.66);
+      sprite.x = cx;
+      sprite.y = cy - layout.tileH * 0.04;
+      sprite.alpha = 0;
+      try {
+        sprite.zIndex = Math.floor((t2.x + t2.y) * 100 + t2.x + 45);
+      } catch {
+      }
+      const sleepImg = "ImagesRPG/imagesobjets/sommeil.svg";
+      const desiredW = Math.max(10, layout.tileW * 0.72);
+      const desiredH = Math.max(10, layout.tileH * 0.92);
+      const applySize = (tex) => {
+        const t22 = tex ?? sprite.texture;
+        const natW = Math.max(1, Number(t22?.width ?? 1));
+        const natH = Math.max(1, Number(t22?.height ?? 1));
+        if (natW <= 1 || natH <= 1)
+          return;
+        const kW = desiredW / natW;
+        const kH = desiredH / natH;
+        const k2 = Math.max(0.01, Math.min(kW, kH));
+        try {
+          sprite.scale.set(k2, k2);
+        } catch {
+        }
+      };
+      applySize();
+      setSpriteSourceAsync2(PIXI, sprite, sleepImg, (tex) => {
+        applySize(tex);
+        try {
+          sprite.alpha = 1;
+        } catch {
+        }
+      });
+      s2.markersLayer.addChild(sprite);
       continue;
     }
     let glyph = "";
@@ -81781,6 +78191,2265 @@ var init_dialogueManager_web = __esm({
   }
 });
 
+// dist/crafting/craftRecipes.js
+var CRAFT_RECIPES;
+var init_craftRecipes = __esm({
+  "dist/crafting/craftRecipes.js"() {
+    "use strict";
+    init_item();
+    CRAFT_RECIPES = [
+      {
+        id: "potion_small",
+        label: "Potion (co\xFBt 5 herbes)",
+        category: "consumable",
+        cost: { herb: 5 },
+        craftDurationMs: 900,
+        minigame: "memory",
+        create: () => new Consumable("potion_small", "Potion de soin", "Soigne 50 PV", "heal", 50)
+      },
+      {
+        id: "bombe_fumigene_item",
+        label: "Bombe fumig\xE8ne (co\xFBt 1 bois + 1 herbe)",
+        category: "other",
+        cost: { wood: 1, herb: 1 },
+        craftDurationMs: 700,
+        minigame: "memory",
+        create: () => new Item("bombe_fumigene_item", "Bombe fumig\xE8ne", "Ressource de comp\xE9tence (non utilisable en tant qu'objet).", { stackable: true })
+      },
+      {
+        id: "staff_novice",
+        label: "B\xE2ton de novice (co\xFBt 6 bois)",
+        category: "equipment",
+        cost: { wood: 6 },
+        craftDurationMs: 1400,
+        minigame: "sewing",
+        create: () => new Equipment("staff_novice", "B\xE2ton de novice", "B\xE2ton simple (+10 mana maximum)", "weapon", 0, 0, 0, 10)
+      },
+      {
+        id: "sword_wood",
+        label: "\xC9p\xE9e en bois (co\xFBt 4 bois)",
+        category: "equipment",
+        cost: { wood: 4 },
+        craftDurationMs: 1200,
+        minigame: "forge",
+        create: () => new Equipment("sword_wood", "\xC9p\xE9e en bois", "\xC9p\xE9e l\xE9g\xE8re (+1 attaque)", "weapon", 1, 0, 0, 0)
+      },
+      {
+        id: "sword_1",
+        label: "\xC9p\xE9e basique (co\xFBt 8 fer)",
+        category: "equipment",
+        cost: { fer: 8 },
+        craftDurationMs: 1600,
+        minigame: "forge",
+        create: () => new Equipment("sword_1", "\xC9p\xE9e basique", "\xC9p\xE9e en fer (+5 attaque)", "weapon", 5, 0, 0, 0)
+      },
+      {
+        id: "sword_bronze",
+        label: "\xC9p\xE9e de bronze (co\xFBt 5 fer)",
+        category: "equipment",
+        cost: { fer: 5 },
+        craftDurationMs: 1500,
+        minigame: "forge",
+        create: () => new Equipment("sword_bronze", "\xC9p\xE9e de bronze", "\xC9p\xE9e en bronze (+2 attaque)", "weapon", 2, 0, 0, 0)
+      },
+      {
+        id: "dague_fer",
+        label: "Dague de fer (co\xFBt 6 fer)",
+        category: "equipment",
+        cost: { fer: 6 },
+        craftDurationMs: 1400,
+        minigame: "forge",
+        create: () => new Equipment("dague_fer", "Dague de fer", "Dague en fer (+2 attaque, +2 critique)", "weapon", 2, 0, 0, 0, 2)
+      },
+      {
+        id: "dagues_rouille",
+        label: "Dagues rouill\xE9es (co\xFBt 3 fer)",
+        category: "equipment",
+        cost: { fer: 3 },
+        craftDurationMs: 1100,
+        minigame: "forge",
+        create: () => new Equipment("dagues_rouille", "Dagues rouill\xE9es", "Dagues us\xE9es (+1 critique)", "weapon", 0, 0, 0, 0, 1)
+      },
+      {
+        id: "armor_1",
+        label: "Armure de cuir (co\xFBt 6 cuir)",
+        category: "equipment",
+        cost: { cuir: 6 },
+        craftDurationMs: 1700,
+        minigame: "sewing",
+        create: () => new Equipment("armor_1", "Armure de cuir", "Armure l\xE9g\xE8re (+20 PV)", "armor", 0, 0, 20, 0)
+      },
+      {
+        id: "ring_1",
+        label: "Anneau de mana (co\xFBt 4 fer)",
+        category: "equipment",
+        cost: { fer: 4 },
+        craftDurationMs: 1300,
+        minigame: "forge",
+        create: () => new Equipment("ring_1", "Anneau de mana", "Anneau (+10 mana)", "ring", 0, 0, 0, 10)
+      },
+      {
+        id: "campfire",
+        label: "Feu de camp (co\xFBt 5 bois)",
+        category: "other",
+        cost: { wood: 5 },
+        craftDurationMs: 2200,
+        minigame: "memory",
+        create: () => new Campfire()
+      }
+    ];
+  }
+});
+
+// dist/crafting/forgeMinigame.web.js
+async function runForgeMinigame(options) {
+  const { root, panel } = createOverlayRoot();
+  let cancelled = false;
+  const cleanup = () => {
+    try {
+      root.remove();
+    } catch {
+    }
+  };
+  const cancel = () => {
+    if (cancelled)
+      return;
+    cancelled = true;
+    try {
+      options.onCancel?.();
+    } catch {
+    }
+    cleanup();
+  };
+  const onKeyDown = (e2) => {
+    if (e2.key === "Escape") {
+      e2.preventDefault();
+      cancel();
+    }
+  };
+  document.addEventListener("keydown", onKeyDown);
+  const safeCleanup = () => {
+    document.removeEventListener("keydown", onKeyDown);
+    cleanup();
+  };
+  const setHeader = (title, subtitle) => {
+    panel.innerHTML = "";
+    const top = document.createElement("div");
+    top.style.cssText = "display:flex;align-items:flex-start;gap:12px;justify-content:space-between;";
+    top.innerHTML = `
+			<div>
+				<div style="font-weight:950;font-size:18px;">Forge \u2014 ${title}</div>
+				<div style="color:#bbb;font-size:12px;margin-top:3px;">${subtitle}</div>
+			</div>
+			<button class="btn" id="forgeMinigameCloseBtn" style="min-width:110px;">Annuler</button>
+		`;
+    panel.appendChild(top);
+    panel.querySelector("#forgeMinigameCloseBtn")?.addEventListener("click", (e2) => {
+      e2.stopPropagation();
+      cancel();
+    });
+    const recipe = document.createElement("div");
+    recipe.style.cssText = "margin-top:10px;color:#ffd700;font-weight:800;";
+    recipe.textContent = options.recipeLabel;
+    panel.appendChild(recipe);
+  };
+  try {
+    setHeader("Chauffe", "Maintiens le clic pour chauffer. Rel\xE2che sur le trait bleu (80%) ou juste apr\xE8s, en d\xE9passant le moins possible.");
+    const bar = createCraftBar({ targetPercent: 80 });
+    bar.label.textContent = "Astuce: si tu rel\xE2ches trop t\xF4t, tu peux maintenir \xE0 nouveau pour continuer.";
+    panel.appendChild(document.createElement("div")).style.cssText = "height:12px;";
+    panel.appendChild(bar.wrap);
+    panel.appendChild(bar.label);
+    const heatInfo = document.createElement("div");
+    heatInfo.style.cssText = "margin-top:10px;color:#ddd;font-size:13px;";
+    panel.appendChild(heatInfo);
+    let heatPercent = 0;
+    let heatHolding = false;
+    let heatDone = false;
+    let lastT = 0;
+    let currentHoldSeconds = 0;
+    const updateHeatInfo = () => {
+      const bonusPreview = computeHeatBonus(heatPercent);
+      heatInfo.textContent = `Chauffe: ${heatPercent.toFixed(1)}% \u2014 Bonus si valid\xE9 maintenant: +${bonusPreview.toFixed(1)}`;
+    };
+    updateHeatInfo();
+    const heatRAF = (t2) => {
+      if (cancelled)
+        return;
+      if (heatDone)
+        return;
+      if (!heatHolding) {
+        lastT = t2;
+        requestAnimationFrame(heatRAF);
+        return;
+      }
+      const dt = Math.max(0, (t2 - lastT) / 1e3);
+      lastT = t2;
+      currentHoldSeconds += dt;
+      const minRate = 15;
+      const accel = 5;
+      const maxRate = 260;
+      const velocity = clamp4(minRate * Math.exp(accel * currentHoldSeconds), 0, maxRate);
+      heatPercent = clamp4(heatPercent + velocity * dt, 0, 100);
+      bar.fill.style.width = percentToWidth(heatPercent);
+      updateHeatInfo();
+      requestAnimationFrame(heatRAF);
+    };
+    requestAnimationFrame(heatRAF);
+    const heatPointerDown = (e2) => {
+      if (heatDone)
+        return;
+      if (e2.button !== 0)
+        return;
+      try {
+        window.game?.audioManager?.play("bouledefeu");
+      } catch {
+      }
+      currentHoldSeconds = 0;
+      heatHolding = true;
+      try {
+        e2.target.setPointerCapture?.(e2.pointerId);
+      } catch {
+      }
+    };
+    const heatPointerUp = () => {
+      if (heatDone)
+        return;
+      heatHolding = false;
+      if (heatPercent >= 80) {
+        heatDone = true;
+      }
+    };
+    bar.wrap.addEventListener("pointerdown", heatPointerDown);
+    window.addEventListener("pointerup", heatPointerUp);
+    await new Promise((resolve) => {
+      const check = () => {
+        if (cancelled)
+          return resolve();
+        if (heatDone)
+          return resolve();
+        requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+    });
+    bar.wrap.removeEventListener("pointerdown", heatPointerDown);
+    window.removeEventListener("pointerup", heatPointerUp);
+    if (cancelled) {
+      safeCleanup();
+      return null;
+    }
+    const heatBonus = computeHeatBonus(heatPercent);
+    const heatResult = { finalPercent: heatPercent, bonus: heatBonus };
+    setHeader("Forge (Marteau)", "Clique pour lancer le coup, puis clique pour arr\xEAter le trait au plus pr\xE8s du curseur (50%).");
+    const hammerBar = createCraftBar({ targetPercent: 50 });
+    hammerBar.label.textContent = "4 coups. Chaque coup parfait donne +1.3, sinon proportionnel \xE0 ta pr\xE9cision (max 1.3).";
+    panel.appendChild(document.createElement("div")).style.cssText = "height:12px;";
+    panel.appendChild(hammerBar.wrap);
+    panel.appendChild(hammerBar.label);
+    const zoneLeft = 40;
+    const zoneRight = 60;
+    const zone = document.createElement("div");
+    zone.style.cssText = [
+      "position:absolute",
+      "top:0",
+      "bottom:0",
+      `left:${zoneLeft}%`,
+      `width:${zoneRight - zoneLeft}%`,
+      "background:rgba(110,231,255,0.12)",
+      "border-radius:8px",
+      "pointer-events:none"
+    ].join(";");
+    hammerBar.wrap.appendChild(zone);
+    const makeTick = (pct2) => {
+      const t2 = document.createElement("div");
+      t2.style.cssText = [
+        "position:absolute",
+        "top:-6px",
+        "bottom:-6px",
+        `left:${pct2}%`,
+        "width:2px",
+        "background:#6ee7ff",
+        "box-shadow:0 0 0 6px rgba(110,231,255,0.06)",
+        "pointer-events:none"
+      ].join(";");
+      return t2;
+    };
+    hammerBar.wrap.appendChild(makeTick(zoneLeft));
+    hammerBar.wrap.appendChild(makeTick(zoneRight));
+    const hammerInfo = document.createElement("div");
+    hammerInfo.style.cssText = "margin-top:10px;color:#ddd;font-size:13px;white-space:pre-line;";
+    panel.appendChild(hammerInfo);
+    const moving = document.createElement("div");
+    moving.style.cssText = [
+      "position:absolute",
+      "top:-6px",
+      "bottom:-6px",
+      "left:0%",
+      "width:2px",
+      "background:#fff",
+      "box-shadow:0 0 0 3px rgba(255,255,255,0.12)",
+      "opacity:0"
+    ].join(";");
+    hammerBar.wrap.appendChild(moving);
+    const hammerHits = [];
+    let hitIndex = 0;
+    let running = false;
+    let startTime = 0;
+    let pendingResolve = null;
+    const HAMMER_RUN_MS = 1e3;
+    const renderHammerInfo = (last) => {
+      const lines = [];
+      lines.push(`Coup ${Math.min(hitIndex + 1, 5)}/5`);
+      if (last) {
+        lines.push(`R\xE9sultat: ${last.finalPercent.toFixed(1)}% \u2014 Pr\xE9cision: ${last.precisionPercent.toFixed(0)}% \u2014 Bonus: +${last.bonus.toFixed(2)}`);
+      }
+      const total = hammerHits.reduce((s4, h3) => s4 + h3.bonus, 0);
+      lines.push(`Total marteau: +${total.toFixed(2)}`);
+      hammerInfo.textContent = lines.join("\n");
+    };
+    renderHammerInfo();
+    const hammerRAF = (t2) => {
+      if (cancelled)
+        return;
+      if (!running) {
+        requestAnimationFrame(hammerRAF);
+        return;
+      }
+      const elapsed = t2 - startTime;
+      const pct2 = clamp4(elapsed / HAMMER_RUN_MS * 100, 0, 100);
+      moving.style.left = `${pct2}%`;
+      moving.style.opacity = "1";
+      if (elapsed >= HAMMER_RUN_MS) {
+        running = false;
+        moving.style.opacity = "0.85";
+        const { precisionPercent, bonus } = computeHammerBonus(100);
+        const res = { finalPercent: 100, precisionPercent, bonus };
+        hammerHits.push(res);
+        try {
+          window.game?.audioManager?.play(res.precisionPercent >= 90 ? "forge_crit" : "forge_bad");
+        } catch {
+        }
+        hitIndex++;
+        renderHammerInfo(res);
+        setTimeout(() => {
+          moving.style.opacity = "0";
+          if (pendingResolve) {
+            const r2 = pendingResolve;
+            pendingResolve = null;
+            r2();
+          }
+        }, 220);
+      }
+      requestAnimationFrame(hammerRAF);
+    };
+    requestAnimationFrame(hammerRAF);
+    const waitOneHammerHit = async () => {
+      await new Promise((resolve) => {
+        pendingResolve = resolve;
+      });
+    };
+    const clickHandler = async () => {
+      if (cancelled)
+        return;
+      if (hitIndex >= 4)
+        return;
+      if (!running) {
+        running = true;
+        startTime = performance.now();
+        moving.style.opacity = "1";
+        moving.style.left = "0%";
+        renderHammerInfo();
+        return;
+      }
+      running = false;
+      const elapsed = performance.now() - startTime;
+      const pct2 = clamp4(elapsed / HAMMER_RUN_MS * 100, 0, 100);
+      moving.style.left = `${pct2}%`;
+      const { precisionPercent, bonus } = computeHammerBonus(pct2);
+      const res = { finalPercent: pct2, precisionPercent, bonus };
+      hammerHits.push(res);
+      try {
+        window.game?.audioManager?.play(res.precisionPercent >= 90 ? "forge_crit" : "forge_bad");
+      } catch {
+      }
+      hitIndex++;
+      renderHammerInfo(res);
+      setTimeout(() => {
+        moving.style.opacity = "0";
+        if (pendingResolve) {
+          const r2 = pendingResolve;
+          pendingResolve = null;
+          r2();
+        }
+      }, 220);
+    };
+    hammerBar.wrap.addEventListener("click", (e2) => {
+      e2.stopPropagation();
+      void clickHandler();
+    });
+    while (hitIndex < 4 && !cancelled) {
+      await waitOneHammerHit();
+    }
+    if (cancelled) {
+      safeCleanup();
+      return null;
+    }
+    const hammerBonusTotal = hammerHits.reduce((s4, h3) => s4 + h3.bonus, 0);
+    const scoreBeforeSharpen = heatResult.bonus + hammerBonusTotal;
+    setHeader("Aff\xFBtage", "Arr\xEAte le curseur au plus pr\xE8s de 100% (avant). Si tu d\xE9passes 100%, bonus = 0.");
+    const sharpenBar = createCraftBar({ show100Marker: true });
+    sharpenBar.label.textContent = "Clique pour d\xE9marrer, puis clique pour arr\xEAter. (Dur\xE9e: ~1.5s jusqu\u2019\xE0 100%).";
+    panel.appendChild(document.createElement("div")).style.cssText = "height:12px;";
+    panel.appendChild(sharpenBar.wrap);
+    panel.appendChild(sharpenBar.label);
+    const sharpenInfo = document.createElement("div");
+    sharpenInfo.style.cssText = "margin-top:10px;color:#ddd;font-size:13px;white-space:pre-line;";
+    panel.appendChild(sharpenInfo);
+    const sharpenTick = document.createElement("div");
+    sharpenTick.style.cssText = [
+      "position:absolute",
+      "top:-6px",
+      "bottom:-6px",
+      "left:0%",
+      "width:2px",
+      "background:#fff",
+      "box-shadow:0 0 0 3px rgba(255,255,255,0.12)"
+    ].join(";");
+    sharpenBar.wrap.appendChild(sharpenTick);
+    const SHARP_TO_100_MS = 1500;
+    const SHARP_EXTRA_MS = 320;
+    const SHARP_MAX_PCT = 110;
+    let sharpenRunning = false;
+    let sharpenStarted = false;
+    let sharpenStart = 0;
+    let sharpenFinal = 0;
+    let sharpenDone = false;
+    const renderSharpenInfo = (p6) => {
+      const preview = computeSharpenBonus(p6, scoreBeforeSharpen);
+      const bonusText = preview.overshot ? "+0 (d\xE9pass\xE9)" : `+${preview.bonus.toFixed(2)}`;
+      sharpenInfo.textContent = `Aff\xFBtage: ${p6.toFixed(1)}%
+Bonus: ${bonusText}`;
+    };
+    renderSharpenInfo(0);
+    const sharpenRAF = (t2) => {
+      if (cancelled)
+        return;
+      if (!sharpenRunning) {
+        requestAnimationFrame(sharpenRAF);
+        return;
+      }
+      const elapsed = t2 - sharpenStart;
+      const totalMs = SHARP_TO_100_MS + SHARP_EXTRA_MS;
+      const pct2 = clamp4(elapsed / totalMs * SHARP_MAX_PCT, 0, SHARP_MAX_PCT);
+      sharpenTick.style.left = `${pct2}%`;
+      renderSharpenInfo(pct2);
+      if (elapsed >= totalMs) {
+        sharpenRunning = false;
+        sharpenFinal = pct2;
+        sharpenDone = true;
+      }
+      requestAnimationFrame(sharpenRAF);
+    };
+    requestAnimationFrame(sharpenRAF);
+    const sharpenClick = () => {
+      if (cancelled)
+        return;
+      if (sharpenDone)
+        return;
+      if (!sharpenStarted) {
+        try {
+          window.game?.audioManager?.play("forge_meule");
+        } catch {
+        }
+        sharpenStarted = true;
+        sharpenRunning = true;
+        sharpenStart = performance.now();
+        return;
+      }
+      if (sharpenRunning) {
+        try {
+          window.game?.audioManager?.pause("forge_meule");
+        } catch {
+        }
+        sharpenRunning = false;
+        const elapsed = performance.now() - sharpenStart;
+        const totalMs = SHARP_TO_100_MS + SHARP_EXTRA_MS;
+        sharpenFinal = clamp4(elapsed / totalMs * SHARP_MAX_PCT, 0, SHARP_MAX_PCT);
+        sharpenTick.style.left = `${sharpenFinal}%`;
+        sharpenDone = true;
+      }
+    };
+    sharpenBar.wrap.addEventListener("click", (e2) => {
+      e2.stopPropagation();
+      sharpenClick();
+    });
+    await new Promise((resolve) => {
+      const check = () => {
+        if (cancelled)
+          return resolve();
+        if (sharpenDone)
+          return resolve();
+        requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+    });
+    if (cancelled) {
+      safeCleanup();
+      return null;
+    }
+    const sharpenRes = computeSharpenBonus(sharpenFinal, scoreBeforeSharpen);
+    const totalScore = heatResult.bonus + hammerBonusTotal + sharpenRes.bonus;
+    const result = {
+      heat: heatResult,
+      hammer: { hits: hammerHits, bonusTotal: hammerBonusTotal },
+      sharpen: sharpenRes,
+      totalScore
+    };
+    const clampScore = (s4) => Math.max(14, Math.min(20, s4));
+    const scoreForQuality = clampScore(totalScore);
+    const k_U = 3, c_U = 17;
+    const k_H = 1.2, c_H = 20;
+    const k2 = 1, c2 = 16.5;
+    const k3 = 1.2, c3 = 17;
+    const sigmoid = (k4, c4, x2) => 1 / (1 + Math.exp(-k4 * (x2 - c4)));
+    const U = sigmoid(k_U, c_U, scoreForQuality);
+    const h2 = sigmoid(k_H, c_H, scoreForQuality);
+    const s2 = sigmoid(k2, c2, scoreForQuality);
+    const s3 = sigmoid(k3, c3, scoreForQuality);
+    const p5 = U * h2;
+    const p4 = U * (1 - h2);
+    const base = 1 - U;
+    const p1 = base * (1 - s2);
+    const p2 = base * s2 * (1 - s3);
+    const p3 = base * s2 * s3;
+    const sum = p1 + p2 + p3 + p4 + p5;
+    const probs = [p1 / sum, p2 / sum, p3 / sum, p4 / sum, p5 / sum];
+    const rnd = Math.random();
+    let acc = 0;
+    let chosenQuality = 1;
+    for (let i2 = 0; i2 < probs.length; i2++) {
+      acc += probs[i2] ?? 0;
+      if (rnd <= acc) {
+        chosenQuality = i2 + 1;
+        break;
+      }
+    }
+    let createdName = "";
+    try {
+      const craftResult = await options.onCraft(result, probs, chosenQuality);
+      createdName = String(craftResult?.itemName ?? "Objet");
+    } catch {
+      createdName = "Objet";
+    }
+    panel.innerHTML = `
+			<div style="display:flex;align-items:flex-start;gap:12px;justify-content:space-between;">
+				<div>
+					<div style="font-weight:950;font-size:18px;">Forge \u2014 R\xE9sultat</div>
+					<div style="color:#bbb;font-size:12px;margin-top:3px;">Objet cr\xE9\xE9: <span style="color:#fff;font-weight:800;">${createdName}</span></div>
+				</div>
+				<button class="btn" id="forgeMinigameDoneBtn" style="min-width:120px;">Fermer</button>
+			</div>
+
+			<div style="margin-top:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;">
+				<div style="font-weight:900;color:#ffd700;">Score de fabrication: ${totalScore.toFixed(2)}</div>
+				<div style="color:#bbb;font-size:12px;margin-top:6px;">(Pour l'instant, ce score n'influence pas les stats de l'objet \u2014 il est juste affich\xE9/stock\xE9.)</div>
+				<div id="forgeMinigameBreakdown" style="margin-top:8px;color:#ddd;font-size:13px;white-space:pre-line;"></div>
+				<div id="forgeMinigameQuality" style="margin-top:8px;color:#ddd;font-size:13px;white-space:pre-line;"></div>
+		`;
+    const breakdownEl = panel.querySelector("#forgeMinigameBreakdown");
+    if (breakdownEl) {
+      const lines = [];
+      lines.push(`Chauffe: ${heatResult.finalPercent.toFixed(1)}% \u2192 +${heatResult.bonus.toFixed(1)}`);
+      lines.push(`Marteau: +${hammerBonusTotal.toFixed(2)} (4 coups)`);
+      let i2 = 0;
+      for (const h3 of hammerHits) {
+        lines.push(`  - Coup ${i2 + 1}: ${h3.finalPercent.toFixed(1)}% (pr\xE9cision ${h3.precisionPercent.toFixed(0)}%) \u2192 +${h3.bonus.toFixed(2)}`);
+        i2++;
+      }
+      const s4 = sharpenRes;
+      lines.push(`Aff\xFBtage: ${s4.finalPercent.toFixed(1)}% \u2192 ${s4.overshot ? "+0 (d\xE9pass\xE9)" : `+${s4.bonus.toFixed(1)}`}`);
+      breakdownEl.textContent = lines.join("\n");
+    }
+    const qualEl = panel.querySelector("#forgeMinigameQuality");
+    if (qualEl) {
+      const colorMap = ["#ffffff", "#4caf50", "#2196f3", "#9c27b0", "#ffb300"];
+      const nameMap = ["Blanc", "Vert", "Bleu", "Violet", "Orange/Dor\xE9"];
+      let html = `<div style="font-weight:700;margin-bottom:6px;color:#ffd700;">Chances par qualit\xE9:</div>`;
+      html += '<div style="font-family:monospace;color:#ddd;">';
+      for (let q2 = 1; q2 <= probs.length; q2++) {
+        html += `<div>Q${q2}: ${((probs[q2 - 1] ?? 0) * 100).toFixed(2)}%</div>`;
+      }
+      html += "</div>";
+      const q = chosenQuality;
+      const badgeColor = colorMap[Math.max(0, Math.min(colorMap.length - 1, q - 1))];
+      const badgeName = nameMap[Math.max(0, Math.min(nameMap.length - 1, q - 1))];
+      html += `<div style="margin-top:8px;display:flex;align-items:center;gap:8px;"><div style="width:12px;height:12px;border-radius:2px;background:${badgeColor};box-shadow:0 0 8px ${badgeColor};"></div><div style="color:#fff;font-weight:800;">Qualit\xE9 obtenue: ${q} (${badgeName})</div></div>`;
+      qualEl.innerHTML = html;
+    }
+    await new Promise((resolve) => {
+      panel.querySelector("#forgeMinigameDoneBtn")?.addEventListener("click", (e2) => {
+        e2.stopPropagation();
+        safeCleanup();
+        resolve();
+      });
+    });
+    return result;
+  } finally {
+    document.removeEventListener("keydown", onKeyDown);
+    if (!cancelled && document.body.contains(root)) {
+      try {
+        root.remove();
+      } catch {
+      }
+    }
+  }
+}
+var clamp4, percentToWidth, createOverlayRoot, createCraftBar, computeHeatBonus, computeHammerBonus, computeSharpenBonus;
+var init_forgeMinigame_web = __esm({
+  "dist/crafting/forgeMinigame.web.js"() {
+    "use strict";
+    clamp4 = (n2, min, max) => Math.max(min, Math.min(max, n2));
+    percentToWidth = (p2) => `${clamp4(p2, 0, 100).toFixed(2)}%`;
+    createOverlayRoot = () => {
+      const root = document.createElement("div");
+      root.id = "forgeMinigameOverlay";
+      root.style.cssText = [
+        "position:fixed",
+        "inset:0",
+        "background:rgba(0,0,0,0.72)",
+        "display:flex",
+        "align-items:center",
+        "justify-content:center",
+        "z-index:20000",
+        "padding:16px",
+        "user-select:none",
+        "-webkit-user-select:none",
+        "touch-action:none"
+      ].join(";");
+      const panel = document.createElement("div");
+      panel.style.cssText = [
+        "width:min(860px, 96vw)",
+        "background:rgba(17,17,17,0.96)",
+        "border:1px solid rgba(255,255,255,0.10)",
+        "border-radius:14px",
+        "padding:16px",
+        "color:#fff",
+        "box-shadow:0 12px 40px rgba(0,0,0,0.55)"
+      ].join(";");
+      root.appendChild(panel);
+      document.body.appendChild(root);
+      return { root, panel };
+    };
+    createCraftBar = (opts) => {
+      const wrap = document.createElement("div");
+      wrap.style.cssText = [
+        "position:relative",
+        "width:100%",
+        "height:22px",
+        "border-radius:12px",
+        "background:rgba(255,255,255,0.06)",
+        "overflow:hidden",
+        "border:1px solid rgba(255,255,255,0.10)"
+      ].join(";");
+      const fill = document.createElement("div");
+      fill.style.cssText = [
+        "position:absolute",
+        "left:0",
+        "top:0",
+        "bottom:0",
+        "width:0%",
+        "background:linear-gradient(90deg,#ffd700,#ffb84d)",
+        "transition:none"
+      ].join(";");
+      wrap.appendChild(fill);
+      if (typeof opts.targetPercent === "number") {
+        const marker = document.createElement("div");
+        marker.style.cssText = [
+          "position:absolute",
+          "top:-6px",
+          "bottom:-6px",
+          `left:${clamp4(opts.targetPercent, 0, 100)}%`,
+          "width:2px",
+          "background:#6ee7ff",
+          "box-shadow:0 0 0 3px rgba(110,231,255,0.15)"
+        ].join(";");
+        wrap.appendChild(marker);
+      }
+      if (opts.show100Marker) {
+        const marker100 = document.createElement("div");
+        marker100.style.cssText = [
+          "position:absolute",
+          "top:-6px",
+          "bottom:-6px",
+          "left:100%",
+          "width:2px",
+          "background:#fff",
+          "opacity:0.8"
+        ].join(";");
+        wrap.appendChild(marker100);
+      }
+      const label = document.createElement("div");
+      label.style.cssText = "margin-top:10px;color:#ddd;font-size:13px;line-height:1.3;";
+      return { wrap, fill, label };
+    };
+    computeHeatBonus = (percent) => {
+      const target = 80;
+      if (percent < target)
+        return 0;
+      return clamp4(10 - (percent - target) * 0.1, 0, 10);
+    };
+    computeHammerBonus = (percent) => {
+      const target = 50;
+      const halfRange = 10;
+      const deadzoneHalf = 0.4;
+      const dist = Math.abs(percent - target);
+      let precisionPercent = 0;
+      if (dist <= deadzoneHalf) {
+        precisionPercent = 100;
+      } else {
+        precisionPercent = clamp4(100 * (1 - (dist - deadzoneHalf) / (halfRange - deadzoneHalf)), 0, 100);
+      }
+      const PENALTY_MIN = 0.15;
+      const BOOST_LOW = 90;
+      const BOOST_SRC_HIGH = 96;
+      const BOOST_SCALE = (100 - BOOST_LOW) / (BOOST_SRC_HIGH - BOOST_LOW);
+      let effectivePrecision = 0;
+      if (precisionPercent <= 0) {
+        effectivePrecision = 0;
+      } else if (precisionPercent < 90) {
+        const t2 = precisionPercent / 90;
+        const mul = PENALTY_MIN + (1 - PENALTY_MIN) * t2;
+        effectivePrecision = precisionPercent * mul;
+      } else {
+        effectivePrecision = BOOST_LOW + (precisionPercent - BOOST_LOW) * BOOST_SCALE;
+        effectivePrecision = Math.min(100, effectivePrecision);
+      }
+      const maxPerHit = 1.3;
+      return { precisionPercent, bonus: clamp4(effectivePrecision / 100 * maxPerHit, 0, maxPerHit) };
+    };
+    computeSharpenBonus = (percent, currentScore) => {
+      const overshot = percent > 100;
+      if (overshot)
+        return { finalPercent: percent, bonus: 0, overshot: true };
+      const pct2 = clamp4(percent, 0, 100);
+      const mult = pct2 / 100 * 0.1;
+      return { finalPercent: percent, bonus: Math.max(0, currentScore) * mult, overshot: false };
+    };
+  }
+});
+
+// dist/crafting/sewingMinigame.web.js
+async function runSewingMinigame(options) {
+  const { root, panel } = createOverlayRoot2();
+  let cancelled = false;
+  const safeCleanup = () => {
+    try {
+      root.remove();
+    } catch {
+    }
+  };
+  const waitMs2 = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+  const raceCancel = async (p2) => {
+    const cancelP = new Promise((resolve) => {
+      const tick = () => {
+        if (cancelled)
+          return resolve(null);
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    return await Promise.race([p2, cancelP]);
+  };
+  const rand = (min, max) => min + Math.random() * (max - min);
+  const tremorSeed = Math.floor(Math.random() * 1e9);
+  const tremor2D = (nowMs, ampPx, phase) => {
+    const t2 = nowMs / 1e3;
+    const f1 = 11;
+    const f2 = 17;
+    const dx = (Math.sin(t2 * f1 + phase) + 0.55 * Math.sin(t2 * f2 + phase * 1.9)) * ampPx;
+    const dy = (Math.cos(t2 * f1 * 0.92 + phase * 1.3) + 0.55 * Math.cos(t2 * f2 * 0.88 + phase * 2.1)) * ampPx;
+    return { dx, dy };
+  };
+  const tremorRotDeg = (nowMs, ampDeg, phase) => {
+    const t2 = nowMs / 1e3;
+    return (Math.sin(t2 * 9.5 + phase * 1.7) + 0.45 * Math.sin(t2 * 15.5 + phase * 0.6)) * ampDeg;
+  };
+  const closeBtnId = "sewingMinigameCloseBtn";
+  const setHeader = (title, subtitle) => {
+    panel.innerHTML = `
+			<div style="display:flex;align-items:flex-start;gap:12px;justify-content:space-between;">
+				<div>
+					<div style="font-weight:950;font-size:18px;">Couture \u2014 ${title}</div>
+					<div style="color:#bbb;font-size:12px;margin-top:3px;">${subtitle}</div>
+					<div style="color:#999;font-size:12px;margin-top:6px;">Recette: <span style="color:#fff;font-weight:800;">${options.recipeLabel}</span></div>
+				</div>
+				<button class="btn" id="${closeBtnId}" style="min-width:110px;">Annuler</button>
+			</div>
+		`;
+    panel.querySelector(`#${closeBtnId}`)?.addEventListener("click", (e2) => {
+      e2.stopPropagation();
+      cancelled = true;
+      try {
+        options.onCancel?.();
+      } catch {
+      }
+      safeCleanup();
+    });
+  };
+  setHeader("D\xE9coupe", "D\xE9marre au point A, puis rejoins le point B (sans trop sortir du gabarit).");
+  const cutWrap = document.createElement("div");
+  cutWrap.style.cssText = [
+    "margin-top:14px",
+    "display:grid",
+    "grid-template-columns: 1fr 260px",
+    "gap:12px",
+    "align-items:start"
+  ].join(";");
+  const cutStage = document.createElement("div");
+  cutStage.style.cssText = [
+    "position:relative",
+    "height:360px",
+    "border-radius:14px",
+    "border:1px solid rgba(255,255,255,0.10)",
+    "background: linear-gradient(0deg, rgba(255,255,255,0.02), rgba(255,255,255,0.02))",
+    "overflow:hidden",
+    "touch-action:none"
+  ].join(";");
+  const canvas = document.createElement("canvas");
+  canvas.width = 900;
+  canvas.height = 520;
+  canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;";
+  cutStage.appendChild(canvas);
+  const blade = document.createElement("div");
+  blade.style.cssText = [
+    "position:absolute",
+    "width:18px",
+    "height:18px",
+    "border-radius:6px",
+    "background:#e5e7eb",
+    "box-shadow:0 10px 22px rgba(0,0,0,0.45)",
+    "border:1px solid rgba(0,0,0,0.35)",
+    "transform: translate(-50%, -50%)",
+    "left: 18%",
+    "top: 35%",
+    "pointer-events:none"
+  ].join(";");
+  cutStage.appendChild(blade);
+  const cutSide = document.createElement("div");
+  cutSide.style.cssText = [
+    "background:rgba(255,255,255,0.04)",
+    "border:1px solid rgba(255,255,255,0.08)",
+    "border-radius:12px",
+    "padding:12px"
+  ].join(";");
+  const stabilityBarOuter = document.createElement("div");
+  stabilityBarOuter.style.cssText = "height:12px;border-radius:999px;background:rgba(255,255,255,0.10);overflow:hidden;border:1px solid rgba(255,255,255,0.10)";
+  const stabilityBarInner = document.createElement("div");
+  stabilityBarInner.style.cssText = "height:100%;width:100%;background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);transform-origin:left center;transform:scaleX(0.0);";
+  stabilityBarOuter.appendChild(stabilityBarInner);
+  const cutInfo = document.createElement("div");
+  cutInfo.style.cssText = "margin-top:10px;color:#ddd;font-size:13px;white-space:pre-line;line-height:1.4;";
+  const cutScoreEl = document.createElement("div");
+  cutScoreEl.style.cssText = "margin-top:10px;font-weight:900;color:#ffd700;";
+  const cutDoneBtn = document.createElement("button");
+  cutDoneBtn.className = "btn";
+  cutDoneBtn.textContent = "Terminer la d\xE9coupe";
+  cutDoneBtn.style.cssText = "margin-top:12px;width:100%;min-height:40px;";
+  cutDoneBtn.disabled = true;
+  const cutLabel = document.createElement("div");
+  cutLabel.style.cssText = "font-weight:800;color:#ddd;margin-bottom:8px;";
+  cutLabel.textContent = "Stabilit\xE9 / D\xE9viation";
+  cutSide.appendChild(cutLabel);
+  cutSide.appendChild(stabilityBarOuter);
+  cutSide.appendChild(cutInfo);
+  cutSide.appendChild(cutScoreEl);
+  cutSide.appendChild(cutDoneBtn);
+  cutWrap.appendChild(cutStage);
+  cutWrap.appendChild(cutSide);
+  panel.appendChild(cutWrap);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    cancelled = true;
+    try {
+      options.onCancel?.();
+    } catch {
+    }
+    safeCleanup();
+    return null;
+  }
+  const idealPath = [
+    { x: 0.18, y: 0.35 },
+    { x: 0.3, y: 0.3 },
+    { x: 0.42, y: 0.36 },
+    { x: 0.55, y: 0.58 },
+    { x: 0.7, y: 0.62 },
+    { x: 0.82, y: 0.48 }
+  ];
+  const getStageSize = () => {
+    const r2 = cutStage.getBoundingClientRect();
+    return { w: r2.width, h: r2.height };
+  };
+  const toPx2 = (p2, size) => ({ x: p2.x * size.w, y: p2.y * size.h });
+  const drawTemplate = () => {
+    const size = getStageSize();
+    canvas.width = Math.max(1, Math.floor(size.w * devicePixelRatio));
+    canvas.height = Math.max(1, Math.floor(size.h * devicePixelRatio));
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    ctx.clearRect(0, 0, size.w, size.h);
+    const pts = idealPath.map((p2) => toPx2(p2, size));
+    const corridor = 18;
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(110,231,255,0.12)";
+    ctx.lineWidth = corridor * 2;
+    ctx.beginPath();
+    for (let i2 = 0; i2 < pts.length; i2++) {
+      const p2 = pts[i2];
+      if (!p2)
+        continue;
+      if (i2 === 0)
+        ctx.moveTo(p2.x, p2.y);
+      else
+        ctx.lineTo(p2.x, p2.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+    ctx.save();
+    ctx.setLineDash([8, 10]);
+    ctx.strokeStyle = "rgba(255,255,255,0.65)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i2 = 0; i2 < pts.length; i2++) {
+      const p2 = pts[i2];
+      if (!p2)
+        continue;
+      if (i2 === 0)
+        ctx.moveTo(p2.x, p2.y);
+      else
+        ctx.lineTo(p2.x, p2.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+    const A = pts[0];
+    const B = pts[pts.length - 1];
+    if (A && B) {
+      const drawMarker = (p2, label, color) => {
+        ctx.save();
+        ctx.fillStyle = color;
+        ctx.strokeStyle = "rgba(0,0,0,0.55)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(p2.x, p2.y, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "#fff";
+        ctx.font = "900 12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, p2.x, p2.y);
+        ctx.restore();
+      };
+      drawMarker(A, "A", "#22c55e");
+      drawMarker(B, "B", "#f59e0b");
+    }
+  };
+  drawTemplate();
+  window.addEventListener("resize", drawTemplate);
+  const samples = [];
+  let cutPointerId = null;
+  let cutStarted = false;
+  let maxProgress = 0;
+  let cutStartedAtA = false;
+  const startRadius = 26;
+  const endRadius = 28;
+  const resumeRadius = 44;
+  let lastRawPoint = null;
+  const cutTremorPhase = tremorSeed % 997 * 0.017 + 1;
+  const getPointerXY = (e2) => {
+    const r2 = cutStage.getBoundingClientRect();
+    return { x: e2.clientX - r2.left, y: e2.clientY - r2.top };
+  };
+  const computeProgressAlongPath = (x2, y2, pts) => {
+    let totalLen = 0;
+    for (let i2 = 0; i2 < pts.length - 1; i2++) {
+      const a2 = pts[i2];
+      const b2 = pts[i2 + 1];
+      if (!a2 || !b2)
+        continue;
+      totalLen += Math.hypot(b2.x - a2.x, b2.y - a2.y);
+    }
+    if (totalLen <= 1e-9)
+      return 0;
+    let bestDist = Number.POSITIVE_INFINITY;
+    let bestS = 0;
+    let cum = 0;
+    for (let i2 = 0; i2 < pts.length - 1; i2++) {
+      const a2 = pts[i2];
+      const b2 = pts[i2 + 1];
+      if (!a2 || !b2)
+        continue;
+      const abx = b2.x - a2.x;
+      const aby = b2.y - a2.y;
+      const abLen = Math.hypot(abx, aby);
+      if (abLen <= 1e-9)
+        continue;
+      const apx = x2 - a2.x;
+      const apy = y2 - a2.y;
+      let t2 = (apx * abx + apy * aby) / (abLen * abLen);
+      t2 = clamp5(t2, 0, 1);
+      const cx = a2.x + abx * t2;
+      const cy = a2.y + aby * t2;
+      const dist = Math.hypot(x2 - cx, y2 - cy);
+      const s2 = (cum + t2 * abLen) / totalLen;
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestS = s2;
+      }
+      cum += abLen;
+    }
+    return clamp5(bestS, 0, 1);
+  };
+  const computeCutPhase = () => {
+    const size = getStageSize();
+    const pts = idealPath.map((p2) => toPx2(p2, size));
+    const maxAllowedDistance = 18;
+    const distances = [];
+    let outside = 0;
+    for (const s2 of samples) {
+      let best = Number.POSITIVE_INFINITY;
+      for (let i2 = 0; i2 < pts.length - 1; i2++) {
+        const a2 = pts[i2];
+        const b2 = pts[i2 + 1];
+        if (!a2 || !b2)
+          continue;
+        const d2 = distancePointToSegment(s2.x, s2.y, a2.x, a2.y, b2.x, b2.y);
+        if (d2 < best)
+          best = d2;
+      }
+      distances.push(best);
+      if (best > maxAllowedDistance)
+        outside++;
+    }
+    const { mean, std } = computeMeanAndStd(distances);
+    const devNorm = clamp5(mean / maxAllowedDistance, 0, 1);
+    const maxSigma = 14;
+    const instabNorm = clamp5(std / maxSigma, 0, 1);
+    const outPct = samples.length ? outside / samples.length : 1;
+    const w1 = 0.45, w2 = 0.45, w3 = 0.1;
+    const score = 100 * clamp5(1 - (w1 * devNorm + w2 * instabNorm + w3 * outPct), 0, 1);
+    const partialFailThreshold = 0.35;
+    const partialFail = outPct > partialFailThreshold;
+    return {
+      samples: samples.length,
+      meanDistancePx: mean,
+      stdDistancePx: std,
+      outsidePercent: outPct,
+      score,
+      partialFail
+    };
+  };
+  const redrawPathOverlay = () => {
+    drawTemplate();
+    const size = getStageSize();
+    const pts = idealPath.map((p2) => toPx2(p2, size));
+    const maxAllowedDistance = 18;
+    const A = pts[0];
+    const B = pts[pts.length - 1];
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 3;
+    for (let i2 = 1; i2 < samples.length; i2++) {
+      const a2 = samples[i2 - 1];
+      const b2 = samples[i2];
+      if (!a2 || !b2)
+        continue;
+      let best = Number.POSITIVE_INFINITY;
+      for (let j2 = 0; j2 < pts.length - 1; j2++) {
+        const p0 = pts[j2];
+        const p1 = pts[j2 + 1];
+        if (!p0 || !p1)
+          continue;
+        const d2 = distancePointToSegment(b2.x, b2.y, p0.x, p0.y, p1.x, p1.y);
+        if (d2 < best)
+          best = d2;
+      }
+      ctx.strokeStyle = best > maxAllowedDistance ? "rgba(239,68,68,0.95)" : "rgba(255,255,255,0.90)";
+      ctx.beginPath();
+      ctx.moveTo(a2.x, a2.y);
+      ctx.lineTo(b2.x, b2.y);
+      ctx.stroke();
+    }
+    ctx.restore();
+    const r2 = computeCutPhase();
+    const devNorm = clamp5(r2.meanDistancePx / 18, 0, 1);
+    const instabNorm = clamp5(r2.stdDistancePx / 14, 0, 1);
+    const meter = clamp5(1 - (0.5 * devNorm + 0.5 * instabNorm), 0, 1);
+    stabilityBarInner.style.transform = `scaleX(${meter.toFixed(3)})`;
+    const last = samples.length ? samples[samples.length - 1] : null;
+    let canFinish = false;
+    if (cutStartedAtA && last && B) {
+      const distToB = Math.hypot(last.x - B.x, last.y - B.y);
+      canFinish = maxProgress >= 0.97 && distToB <= endRadius;
+    }
+    cutDoneBtn.disabled = !canFinish;
+    cutInfo.textContent = [
+      `\xC9chantillons: ${r2.samples}`,
+      `D\xE9viation moyenne: ${r2.meanDistancePx.toFixed(1)} px`,
+      `Instabilit\xE9 (\u03C3): ${r2.stdDistancePx.toFixed(1)} px`,
+      `Hors gabarit: ${fmtPct(r2.outsidePercent)}`,
+      `Progression A\u2192B: ${(maxProgress * 100).toFixed(0)}%`,
+      "",
+      cutStartedAtA ? "" : "Commence au point A (cercle vert).",
+      canFinish ? "OK: tu as atteint le point B." : "Objectif: rejoindre B (cercle orange).",
+      r2.partialFail ? "" : "OK: tu restes assez dans le gabarit.",
+      r2.partialFail ? "\xC9CHEC PARTIEL: trop de sorties (mat\xE9riaux perdus)." : "",
+      "",
+      "Conseils:",
+      "- prends ton temps, \xE9vite les zig-zags",
+      "- vise le centre de la zone bleut\xE9e"
+    ].filter(Boolean).join("\n");
+    cutScoreEl.textContent = `Score D\xE9coupe: ${r2.score.toFixed(1)} / 100`;
+  };
+  const onCutPointerDown = (e2) => {
+    if (cancelled)
+      return;
+    e2.preventDefault();
+    const raw = getPointerXY(e2);
+    const size = getStageSize();
+    const pts = idealPath.map((pp) => toPx2(pp, size));
+    const A = pts[0];
+    const last = samples.length ? samples[samples.length - 1] : null;
+    if (!cutStarted) {
+      if (!A)
+        return;
+      const distToA = Math.hypot(raw.x - A.x, raw.y - A.y);
+      if (distToA > startRadius) {
+        cutStartedAtA = false;
+        repaintSoon();
+        return;
+      }
+      cutStartedAtA = true;
+      cutStarted = true;
+      samples.length = 0;
+      maxProgress = 0;
+      try {
+        window.game?.audioManager?.play("couture_predecoupe");
+      } catch {
+      }
+    } else {
+      if (last) {
+        const d2 = Math.hypot(raw.x - last.x, raw.y - last.y);
+        if (d2 > resumeRadius) {
+          repaintSoon();
+          return;
+        }
+      }
+    }
+    const now = performance.now();
+    const speed01 = 0;
+    const amp = 2.2 + speed01 * 3.6;
+    const tr = tremor2D(now, amp, cutTremorPhase);
+    const p2 = { x: raw.x + tr.dx, y: raw.y + tr.dy };
+    cutStage.setPointerCapture(e2.pointerId);
+    cutPointerId = e2.pointerId;
+    lastRawPoint = { x: raw.x, y: raw.y, t: now };
+    samples.push({ x: p2.x, y: p2.y, t: now });
+    maxProgress = Math.max(maxProgress, computeProgressAlongPath(p2.x, p2.y, pts));
+    blade.style.left = `${p2.x}px`;
+    blade.style.top = `${p2.y}px`;
+    repaintSoon();
+  };
+  const onCutPointerMove = (e2) => {
+    if (cancelled)
+      return;
+    if (cutPointerId == null || e2.pointerId !== cutPointerId)
+      return;
+    const raw = getPointerXY(e2);
+    const now = performance.now();
+    let speed01 = 0;
+    if (lastRawPoint) {
+      const dt = Math.max(1, now - lastRawPoint.t);
+      const dist = Math.hypot(raw.x - lastRawPoint.x, raw.y - lastRawPoint.y);
+      const speed = dist / dt * 1e3;
+      speed01 = clamp5(speed / 1400, 0, 1);
+    }
+    lastRawPoint = { x: raw.x, y: raw.y, t: now };
+    const amp = 2 + speed01 * 4;
+    const tr = tremor2D(now, amp, cutTremorPhase);
+    const p2 = { x: raw.x + tr.dx, y: raw.y + tr.dy };
+    samples.push({ x: p2.x, y: p2.y, t: now });
+    const size = getStageSize();
+    const pts = idealPath.map((pp) => toPx2(pp, size));
+    maxProgress = Math.max(maxProgress, computeProgressAlongPath(p2.x, p2.y, pts));
+    blade.style.left = `${p2.x}px`;
+    blade.style.top = `${p2.y}px`;
+    repaintSoon();
+  };
+  const onCutPointerUp = (e2) => {
+    if (cutPointerId == null || e2.pointerId !== cutPointerId)
+      return;
+    cutPointerId = null;
+    lastRawPoint = null;
+    repaintSoon();
+  };
+  cutStage.addEventListener("pointerdown", onCutPointerDown);
+  cutStage.addEventListener("pointermove", onCutPointerMove);
+  cutStage.addEventListener("pointerup", onCutPointerUp);
+  cutStage.addEventListener("pointercancel", () => {
+    cutPointerId = null;
+  });
+  let repaintRaf = null;
+  const repaintSoon = () => {
+    if (repaintRaf != null)
+      return;
+    repaintRaf = requestAnimationFrame(() => {
+      repaintRaf = null;
+      redrawPathOverlay();
+    });
+  };
+  redrawPathOverlay();
+  const cutResult = await raceCancel(new Promise((resolve) => {
+    cutDoneBtn.addEventListener("click", (e2) => {
+      e2.stopPropagation();
+      try {
+        window.game?.audioManager?.play("couture_decoupe");
+      } catch {
+      }
+      resolve(computeCutPhase());
+    });
+  }));
+  window.removeEventListener("resize", drawTemplate);
+  if (!cutResult || cancelled) {
+    safeCleanup();
+    return null;
+  }
+  const alignRounds = [];
+  const CUT_MAX = 10;
+  const ALIGN_ROUND_MAX = 3.3;
+  const cutContribution = CUT_MAX * (cutResult.score / 100);
+  const alignContributionFromScore = (score100) => {
+    if (score100 <= 50)
+      return 0;
+    const t2 = (score100 - 50) / 50;
+    return ALIGN_ROUND_MAX * clamp5(t2, 0, 1);
+  };
+  let totalScore = 14;
+  if (!cutResult.partialFail) {
+    const totalRounds = 3;
+    for (let round2 = 1; round2 <= totalRounds; round2++) {
+      setHeader(`Aligner le motif (${round2}/${totalRounds})`, "Drag = d\xE9placer. Shift + drag ou molette = tourner. Objectif: centrer et aligner (0\xB0).");
+      const stageWrap = document.createElement("div");
+      stageWrap.style.cssText = [
+        "margin-top:14px",
+        "display:grid",
+        "grid-template-columns: 1fr 260px",
+        "gap:12px",
+        "align-items:start"
+      ].join(";");
+      const fabric = document.createElement("div");
+      fabric.style.cssText = [
+        "position:relative",
+        "height:340px",
+        "border-radius:14px",
+        "border:1px solid rgba(255,255,255,0.10)",
+        "background: linear-gradient(0deg, rgba(255,255,255,0.02), rgba(255,255,255,0.02))",
+        "overflow:hidden",
+        "touch-action:none"
+      ].join(";");
+      const centerCross = document.createElement("div");
+      centerCross.style.cssText = [
+        "position:absolute",
+        "left:50%",
+        "top:50%",
+        "width:0",
+        "height:0",
+        "pointer-events:none"
+      ].join(";");
+      centerCross.innerHTML = `
+				<div style="position:absolute;left:-12px;top:0;width:24px;height:2px;background:#6ee7ff;opacity:0.75"></div>
+				<div style="position:absolute;left:0;top:-12px;width:2px;height:24px;background:#6ee7ff;opacity:0.75"></div>
+			`;
+      fabric.appendChild(centerCross);
+      const motif = document.createElement("div");
+      motif.style.cssText = [
+        "position:absolute",
+        "left:50%",
+        "top:50%",
+        "width:190px",
+        "height:120px",
+        "border-radius:12px",
+        "border:1px dashed rgba(255,255,255,0.55)",
+        "background: repeating-linear-gradient(45deg, rgba(255,255,255,0.12) 0, rgba(255,255,255,0.12) 10px, rgba(255,255,255,0.03) 10px, rgba(255,255,255,0.03) 20px)",
+        "box-shadow: 0 10px 26px rgba(0,0,0,0.45)",
+        "cursor:grab",
+        "transform-origin:center center",
+        "touch-action:none"
+      ].join(";");
+      fabric.appendChild(motif);
+      const side = document.createElement("div");
+      side.style.cssText = [
+        "background:rgba(255,255,255,0.04)",
+        "border:1px solid rgba(255,255,255,0.08)",
+        "border-radius:12px",
+        "padding:12px"
+      ].join(";");
+      const alignInfo = document.createElement("div");
+      alignInfo.style.cssText = "color:#ddd;font-size:13px;white-space:pre-line;line-height:1.4;";
+      const alignReveal = document.createElement("div");
+      alignReveal.style.cssText = "margin-top:10px;font-weight:900;color:#ffd700;display:none;";
+      const alignNextBtn = document.createElement("button");
+      alignNextBtn.className = "btn";
+      alignNextBtn.textContent = "Valider alignement";
+      alignNextBtn.style.cssText = "margin-top:12px;width:100%;min-height:40px;";
+      side.appendChild(alignInfo);
+      side.appendChild(alignReveal);
+      side.appendChild(alignNextBtn);
+      stageWrap.appendChild(fabric);
+      stageWrap.appendChild(side);
+      panel.appendChild(stageWrap);
+      let translateX = 0;
+      let translateY = 0;
+      let rotationDeg = 0;
+      for (let tries = 0; tries < 6; tries++) {
+        translateX = rand(-160, 160);
+        translateY = rand(-105, 105);
+        rotationDeg = rand(-26, 26);
+        if (Math.hypot(translateX, translateY) > 35 || Math.abs(rotationDeg) > 7)
+          break;
+      }
+      let dragPointerId = null;
+      let dragStartClient = { x: 0, y: 0 };
+      let dragStartTranslate = { x: 0, y: 0 };
+      let dragStartRotationDeg = 0;
+      const alignTremorPhase = tremorSeed % 1009 * 0.013 + round2 * 3.17;
+      let alignAnimating = true;
+      const getFabricRect = () => fabric.getBoundingClientRect();
+      const alignTransAmp = 12;
+      const alignRotAmp = 4;
+      const alignTremorImpact = 1;
+      const applyMotifTransform = (nowMs = performance.now()) => {
+        const tr = tremor2D(nowMs, alignTransAmp, alignTremorPhase);
+        motif.style.transform = `translate(calc(-50% + ${translateX + tr.dx}px), calc(-50% + ${translateY + tr.dy}px)) rotate(${rotationDeg}deg)`;
+      };
+      applyMotifTransform();
+      requestAnimationFrame(function tick() {
+        if (cancelled || !alignAnimating)
+          return;
+        applyMotifTransform();
+        requestAnimationFrame(tick);
+      });
+      const computeAlignPhase = () => {
+        const rect = getFabricRect();
+        const diag = Math.hypot(rect.width, rect.height);
+        const maxTransl = diag * 0.22;
+        const maxRot = 28;
+        const nowMs = performance.now();
+        const trem = tremor2D(nowMs, alignTransAmp, alignTremorPhase);
+        const effX = translateX + trem.dx * alignTremorImpact;
+        const effY = translateY + trem.dy * alignTremorImpact;
+        const translationErrorPx = Math.hypot(effX, effY);
+        const rotationErrorDeg = Math.abs((rotationDeg % 360 + 540) % 360 - 180);
+        const rotForScore = Math.min(rotationErrorDeg, 180);
+        const motifW = 190;
+        const motifH = 120;
+        const motifRect = { x: rect.width / 2 + effX - motifW / 2, y: rect.height / 2 + effY - motifH / 2, w: motifW, h: motifH };
+        const fabricRect = { x: 0, y: 0, w: rect.width, h: rect.height };
+        const overlapArea = rectIntersectionArea(motifRect, fabricRect);
+        const overlapPercent = clamp5(overlapArea / (motifW * motifH), 0, 1);
+        const tNorm = clamp5(translationErrorPx / maxTransl, 0, 1);
+        const rNorm = clamp5(rotForScore / maxRot, 0, 1);
+        const a2 = 0.5, b2 = 0.4, c2 = 0.1;
+        const rawScore = 100 * clamp5(1 - (a2 * tNorm + b2 * rNorm + c2 * (1 - overlapPercent)), 0, 1);
+        const score = rawScore <= 50 ? 0 : clamp5((rawScore - 50) * 2, 0, 100);
+        return {
+          finalTranslatePx: { x: effX, y: effY },
+          finalRotationDeg: rotationDeg,
+          translationErrorPx,
+          rotationErrorDeg: rotForScore,
+          overlapPercent,
+          score
+        };
+      };
+      const updateAlignUI = () => {
+        const r2 = computeAlignPhase();
+        alignInfo.textContent = [
+          `Centrage: ${r2.translationErrorPx.toFixed(1)} px`,
+          `Rotation: ${r2.rotationErrorDeg.toFixed(1)}\xB0`,
+          `Motif dans le tissu: ${fmtPct(r2.overlapPercent)}`,
+          "",
+          "Conseils:",
+          "- vise le centre (croix bleue)",
+          "- vise 0\xB0 (motif horizontal)",
+          "",
+          "Score masqu\xE9 pendant la phase."
+        ].join("\n");
+      };
+      updateAlignUI();
+      motif.addEventListener("pointerdown", (e2) => {
+        e2.preventDefault();
+        if (cancelled)
+          return;
+        motif.setPointerCapture(e2.pointerId);
+        dragPointerId = e2.pointerId;
+        dragStartClient = { x: e2.clientX, y: e2.clientY };
+        dragStartTranslate = { x: translateX, y: translateY };
+        dragStartRotationDeg = rotationDeg;
+        motif.style.cursor = "grabbing";
+      });
+      motif.addEventListener("pointermove", (e2) => {
+        if (cancelled)
+          return;
+        if (dragPointerId == null || e2.pointerId !== dragPointerId)
+          return;
+        const dx = e2.clientX - dragStartClient.x;
+        const dy = e2.clientY - dragStartClient.y;
+        if (e2.shiftKey) {
+          rotationDeg = dragStartRotationDeg + dx * 0.18;
+        } else {
+          translateX = dragStartTranslate.x + dx;
+          translateY = dragStartTranslate.y + dy;
+        }
+        applyMotifTransform();
+        updateAlignUI();
+      });
+      motif.addEventListener("pointerup", (e2) => {
+        if (dragPointerId == null || e2.pointerId !== dragPointerId)
+          return;
+        dragPointerId = null;
+        motif.style.cursor = "grab";
+        updateAlignUI();
+      });
+      motif.addEventListener("pointercancel", () => {
+        dragPointerId = null;
+        motif.style.cursor = "grab";
+      });
+      motif.addEventListener("wheel", (e2) => {
+        if (cancelled)
+          return;
+        e2.preventDefault();
+        rotationDeg += (e2.deltaY > 0 ? 1 : -1) * 2.2;
+        applyMotifTransform();
+        updateAlignUI();
+      }, { passive: false });
+      const roundRes = await raceCancel(new Promise((resolve) => {
+        alignNextBtn.addEventListener("click", (e2) => {
+          e2.stopPropagation();
+          try {
+            window.game?.audioManager?.play("couture_alignement");
+          } catch {
+          }
+          resolve(computeAlignPhase());
+        });
+      }));
+      if (!roundRes || cancelled) {
+        safeCleanup();
+        return null;
+      }
+      alignAnimating = false;
+      alignReveal.style.display = "block";
+      alignReveal.textContent = `Score Alignement: ${roundRes.score.toFixed(1)} / 100`;
+      alignNextBtn.disabled = true;
+      await raceCancel(waitMs2(1e3));
+      if (cancelled) {
+        safeCleanup();
+        return null;
+      }
+      alignRounds.push(roundRes);
+    }
+  }
+  const alignContributions = alignRounds.map((r2) => alignContributionFromScore(r2.score));
+  const totalBonus = cutContribution + alignContributions.reduce((a2, b2) => a2 + b2, 0);
+  totalScore = totalBonus;
+  const result = {
+    alignRounds,
+    cut: cutResult,
+    cutContribution,
+    alignContributions: alignRounds.map((r2) => alignContributionFromScore(r2.score)),
+    totalScore
+  };
+  let createdName = "";
+  let probs = [1, 0, 0, 0, 0];
+  let chosenQuality = 1;
+  let crafted = false;
+  if (cutResult.partialFail) {
+    try {
+      options.onPartialFail?.(result);
+    } catch {
+    }
+    createdName = "\u2014";
+    crafted = false;
+  } else {
+    ({ probs, chosenQuality } = computeQualityFromScore14_20(totalScore));
+    try {
+      const craftResult = await options.onCraft(result, probs, chosenQuality);
+      createdName = String(craftResult?.itemName ?? "Objet");
+      crafted = true;
+    } catch {
+      createdName = "Objet";
+      crafted = true;
+    }
+  }
+  panel.innerHTML = `
+		<div style="display:flex;align-items:flex-start;gap:12px;justify-content:space-between;">
+			<div>
+				<div style="font-weight:950;font-size:18px;">Couture \u2014 R\xE9sultat</div>
+				<div style="color:#bbb;font-size:12px;margin-top:3px;">${crafted ? `Objet cr\xE9\xE9: <span style="color:#fff;font-weight:800;">${createdName}</span>` : `Objet cr\xE9\xE9: <span style="color:#fff;font-weight:800;">\u2014</span>`}</div>
+				<div style="color:#999;font-size:12px;margin-top:6px;">Recette: <span style="color:#fff;font-weight:800;">${options.recipeLabel}</span></div>
+			</div>
+			<button class="btn" id="sewingMinigameDoneBtn" style="min-width:120px;">Fermer</button>
+		</div>
+
+		<div style="margin-top:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;">
+			<div style="font-weight:900;color:#ffd700;">Score de fabrication: ${totalScore.toFixed(2)}</div>
+			<div style="color:#bbb;font-size:12px;margin-top:6px;">(Score 14..20 = 14 + 6 * moyenne phases)</div>
+			<div id="sewingMinigameBreakdown" style="margin-top:8px;color:#ddd;font-size:13px;white-space:pre-line;"></div>
+			<div id="sewingMinigameQuality" style="margin-top:8px;color:#ddd;font-size:13px;white-space:pre-line;"></div>
+		</div>
+	`;
+  const breakdownEl = panel.querySelector("#sewingMinigameBreakdown");
+  if (breakdownEl) {
+    const lines = [];
+    lines.push(`D\xE9coupe: ${cutResult.score.toFixed(1)} / 100 \u2192 +${cutContribution.toFixed(2)} (dev ${cutResult.meanDistancePx.toFixed(1)}px, \u03C3 ${cutResult.stdDistancePx.toFixed(1)}px, hors ${fmtPct(cutResult.outsidePercent)})`);
+    if (alignRounds.length) {
+      lines.push(`Alignements (x${alignRounds.length}):`);
+      for (let i2 = 0; i2 < alignRounds.length; i2++) {
+        const r2 = alignRounds[i2];
+        if (!r2)
+          continue;
+        const contrib = alignContributionFromScore(r2.score);
+        lines.push(`  - ${i2 + 1}: ${r2.score.toFixed(1)} / 100 \u2192 +${contrib.toFixed(2)} (centre ${r2.translationErrorPx.toFixed(0)}px)`);
+      }
+      lines.push("(50% de pr\xE9cision = +0 ; 100% = +3.3 ; contributions additionn\xE9es au bonus total.)");
+    }
+    lines.push(`Score final (somme des contributions): ${totalScore.toFixed(2)}`);
+    if (cutResult.partialFail)
+      lines.push("\u26A0 \xC9chec partiel: trop de sorties du gabarit \u2192 mat\xE9riaux perdus, aucun objet cr\xE9\xE9.");
+    breakdownEl.textContent = lines.join("\n");
+  }
+  const qualEl = panel.querySelector("#sewingMinigameQuality");
+  if (qualEl) {
+    if (!crafted) {
+      qualEl.innerHTML = '<div style="color:#ef4444;font-weight:800;">Qualit\xE9: \u2014</div>';
+    } else {
+      let html = '<div style="font-weight:800;">Chances par qualit\xE9:</div>';
+      for (let q = 1; q <= probs.length; q++) {
+        html += `<div>Q${q}: ${((probs[q - 1] ?? 0) * 100).toFixed(2)}%</div>`;
+      }
+      html += `<div style="margin-top:8px;font-weight:800;">Qualit\xE9 obtenue: ${qualityBadgeHtml(chosenQuality)}</div>`;
+      qualEl.innerHTML = html;
+    }
+  }
+  panel.querySelector("#sewingMinigameDoneBtn")?.addEventListener("click", (e2) => {
+    e2.stopPropagation();
+    safeCleanup();
+  });
+  return result;
+}
+var clamp5, createOverlayRoot2, computeQualityFromScore14_20, fmtPct, qualityBadgeHtml, distancePointToSegment, computeMeanAndStd, rectIntersectionArea;
+var init_sewingMinigame_web = __esm({
+  "dist/crafting/sewingMinigame.web.js"() {
+    "use strict";
+    clamp5 = (n2, min, max) => Math.max(min, Math.min(max, n2));
+    createOverlayRoot2 = () => {
+      const root = document.createElement("div");
+      root.id = "sewingMinigameOverlay";
+      root.style.cssText = [
+        "position:fixed",
+        "inset:0",
+        "background:rgba(0,0,0,0.72)",
+        "display:flex",
+        "align-items:center",
+        "justify-content:center",
+        "z-index:20000",
+        "padding:16px",
+        "user-select:none",
+        "-webkit-user-select:none",
+        "touch-action:none"
+      ].join(";");
+      const panel = document.createElement("div");
+      panel.style.cssText = [
+        "width:min(920px, 96vw)",
+        "background:rgba(17,17,17,0.96)",
+        "border:1px solid rgba(255,255,255,0.10)",
+        "border-radius:14px",
+        "padding:16px",
+        "color:#fff",
+        "box-shadow:0 12px 40px rgba(0,0,0,0.55)"
+      ].join(";");
+      root.appendChild(panel);
+      document.body.appendChild(root);
+      return { root, panel };
+    };
+    computeQualityFromScore14_20 = (score14_20) => {
+      const clampScore = (s4) => Math.max(14, Math.min(20, s4));
+      const scoreForQuality = clampScore(score14_20);
+      const k_U = 3, c_U = 17;
+      const k_H = 1.2, c_H = 20;
+      const k2 = 1, c2 = 16.5;
+      const k3 = 1.2, c3 = 17;
+      const sigmoid = (k4, c4, x2) => 1 / (1 + Math.exp(-k4 * (x2 - c4)));
+      const U = sigmoid(k_U, c_U, scoreForQuality);
+      const h2 = sigmoid(k_H, c_H, scoreForQuality);
+      const s2 = sigmoid(k2, c2, scoreForQuality);
+      const s3 = sigmoid(k3, c3, scoreForQuality);
+      const p5 = U * h2;
+      const p4 = U * (1 - h2);
+      const base = 1 - U;
+      const p1 = base * (1 - s2);
+      const p2 = base * s2 * (1 - s3);
+      const p3 = base * s2 * s3;
+      const sum = p1 + p2 + p3 + p4 + p5;
+      const probs = [p1 / sum, p2 / sum, p3 / sum, p4 / sum, p5 / sum];
+      const rnd = Math.random();
+      let acc = 0;
+      let chosenQuality = 1;
+      for (let i2 = 0; i2 < probs.length; i2++) {
+        acc += probs[i2] ?? 0;
+        if (rnd <= acc) {
+          chosenQuality = i2 + 1;
+          break;
+        }
+      }
+      return { probs, chosenQuality };
+    };
+    fmtPct = (n01) => `${(clamp5(n01, 0, 1) * 100).toFixed(2)}%`;
+    qualityBadgeHtml = (q) => {
+      const colors2 = ["#ffffff", "#4caf50", "#2196f3", "#9c27b0", "#ffb300"];
+      const color = colors2[q - 1 | 0] ?? "#ffffff";
+      return `<span style="display:inline-flex;align-items:center;gap:8px;">
+		<span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${color};box-shadow:0 0 0 2px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.08) inset;"></span>
+		<span style="font-weight:900;">Q${q}</span>
+	</span>`;
+    };
+    distancePointToSegment = (px, py, ax, ay, bx, by) => {
+      const abx = bx - ax;
+      const aby = by - ay;
+      const apx = px - ax;
+      const apy = py - ay;
+      const abLen2 = abx * abx + aby * aby;
+      if (abLen2 <= 1e-9)
+        return Math.hypot(px - ax, py - ay);
+      let t2 = (apx * abx + apy * aby) / abLen2;
+      t2 = clamp5(t2, 0, 1);
+      const cx = ax + abx * t2;
+      const cy = ay + aby * t2;
+      return Math.hypot(px - cx, py - cy);
+    };
+    computeMeanAndStd = (values) => {
+      if (!values.length)
+        return { mean: 0, std: 0 };
+      let sum = 0;
+      for (const v2 of values)
+        sum += v2;
+      const mean = sum / values.length;
+      let varSum = 0;
+      for (const v2 of values) {
+        const d2 = v2 - mean;
+        varSum += d2 * d2;
+      }
+      const std = Math.sqrt(varSum / values.length);
+      return { mean, std };
+    };
+    rectIntersectionArea = (a2, b2) => {
+      const x1 = Math.max(a2.x, b2.x);
+      const y1 = Math.max(a2.y, b2.y);
+      const x2 = Math.min(a2.x + a2.w, b2.x + b2.w);
+      const y2 = Math.min(a2.y + a2.h, b2.y + b2.h);
+      const w2 = x2 - x1;
+      const h2 = y2 - y1;
+      if (w2 <= 0 || h2 <= 0)
+        return 0;
+      return w2 * h2;
+    };
+  }
+});
+
+// dist/crafting/otherMinigame.web.js
+async function runOtherMinigame(options) {
+  const { root, panel } = createOverlayRoot3();
+  let cancelled = false;
+  let ended = false;
+  const safeRemove = () => {
+    try {
+      root.remove();
+    } catch {
+    }
+  };
+  const cancel = () => {
+    if (cancelled || ended)
+      return;
+    cancelled = true;
+    try {
+      options.onCancel?.();
+    } catch {
+    }
+    safeRemove();
+  };
+  const onKeyDown = (e2) => {
+    if (e2.key === "Escape") {
+      e2.preventDefault();
+      cancel();
+    }
+  };
+  document.addEventListener("keydown", onKeyDown);
+  const cleanup = () => {
+    document.removeEventListener("keydown", onKeyDown);
+    safeRemove();
+  };
+  const stepsMax = 6;
+  const pairsMax = 6;
+  let stepsUsed = 0;
+  let pairsFound = 0;
+  let points = 0;
+  const motifs = [
+    { key: "coffre", imgSrc: "ImagesRPG/imagesobjets/coffre.png", label: "Coffre" },
+    { key: "gobelin_archer", imgSrc: "ImagesRPG/imagespersonnage/gobelin_archer.png", label: "Gobelin archer" },
+    { key: "potionsoin", imgSrc: "ImagesRPG/imagesobjets/potion_vert.png", label: "Potion de soin" },
+    { key: "pomme", imgSrc: "ImagesRPG/imagesobjets/bouclier2.png", label: "Pomme" },
+    { key: "epee", imgSrc: "ImagesRPG/imagesobjets/dague_tier2.png", label: "\xC9p\xE9e" },
+    { key: "potionmana", imgSrc: "ImagesRPG/imagesobjets/chope.png", label: "Potion de mana" }
+  ];
+  const cards = shuffleInPlace(motifs.flatMap((m2, idx) => [
+    { id: idx * 2 + 0, key: m2.key, imgSrc: m2.imgSrc },
+    { id: idx * 2 + 1, key: m2.key, imgSrc: m2.imgSrc }
+  ]));
+  const closeBtnId = "otherMinigameCloseBtn";
+  panel.innerHTML = `
+		<div style="display:flex;align-items:flex-start;gap:12px;justify-content:space-between;">
+			<div>
+				<div style="font-weight:950;font-size:18px;">Fabrication \u2014 Jeu de paires</div>
+				<div style="color:#bbb;font-size:12px;margin-top:3px;">Recette: <span style="color:#fff;font-weight:800;">${options.recipeLabel}</span></div>
+				<div style="color:#999;font-size:12px;margin-top:6px;">${stepsMax} \xE9tapes \u2022 Retourne 2 cartes par \xE9tape \u2022 1 paire = 1 point</div>
+			</div>
+			<button class="btn" id="${closeBtnId}" style="min-width:110px;">Annuler</button>
+		</div>
+		<div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+			<div id="otherMinigameHud" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;"></div>
+		</div>
+		<div style="margin-top:12px;display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;">
+			<div id="otherMinigameGrid" style="display:contents;"></div>
+		</div>
+		<div id="otherMinigameHint" style="margin-top:12px;color:#ddd;font-size:13px;line-height:1.35;"></div>
+	`;
+  panel.querySelector(`#${closeBtnId}`)?.addEventListener("click", (e2) => {
+    e2.stopPropagation();
+    cancel();
+  });
+  const hudEl = panel.querySelector("#otherMinigameHud");
+  const gridEl = panel.querySelector("#otherMinigameGrid");
+  const hintEl = panel.querySelector("#otherMinigameHint");
+  const updateHud = () => {
+    if (!hudEl)
+      return;
+    const stepsLeft = Math.max(0, stepsMax - stepsUsed);
+    hudEl.innerHTML = `
+			<div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:10px;">\xC9tapes: <b>${stepsUsed}</b> / ${stepsMax}</div>
+			<div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:10px;">Restantes: <b>${stepsLeft}</b></div>
+			<div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:10px;">Paires: <b>${pairsFound}</b></div>
+			<div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:10px;">Points: <b>${points}</b></div>
+		`;
+  };
+  const setHint = (html) => {
+    if (hintEl)
+      hintEl.innerHTML = html;
+  };
+  updateHud();
+  setHint("Clique sur deux cartes pour tenter de trouver une paire.");
+  if (!gridEl) {
+    cleanup();
+    return null;
+  }
+  const matched = /* @__PURE__ */ new Set();
+  const revealed = /* @__PURE__ */ new Set();
+  let pickA = null;
+  let pickB = null;
+  let locked = false;
+  const cardButtons = [];
+  const renderCard = (idx) => {
+    const c2 = cards[idx];
+    const isMatched = matched.has(idx);
+    const isFaceUp = revealed.has(idx) || isMatched;
+    const btn = cardButtons[idx];
+    if (!btn)
+      return;
+    btn.disabled = cancelled || ended || locked || isMatched;
+    btn.setAttribute("aria-pressed", isFaceUp ? "true" : "false");
+    btn.innerHTML = "";
+    btn.style.cssText = [
+      "width:100%",
+      "aspect-ratio: 1 / 1",
+      "border-radius:12px",
+      "border:1px solid rgba(255,255,255,0.12)",
+      "background:rgba(255,255,255,0.04)",
+      "padding:0",
+      "cursor:pointer",
+      "position:relative",
+      "overflow:hidden",
+      "transition:transform 80ms ease",
+      "outline:none",
+      "box-shadow:0 10px 24px rgba(0,0,0,0.35)",
+      isMatched ? "box-shadow:0 10px 24px rgba(0,0,0,0.35), 0 0 0 2px rgba(34,197,94,0.35) inset" : ""
+    ].filter(Boolean).join(";");
+    btn.onmouseenter = () => {
+      if (btn.disabled)
+        return;
+      btn.style.transform = "translateY(-1px)";
+    };
+    btn.onmouseleave = () => {
+      btn.style.transform = "none";
+    };
+    if (!isFaceUp) {
+      btn.innerHTML = `
+				<div style="position:absolute;inset:0;background:radial-gradient(circle at 30% 30%, rgba(255,255,255,0.10), rgba(255,255,255,0.02) 45%, rgba(0,0,0,0.25));"></div>
+				<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:950;color:rgba(255,255,255,0.65);text-shadow:0 6px 18px rgba(0,0,0,0.55);">?</div>
+				<div style="position:absolute;inset:10px;border-radius:10px;border:1px dashed rgba(255,255,255,0.18);"></div>
+			`;
+      return;
+    }
+    btn.innerHTML = `
+			<div style="position:absolute;inset:0;background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.25));"></div>
+			<img alt="" src="${c2?.imgSrc ?? ""}" style="position:absolute;inset:10px;width:calc(100% - 20px);height:calc(100% - 20px);object-fit:contain;filter:drop-shadow(0 8px 18px rgba(0,0,0,0.55));" />
+		`;
+  };
+  const rerenderAll = () => {
+    for (let i2 = 0; i2 < cards.length; i2++)
+      renderCard(i2);
+    updateHud();
+  };
+  const tryEnd = async () => {
+    if (ended || cancelled)
+      return;
+    if (stepsUsed < stepsMax && pairsFound < pairsMax)
+      return;
+    ended = true;
+    locked = true;
+    rerenderAll();
+    const result = {
+      stepsMax,
+      stepsUsed,
+      pairsFound,
+      points,
+      completed: true
+    };
+    let craftInfo = null;
+    try {
+      craftInfo = await options.onCraft(result);
+    } catch {
+      craftInfo = { itemName: "Objet", craftedCount: 0 };
+    }
+    const craftedCount = Math.max(0, Math.floor(craftInfo?.craftedCount ?? 0));
+    const itemName = String(craftInfo?.itemName ?? "Objet");
+    const stepsLeft = Math.max(0, stepsMax - stepsUsed);
+    panel.innerHTML = `
+			<div style="display:flex;align-items:flex-start;gap:12px;justify-content:space-between;">
+				<div>
+					<div style="font-weight:950;font-size:18px;">R\xE9sultat \u2014 Jeu de paires</div>
+					<div style="color:#bbb;font-size:12px;margin-top:3px;">Recette: <span style="color:#fff;font-weight:800;">${options.recipeLabel}</span></div>
+				</div>
+				<button class="btn" id="otherMinigameDoneBtn" style="min-width:120px;">Fermer</button>
+			</div>
+			<div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+				<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;">
+					<div style="font-weight:900;color:#ffd700;">Score</div>
+					<div style="margin-top:8px;color:#ddd;font-size:13px;white-space:pre-line;">Paires trouv\xE9es: ${pairsFound}
+Points: ${points}
+\xC9tapes restantes: ${stepsLeft}</div>
+				</div>
+				<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;">
+					<div style="font-weight:900;color:#6ee7ff;">Fabrication</div>
+					<div style="margin-top:8px;color:#ddd;font-size:13px;white-space:pre-line;">Objets cr\xE9\xE9s: ${craftedCount}
+Objet: ${itemName}</div>
+				</div>
+			</div>
+			<div style="margin-top:12px;color:#999;font-size:12px;">Astuce: m\xE9morise la position des motifs pour optimiser tes ${stepsMax} \xE9tapes.</div>
+		`;
+    panel.querySelector("#otherMinigameDoneBtn")?.addEventListener("click", (e2) => {
+      e2.stopPropagation();
+      cleanup();
+    });
+  };
+  for (let i2 = 0; i2 < cards.length; i2++) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.setAttribute("aria-label", `Carte ${i2 + 1}`);
+    btn.style.cssText = "appearance:none;-webkit-appearance:none;";
+    cardButtons.push(btn);
+    gridEl.appendChild(btn);
+    btn.addEventListener("click", async () => {
+      if (cancelled || ended)
+        return;
+      if (locked)
+        return;
+      if (matched.has(i2))
+        return;
+      if (revealed.has(i2))
+        return;
+      revealed.add(i2);
+      if (pickA == null) {
+        pickA = i2;
+        rerenderAll();
+        setHint("Choisis une deuxi\xE8me carte.");
+        return;
+      }
+      if (pickB == null) {
+        pickB = i2;
+        locked = true;
+        stepsUsed = clamp6(stepsUsed + 1, 0, stepsMax);
+        rerenderAll();
+        const a2 = pickA;
+        const b2 = pickB;
+        const aKey = cards[a2]?.key ?? "";
+        const bKey = cards[b2]?.key ?? "";
+        if (aKey && bKey && aKey === bKey) {
+          matched.add(a2);
+          matched.add(b2);
+          pairsFound = clamp6(pairsFound + 1, 0, pairsMax);
+          points = pairsFound;
+          setHint('<span style="color:#22c55e;font-weight:900;">Paire trouv\xE9e !</span> Elle reste visible et tu gagnes 1 point.');
+          pickA = null;
+          pickB = null;
+          locked = false;
+          rerenderAll();
+          await tryEnd();
+          return;
+        }
+        setHint('<span style="color:#f87171;font-weight:900;">Pas une paire.</span> Les cartes vont se remasquer.');
+        rerenderAll();
+        await waitMs(650);
+        revealed.delete(a2);
+        revealed.delete(b2);
+        pickA = null;
+        pickB = null;
+        locked = false;
+        rerenderAll();
+        await tryEnd();
+        return;
+      }
+    });
+  }
+  rerenderAll();
+  try {
+    while (!cancelled && !ended) {
+      await waitMs(50);
+    }
+    if (cancelled)
+      return null;
+    return {
+      stepsMax,
+      stepsUsed,
+      pairsFound,
+      points,
+      completed: true
+    };
+  } finally {
+    if (cancelled)
+      cleanup();
+  }
+}
+var clamp6, shuffleInPlace, createOverlayRoot3, waitMs;
+var init_otherMinigame_web = __esm({
+  "dist/crafting/otherMinigame.web.js"() {
+    "use strict";
+    clamp6 = (n2, min, max) => Math.max(min, Math.min(max, n2));
+    shuffleInPlace = (arr) => {
+      for (let i2 = arr.length - 1; i2 > 0; i2--) {
+        const j2 = Math.floor(Math.random() * (i2 + 1));
+        const tmp = arr[i2];
+        arr[i2] = arr[j2];
+        arr[j2] = tmp;
+      }
+      return arr;
+    };
+    createOverlayRoot3 = () => {
+      const root = document.createElement("div");
+      root.id = "otherMinigameOverlay";
+      root.style.cssText = [
+        "position:fixed",
+        "inset:0",
+        "background:rgba(0,0,0,0.72)",
+        "display:flex",
+        "align-items:center",
+        "justify-content:center",
+        "z-index:20000",
+        "padding:16px",
+        "user-select:none",
+        "-webkit-user-select:none",
+        "touch-action:manipulation"
+      ].join(";");
+      const panel = document.createElement("div");
+      panel.style.cssText = [
+        "width:min(860px, 96vw)",
+        "background:rgba(17,17,17,0.96)",
+        "border:1px solid rgba(255,255,255,0.10)",
+        "border-radius:14px",
+        "padding:16px",
+        "color:#fff",
+        "box-shadow:0 12px 40px rgba(0,0,0,0.55)"
+      ].join(";");
+      root.appendChild(panel);
+      document.body.appendChild(root);
+      return { root, panel };
+    };
+    waitMs = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+});
+
+// dist/crafting/fabricationModal.web.js
+function showFabricationModal(options = {}) {
+  if (document.getElementById(FABRICATION_MODAL_ID))
+    return;
+  const hero2 = getCraftHero();
+  if (!hero2) {
+    showTemporaryMessage("Aucun personnage.", 1600);
+    return;
+  }
+  const root = document.createElement("div");
+  root.id = FABRICATION_MODAL_ID;
+  root.style.cssText = [
+    "position:fixed",
+    "inset:0",
+    "background:rgba(0,0,0,0.68)",
+    "display:flex",
+    "align-items:center",
+    "justify-content:center",
+    "padding:16px",
+    "z-index:18000"
+  ].join(";");
+  const panel = document.createElement("div");
+  panel.style.cssText = [
+    "width:min(860px, 96vw)",
+    "max-height:min(88vh, 860px)",
+    "overflow:auto",
+    "background:rgba(17,17,17,0.96)",
+    "border:1px solid rgba(255,255,255,0.10)",
+    "border-radius:16px",
+    "padding:16px",
+    "color:#fff",
+    "box-shadow:0 12px 40px rgba(0,0,0,0.55)"
+  ].join(";");
+  const close = () => {
+    try {
+      root.remove();
+    } catch {
+    }
+    try {
+      options.onClose?.();
+    } catch {
+    }
+  };
+  const reopen = () => {
+    window.setTimeout(() => showFabricationModal(options), 0);
+  };
+  let selectedCategory = "all";
+  const render = () => {
+    const resources = `Bois: ${getResourceAmount(hero2, "wood")} \u2022 Herbes: ${getResourceAmount(hero2, "herb")} \u2022 Cuir: ${getResourceAmount(hero2, "cuir")} \u2022 Fer: ${getResourceAmount(hero2, "fer")}`;
+    const visibleRecipes = CRAFT_RECIPES.filter((recipe) => selectedCategory === "all" || recipe.category === selectedCategory);
+    panel.innerHTML = `
+			<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+				<div>
+					<div style="font-size:20px;font-weight:900;">Fabrication</div>
+					<div style="margin-top:4px;color:#bbb;">${resources}</div>
+				</div>
+				<button class="btn" id="fabricationCloseBtn">Fermer</button>
+			</div>
+			<div id="fabricationCategories" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;"></div>
+			<div id="fabricationRecipeList" style="margin-top:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;"></div>
+		`;
+    const categoriesEl = panel.querySelector("#fabricationCategories");
+    if (categoriesEl) {
+      categoriesEl.innerHTML = CATEGORY_META.map((category) => {
+        const isActive = category.id === selectedCategory;
+        const count2 = CRAFT_RECIPES.filter((recipe) => category.id === "all" || recipe.category === category.id).length;
+        return `
+					<button
+						type="button"
+						data-craft-category="${category.id}"
+						style="padding:8px 12px;border-radius:999px;border:1px solid ${isActive ? "rgba(255,215,120,0.45)" : "rgba(255,255,255,0.10)"};background:${isActive ? "rgba(255,215,120,0.16)" : "rgba(255,255,255,0.04)"};color:#fff;cursor:pointer;font-weight:${isActive ? "800" : "600"};">
+						${category.label} (${count2})
+					</button>
+				`;
+      }).join("");
+    }
+    const list = panel.querySelector("#fabricationRecipeList");
+    if (list) {
+      list.innerHTML = visibleRecipes.map((recipe) => {
+        const affordable = hasResources(hero2, recipe.cost);
+        return `
+					<div style="border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:12px;background:rgba(255,255,255,0.04);display:flex;flex-direction:column;gap:10px;">
+						<div>
+							<div style="font-weight:800;">${recipe.label}</div>
+							<div style="margin-top:4px;color:#d8c39d;font-size:12px;font-weight:700;">Cat\xE9gorie: ${CATEGORY_META.find((entry) => entry.id === recipe.category)?.label ?? recipe.category}</div>
+							<div style="margin-top:4px;color:#bbb;font-size:12px;">Co\xFBt: ${costLabel(recipe.cost)}</div>
+							<div style="margin-top:4px;color:#999;font-size:12px;">Atelier: ${recipe.minigame ?? "direct"}</div>
+						</div>
+						<button class="btn" data-craft-id="${recipe.id}" ${affordable ? "" : "disabled"}>Fabriquer</button>
+					</div>
+				`;
+      }).join("") || '<div style="padding:18px;border-radius:14px;background:rgba(255,255,255,0.04);color:#bbb;">Aucun objet dans cette cat\xE9gorie.</div>';
+    }
+    panel.querySelector("#fabricationCloseBtn")?.addEventListener("click", close);
+    panel.querySelectorAll("[data-craft-category]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const next = String(button.dataset.craftCategory ?? "all");
+        selectedCategory = next;
+        render();
+      });
+    });
+    panel.querySelectorAll("[data-craft-id]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const recipeId = String(button.dataset.craftId ?? "");
+        const recipe = CRAFT_RECIPES.find((entry) => entry.id === recipeId);
+        if (!recipe)
+          return;
+        if (!hasResources(hero2, recipe.cost)) {
+          showTemporaryMessage("Ressources insuffisantes.", 1800);
+          render();
+          return;
+        }
+        close();
+        if (recipe.minigame === "forge") {
+          await runForgeMinigame({
+            recipeLabel: recipe.label,
+            onCancel: () => {
+              showTemporaryMessage("Fabrication annul\xE9e.", 1600);
+            },
+            onCraft: async (result, _probs, chosenQuality) => {
+              consumeCost(hero2, recipe.cost);
+              const created2 = addCraftedItems(hero2, recipe, 1, result.totalScore, chosenQuality);
+              showTemporaryMessage(`Cr\xE9ation effectu\xE9e: ${created2.itemName}`, 2800);
+              return { itemName: created2.itemName };
+            }
+          });
+          reopen();
+          return;
+        }
+        if (recipe.minigame === "sewing") {
+          await runSewingMinigame({
+            recipeLabel: recipe.label,
+            onCancel: () => {
+              showTemporaryMessage("Fabrication annul\xE9e.", 1600);
+            },
+            onPartialFail: () => {
+              consumeCost(hero2, recipe.cost);
+              showTemporaryMessage("D\xE9coupe rat\xE9e: mat\xE9riaux perdus.", 2400);
+            },
+            onCraft: async (result, _probs, chosenQuality) => {
+              consumeCost(hero2, recipe.cost);
+              const created2 = addCraftedItems(hero2, recipe, 1, result.totalScore, chosenQuality);
+              showTemporaryMessage(`Cr\xE9ation effectu\xE9e: ${created2.itemName}`, 2800);
+              return { itemName: created2.itemName };
+            }
+          });
+          reopen();
+          return;
+        }
+        if (recipe.minigame === "memory") {
+          await runOtherMinigame({
+            recipeLabel: recipe.label,
+            onCancel: () => {
+              showTemporaryMessage("Fabrication annul\xE9e.", 1600);
+            },
+            onCraft: async (result) => {
+              if (result.pairsFound <= 0) {
+                showTemporaryMessage("Aucune paire trouv\xE9e: aucun objet cr\xE9\xE9.", 2200);
+                return { itemName: recipe.label, craftedCount: 0 };
+              }
+              consumeCost(hero2, recipe.cost);
+              const created2 = addCraftedItems(hero2, recipe, result.pairsFound, result.points);
+              showTemporaryMessage(`Cr\xE9ation effectu\xE9e: ${created2.itemName} x${created2.craftedCount}`, 2800);
+              return { itemName: created2.itemName, craftedCount: created2.craftedCount };
+            }
+          });
+          reopen();
+          return;
+        }
+        consumeCost(hero2, recipe.cost);
+        const created = addCraftedItems(hero2, recipe, 1);
+        showTemporaryMessage(`Cr\xE9ation effectu\xE9e: ${created.itemName}`, 2600);
+        reopen();
+      });
+    });
+  };
+  root.addEventListener("click", (event) => {
+    if (event.target === root)
+      close();
+  });
+  root.appendChild(panel);
+  document.body.appendChild(root);
+  render();
+}
+var FABRICATION_MODAL_ID, CATEGORY_META, getCraftHero, getResourceAmount, hasResources, consumeCost, costLabel, addCraftedItems;
+var init_fabricationModal_web = __esm({
+  "dist/crafting/fabricationModal.web.js"() {
+    "use strict";
+    init_party_web();
+    init_uiNotifications();
+    init_craftRecipes();
+    init_forgeMinigame_web();
+    init_sewingMinigame_web();
+    init_otherMinigame_web();
+    FABRICATION_MODAL_ID = "fabricationWorldModal";
+    CATEGORY_META = [
+      { id: "all", label: "Tout" },
+      { id: "equipment", label: "\xC9quipement" },
+      { id: "consumable", label: "Consommables" },
+      { id: "other", label: "Autres" }
+    ];
+    getCraftHero = () => getPartyMembers()[0] ?? window.game?.hero ?? null;
+    getResourceAmount = (hero2, key2) => Math.max(0, Math.floor(Number(hero2?.[key2] ?? 0)));
+    hasResources = (hero2, cost) => {
+      return getResourceAmount(hero2, "wood") >= Math.max(0, Math.floor(Number(cost.wood ?? 0))) && getResourceAmount(hero2, "herb") >= Math.max(0, Math.floor(Number(cost.herb ?? 0))) && getResourceAmount(hero2, "cuir") >= Math.max(0, Math.floor(Number(cost.cuir ?? 0))) && getResourceAmount(hero2, "fer") >= Math.max(0, Math.floor(Number(cost.fer ?? 0)));
+    };
+    consumeCost = (hero2, cost) => {
+      hero2.wood = Math.max(0, getResourceAmount(hero2, "wood") - Math.max(0, Math.floor(Number(cost.wood ?? 0))));
+      hero2.herb = Math.max(0, getResourceAmount(hero2, "herb") - Math.max(0, Math.floor(Number(cost.herb ?? 0))));
+      hero2.cuir = Math.max(0, getResourceAmount(hero2, "cuir") - Math.max(0, Math.floor(Number(cost.cuir ?? 0))));
+      hero2.fer = Math.max(0, getResourceAmount(hero2, "fer") - Math.max(0, Math.floor(Number(cost.fer ?? 0))));
+    };
+    costLabel = (cost) => {
+      const parts = [];
+      if (cost.wood)
+        parts.push(`${Math.floor(Number(cost.wood))} bois`);
+      if (cost.herb)
+        parts.push(`${Math.floor(Number(cost.herb))} herbes`);
+      if (cost.cuir)
+        parts.push(`${Math.floor(Number(cost.cuir))} cuir`);
+      if (cost.fer)
+        parts.push(`${Math.floor(Number(cost.fer))} fer`);
+      return parts.join(" + ") || "gratuit";
+    };
+    addCraftedItems = (hero2, recipe, craftedCount, score, quality) => {
+      const count2 = Math.max(0, Math.floor(Number(craftedCount ?? 0)));
+      if (count2 <= 0)
+        return { itemName: String(recipe.label), craftedCount: 0 };
+      const first = recipe.create();
+      const isStackable = Boolean(first?.stackable) || recipe.category === "consumable";
+      const itemName = String(first?.name ?? recipe.label);
+      if (typeof score === "number")
+        first.fabricationScore = score;
+      if (typeof quality === "number")
+        first.fabricationQuality = quality;
+      if (isStackable) {
+        first.quantity = count2;
+        hero2.addItem(first);
+        return { itemName, craftedCount: count2 };
+      }
+      hero2.addItem(first);
+      for (let i2 = 1; i2 < count2; i2++) {
+        const extra = recipe.create();
+        if (typeof score === "number")
+          extra.fabricationScore = score;
+        if (typeof quality === "number")
+          extra.fabricationQuality = quality;
+        hero2.addItem(extra);
+      }
+      return { itemName, craftedCount: count2 };
+    };
+  }
+});
+
 // dist/personnages.web.js
 var personnages_web_exports = {};
 __export(personnages_web_exports, {
@@ -81790,7 +80459,7 @@ __export(personnages_web_exports, {
   showPersonnage3: () => showPersonnage3,
   showSelectionPersonnages: () => showSelectionPersonnages
 });
-function goVillage2() {
+function goVillage() {
   void Promise.resolve().then(() => (init_villageMain_web(), villageMain_web_exports)).then((m2) => m2.showVillage());
 }
 function showSelectionPersonnages(options = {}) {
@@ -81832,7 +80501,7 @@ function showSelectionPersonnages(options = {}) {
       openPersonnageModal({ startIndex: idx });
     });
   });
-  document.getElementById("backBtn")?.addEventListener("click", options.onBack ?? goVillage2);
+  document.getElementById("backBtn")?.addEventListener("click", options.onBack ?? goVillage);
 }
 function openPersonnageModalFromMap(opts = {}) {
   openPersonnageModal(opts);
@@ -82186,7 +80855,7 @@ function renderFiche(idx, options) {
         </div>
     `;
   document.getElementById("backSelectBtn")?.addEventListener("click", () => showSelectionPersonnages(options));
-  document.getElementById("backVillageBtn")?.addEventListener("click", options.onBack ?? goVillage2);
+  document.getElementById("backVillageBtn")?.addEventListener("click", options.onBack ?? goVillage);
   const charImg = document.getElementById("character-img");
   if (charImg) {
     const clone = charImg.cloneNode(true);
@@ -82219,6 +80888,157 @@ var init_personnages_web = __esm({
     init_tacticalBoard();
     init_titles();
     personnageModalEl = null;
+  }
+});
+
+// dist/questJournalModal.web.js
+var questJournalModal_web_exports = {};
+__export(questJournalModal_web_exports, {
+  closeQuestJournalModal: () => closeQuestJournalModal,
+  openQuestJournalModal: () => openQuestJournalModal
+});
+var questJournalModalEl, closeQuestJournalModal, openQuestJournalModal;
+var init_questJournalModal_web = __esm({
+  "dist/questJournalModal.web.js"() {
+    "use strict";
+    init_utils_web();
+    questJournalModalEl = null;
+    closeQuestJournalModal = () => {
+      questJournalModalEl?.remove();
+      questJournalModalEl = null;
+    };
+    openQuestJournalModal = () => {
+      if (questJournalModalEl)
+        return;
+      questJournalModalEl = document.createElement("div");
+      questJournalModalEl.id = "questJournalModal";
+      questJournalModalEl.style.cssText = [
+        "position:fixed",
+        "inset:0",
+        "display:flex",
+        "align-items:center",
+        "justify-content:center",
+        "background:rgba(0,0,0,0.65)",
+        "z-index:10000",
+        "padding:18px"
+      ].join(";");
+      const panel = document.createElement("div");
+      panel.style.cssText = [
+        "width:min(860px, 96vw)",
+        "max-height:min(84vh, 820px)",
+        "overflow:auto",
+        "background:#111",
+        "border:1px solid rgba(255,255,255,0.10)",
+        "border-radius:12px",
+        "padding:14px",
+        "color:#fff"
+      ].join(";");
+      let tab = "active";
+      const renderStatus = (p2) => {
+        const s2 = String(p2?.status ?? "");
+        if (s2 === "claimed")
+          return "Termin\xE9e";
+        if (s2 === "completed")
+          return "\xC0 valider";
+        if (s2 === "active")
+          return "En cours";
+        return "Non d\xE9marr\xE9e";
+      };
+      const renderProgress = (def, p2) => {
+        if (!p2 || p2.status === void 0)
+          return '<div style="color:#bbb;">Non d\xE9marr\xE9e.</div>';
+        const stepIndex = Math.max(0, Math.floor(Number(p2.stepIndex ?? 0)));
+        const step = Array.isArray(def?.steps) ? def.steps[stepIndex] : null;
+        if (!step) {
+          if (p2?.status === "claimed" || p2?.status === "completed") {
+            return '<div style="margin-top:10px;color:#c8e6c9;font-weight:700;">Objectifs termin\xE9s.</div>';
+          }
+          return '<div style="color:#bbb;">Aucune \xE9tape.</div>';
+        }
+        const objectives = Array.isArray(step.objectives) ? step.objectives : [];
+        const objState = p2.objectives ?? {};
+        return `
+			<div style="margin-top:10px;">
+				<div style="font-weight:700;">\xC9tape: ${escapeHtml(String(step.title ?? step.id ?? ""))}</div>
+				<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+					${objectives.map((o2) => {
+          const cur = Math.max(0, Math.floor(Number(objState?.[String(o2.id)] ?? 0)));
+          const t2 = String(o2.type ?? "");
+          if (t2 === "counter") {
+            const target = Math.max(1, Math.floor(Number(o2.target ?? 1)));
+            const done2 = cur >= target;
+            return `<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
+									<div style="color:${done2 ? "#c8e6c9" : "#ddd"};">${done2 ? "\u2714" : "\u2022"} ${escapeHtml(String(o2.description ?? o2.id ?? ""))}</div>
+									<div style="color:#bbb;white-space:nowrap;">${cur}/${target}</div>
+								</div>`;
+          }
+          const done = cur >= 1;
+          return `<div style="color:${done ? "#c8e6c9" : "#ddd"};">${done ? "\u2714" : "\u2022"} ${escapeHtml(String(o2.description ?? o2.id ?? ""))}</div>`;
+        }).join("")}
+				</div>
+			</div>
+		`;
+      };
+      const renderModal = () => {
+        const qm = window.game?.questManager;
+        const items = typeof qm?.getAll === "function" ? qm.getAll() : [];
+        const list = items.filter(({ progress }) => {
+          const status = String(progress?.status ?? "");
+          if (tab === "completed")
+            return status === "claimed";
+          return status === "active" || status === "completed";
+        });
+        panel.innerHTML = `
+			<div style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
+				<div style="font-weight:900;font-size:18px;">Qu\xEAtes</div>
+				<button class="btn" id="questJournalModalCloseBtn">Fermer</button>
+			</div>
+			<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:10px;">
+				<button class="btn" id="questJournalTabActiveBtn" style="min-width:220px;${tab === "active" ? "border:2px solid #ffd700;" : ""}">Qu\xEAtes en cours</button>
+				<button class="btn" id="questJournalTabCompletedBtn" style="min-width:220px;${tab === "completed" ? "border:2px solid #ffd700;" : ""}">Qu\xEAtes termin\xE9es</button>
+			</div>
+			${!qm ? '<div style="margin-top:12px;background:rgba(0,0,0,0.55);padding:14px;border-radius:10px;">Qu\xEAtes indisponibles (questManager manquant).</div>' : ""}
+			<div style="display:flex;flex-direction:column;gap:14px;margin-top:14px;text-align:left;">
+				${list.map(({ def, progress }) => {
+          const status = renderStatus(progress);
+          return `
+							<div style="background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.08);padding:14px;border-radius:12px;">
+								<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
+									<div>
+										<div style="font-size:1.1em;font-weight:800;">${escapeHtml(String(def?.name ?? def?.id ?? "Qu\xEAte"))}</div>
+										<div style="color:#ddd;margin-top:4px;">${escapeHtml(String(def?.description ?? ""))}</div>
+									</div>
+									<div style="text-align:right;min-width:120px;">
+										<div style="font-weight:800;color:#ffd700;">${escapeHtml(status)}</div>
+									</div>
+								</div>
+								${renderProgress(def, progress)}
+							</div>
+						`;
+        }).join("")}
+				${list.length === 0 ? '<div style="background:rgba(0,0,0,0.55);padding:14px;border-radius:10px;">Aucune qu\xEAte.</div>' : ""}
+			</div>
+		`;
+        panel.querySelector("#questJournalModalCloseBtn")?.addEventListener("click", () => {
+          closeQuestJournalModal();
+        });
+        panel.querySelector("#questJournalTabActiveBtn")?.addEventListener("click", () => {
+          tab = "active";
+          renderModal();
+        });
+        panel.querySelector("#questJournalTabCompletedBtn")?.addEventListener("click", () => {
+          tab = "completed";
+          renderModal();
+        });
+      };
+      renderModal();
+      questJournalModalEl.appendChild(panel);
+      questJournalModalEl.addEventListener("click", (e2) => {
+        if (e2.target === questJournalModalEl)
+          closeQuestJournalModal();
+      });
+      document.body.appendChild(questJournalModalEl);
+    };
   }
 });
 
@@ -82321,7 +81141,9 @@ function ensureRendererStyles() {
 		.tactical-wrap.pixi-world-ui .tactical-hud,
 		.tactical-wrap.pixi-world-ui .tactical-hud *,
 		.tactical-wrap.pixi-world-ui .tactical-side,
-		.tactical-wrap.pixi-world-ui .tactical-side * {
+		.tactical-wrap.pixi-world-ui .tactical-side *,
+		.tactical-wrap.pixi-world-ui #worldFabricationBtn,
+		.tactical-wrap.pixi-world-ui #worldFabricationBtn * {
 			pointer-events: auto;
 		}
 
@@ -82360,9 +81182,11 @@ function ensureRendererStyles() {
 		.plateau-marker.exit.south::after { content:'\u2B07'; }
 		.plateau-marker.npc::after { content:'\u{1F4AC}'; }
 		.plateau-marker.house::after { content:'\u{1F3E0}'; }
+		.plateau-marker.sleep::after { content:''; }
 		.plateau-marker.inn::after { content:'\u{1F37B}'; }
 		.plateau-marker.market::after { content:'\u{1F6D2}'; }
 		.plateau-marker.shop::after { content:'\u{1F3EA}'; }
+		.plateau-marker.fabrication::after { content:''; }
 		/* Combat marker uses an image instead of an emoji */
 		.plateau-marker.combat::after { content:''; }
 		.plateau-marker.combat .plateau-marker-enemy {
@@ -82373,6 +81197,21 @@ function ensureRendererStyles() {
 			filter: drop-shadow(0 16px 26px rgba(0,0,0,0.55));
 			border-radius: 8px;
 			transform: translateY(-3%);
+		}
+		.plateau-marker.fabrication .plateau-marker-fabrication {
+			width: 68%;
+			height: 68%;
+			object-fit: contain;
+			display: block;
+			filter: drop-shadow(0 14px 22px rgba(0,0,0,0.48));
+			transform: translateY(0);
+		}
+		.plateau-marker.sleep .plateau-marker-sleep {
+			width: 78%;
+			height: 78%;
+			object-fit: contain;
+			display: block;
+			filter: drop-shadow(0 10px 18px rgba(0,0,0,0.42));
 		}
 		/* NPC marker can optionally use a custom sprite instead of \u{1F4AC} */
 		.plateau-marker.npc.npc-img::after { content:''; }
@@ -83486,6 +82325,7 @@ function showPlateauMapRenderer(opts) {
     const encounterLevel = Math.max(1, Math.floor(Number(encounterLevelRaw ?? 1)));
     stopMovement();
     teardownWorldPixiOverlay();
+    clearWanderingTimers();
     const mapBgSrc = map?.backgroundSrc;
     showTacticalSkirmish({
       onBack: () => render(),
@@ -83533,6 +82373,7 @@ function showPlateauMapRenderer(opts) {
         return;
       stopMovement();
       teardownWorldPixiOverlay();
+      clearWanderingTimers();
       const onceToken = `encounter:${opts.world.currentMapId}:${tile.x},${tile.y}`;
       if (tile.encounter.once && !opts.world.consumeOnce(opts.world.currentMapId, onceToken))
         return;
@@ -83562,8 +82403,22 @@ function showPlateauMapRenderer(opts) {
     if (tile.eventId) {
       stopMovement();
       teardownWorldPixiOverlay();
-      if (tile.eventId === "maison") {
-        showMaisonDeplacement({ onBack: () => render() });
+      if (tile.eventId === "dormir") {
+        const party2 = getPartyMembers().filter(Boolean);
+        const before = party2[0] ? getGameTime(party2[0]) : { day: 1, hour: 0 };
+        for (const member of party2) {
+          const effectiveMaxPv = Math.max(1, Math.floor(Number(member?.effectiveMaxPv ?? member?.maxPv ?? 1)));
+          member.pv = effectiveMaxPv;
+        }
+        if (party2[0]) {
+          const res = advanceGameTimeHours(party2[0], 12, { reason: "house_sleep" });
+          showTemporaryMessage(`Sommeil 12h: Jour ${before.day} ${String(before.hour).padStart(2, "0")}h \u2192 Jour ${res.day} ${String(res.hour).padStart(2, "0")}h`, 3600);
+        }
+        render();
+        return;
+      }
+      if (tile.eventId === "fabrication") {
+        showFabricationModal({ onClose: () => render() });
         return;
       }
       if (tile.eventId === "auberge") {
@@ -83617,6 +82472,7 @@ function showPlateauMapRenderer(opts) {
     const randomEncounterChance = randomEncounterChanceForMap(map);
     const randomEncounterChancePct = Math.round(Math.max(0, Math.min(1, randomEncounterChance)) * 100);
     const hudTime = formatHudTime();
+    const hasFabricationAccess = Boolean(map.tiles?.some((tile) => tile?.eventId === "fabrication"));
     const pixiLayer = Boolean(window.PIXI) ? ensureWorldPixiScreen() : null;
     const wantPixiBoard = Boolean(window.PIXI) && Boolean(pixiLayer);
     const boardTranslateX = map.meta?.boardTranslateX ?? opts.layout?.boardTranslateX;
@@ -83643,6 +82499,7 @@ function showPlateauMapRenderer(opts) {
     const noOverlayClass = disableOverlay ? " no-board-overlay" : "";
     app2.innerHTML = `
 			<div class="tactical-wrap">
+				${hasFabricationAccess ? `<button id="worldFabricationBtn" aria-label="Ouvrir la fabrication" style="position:fixed;left:24px;bottom:24px;z-index:9500;width:72px;height:72px;padding:0;border:none;background:transparent;box-shadow:none;cursor:pointer;"><img src="ImagesRPG/imagesobjets/enclume.png" alt="Fabrication" style="width:100%;height:100%;object-fit:contain;display:block;filter:drop-shadow(0 10px 18px rgba(0,0,0,0.35));opacity:0.96;"></button>` : ""}
 				<div class="tactical-hud">
 					<div class="tactical-panel" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
 						<div style="display:flex;flex-direction:column;gap:2px;">
@@ -83675,7 +82532,7 @@ function showPlateauMapRenderer(opts) {
       const hasCombat = Boolean(t2?.encounter) && !isEncounterDefeatedToday(map.id, x2, y2);
       const isInteractive = hasExit || hasNpc || hasCombat || Boolean(t2?.eventId);
       const npcImg = String(t2?.npc?.imageSrc ?? "").trim();
-      const marker = hasExit ? `<div class="plateau-marker exit ${escapeHtml(String(t2?.exit?.dir ?? ""))}" title="${escapeHtml(String(t2?.exit?.label ?? "Sortie"))}"></div>` : hasNpc ? npcImg ? `<div class="plateau-marker npc npc-img" title="Parler"><img class="plateau-marker-npc" src="${escapeHtml(npcImg)}" alt="PNJ"></div>` : `<div class="plateau-marker npc" title="Parler"></div>` : t2?.eventId === "maison" ? `<div class="plateau-marker house" title="Maison"></div>` : t2?.eventId === "auberge" ? `<div class="plateau-marker inn" title="Auberge"></div>` : t2?.eventId === "marche" ? `<div class="plateau-marker market" title="March\xE9"></div>` : t2?.eventId === "boutique" ? `<div class="plateau-marker shop" title="Boutique"></div>` : hasCombat ? (() => {
+      const marker = hasExit ? `<div class="plateau-marker exit ${escapeHtml(String(t2?.exit?.dir ?? ""))}" title="${escapeHtml(String(t2?.exit?.label ?? "Sortie"))}"></div>` : hasNpc ? npcImg ? `<div class="plateau-marker npc npc-img" title="Parler"><img class="plateau-marker-npc" src="${escapeHtml(npcImg)}" alt="PNJ"></div>` : `<div class="plateau-marker npc" title="Parler"></div>` : t2?.eventId === "maison" ? `<div class="plateau-marker house" title="Maison"></div>` : t2?.eventId === "dormir" ? `<div class="plateau-marker sleep" title="Dormir"><img class="plateau-marker-sleep" src="ImagesRPG/imagesobjets/sommeil.svg" alt="Dormir"></div>` : t2?.eventId === "fabrication" ? `<div class="plateau-marker fabrication" title="Fabrication"><img class="plateau-marker-fabrication" src="ImagesRPG/imagesobjets/enclume.png" alt="Fabrication"></div>` : t2?.eventId === "auberge" ? `<div class="plateau-marker inn" title="Auberge"></div>` : t2?.eventId === "marche" ? `<div class="plateau-marker market" title="March\xE9"></div>` : t2?.eventId === "boutique" ? `<div class="plateau-marker shop" title="Boutique"></div>` : hasCombat ? (() => {
         const eid = t2?.encounter?.enemyId ?? "gobelin";
         const imgSrc = enemyImageSrc2(eid);
         return `<div class="plateau-marker combat" title="Combat"><img class="plateau-marker-enemy" src="${escapeHtml(String(imgSrc))}" alt="${escapeHtml(String(eid))}"></div>`;
@@ -83756,6 +82613,11 @@ function showPlateauMapRenderer(opts) {
       hideMapTooltip();
       fade.remove();
       opts.onBack();
+    });
+    document.getElementById("worldFabricationBtn")?.addEventListener("click", () => {
+      stopMovement();
+      teardownWorldPixiOverlay();
+      showFabricationModal({ onClose: () => render() });
     });
     bindGameTimeListener();
     updateHudTime();
@@ -83856,6 +82718,10 @@ function showPlateauMapRenderer(opts) {
       }
       if (t2?.eventId === "maison")
         return `<div class="plateau-marker house" title="Maison"></div>`;
+      if (t2?.eventId === "dormir")
+        return `<div class="plateau-marker sleep" title="Dormir"><img class="plateau-marker-sleep" src="ImagesRPG/imagesobjets/sommeil.svg" alt="Dormir"></div>`;
+      if (t2?.eventId === "fabrication")
+        return `<div class="plateau-marker fabrication" title="Fabrication"><img class="plateau-marker-fabrication" src="ImagesRPG/imagesobjets/enclume.png" alt="Fabrication"></div>`;
       if (t2?.eventId === "auberge")
         return `<div class="plateau-marker inn" title="Auberge"></div>`;
       if (t2?.eventId === "marche")
@@ -84556,7 +83422,6 @@ var init_mapRenderer_web = __esm({
     init_tacticalCombat_web();
     init_party_web();
     init_characterSprites_web();
-    init_houseMovement_web();
     init_villageMain_web();
     init_market_web();
     init_item();
@@ -84569,6 +83434,7 @@ var init_mapRenderer_web = __esm({
     init_dialogueManager_web();
     init_daySystem_web();
     init_ui();
+    init_fabricationModal_web();
     GRID_ID = "plateauWorldGrid";
     DEFAULT_RANDOM_ENCOUNTER_CHANCE = 0.05;
     sleep2 = (ms) => new Promise((r2) => setTimeout(r2, ms));
@@ -84735,9 +83601,25 @@ var init_maps = __esm({
         tiles: [
           { x: 4, y: 3, blocked: true, npc: NPC_BOARAVEN_VILLAGEOISE_1 },
           { x: 6, y: 0, eventId: "marche" },
-          { x: 8, y: 1, eventId: "maison" },
+          { x: 8, y: 1, exit: { dir: "east", to: "boaraven_house", entry: { x: 4, y: 7 }, label: "Maison" } },
           { x: 4, y: 8, eventId: "auberge" },
           { x: 8, y: 6, eventId: "boutique" }
+        ]
+      },
+      {
+        id: "boaraven_house",
+        name: "Maison",
+        w: 9,
+        h: 9,
+        backgroundSrc: "ImagesRPG/imagesfond/maison_Boaraven.jpeg",
+        meta: {
+          displayName: "Maison de Boaraven",
+          randomEncounters: false
+        },
+        tiles: [
+          { x: 0, y: 0, eventId: "dormir" },
+          { x: 4, y: 8, exit: { dir: "south", to: "village_y0x1", entry: { x: 8, y: 1 }, label: "Retour au village" } },
+          { x: 0, y: 8, eventId: "fabrication" }
         ]
       },
       {
@@ -85088,7 +83970,7 @@ var init_history_web = __esm({
 });
 
 // dist/village/entrainement.web.js
-function goVillage3() {
+function goVillage2() {
   void Promise.resolve().then(() => (init_villageMain_web(), villageMain_web_exports)).then((m2) => m2.showVillage());
 }
 function showEntrainement() {
@@ -85261,7 +84143,7 @@ function showEntrainement() {
           renderSkillButtons(skillsDiv, trainee.skills, playTrainingTurn);
         }
       }
-      document.getElementById("fuirBtn")?.addEventListener("click", goVillage3);
+      document.getElementById("fuirBtn")?.addEventListener("click", goVillage2);
     } else {
       app3.innerHTML = `
                 <img src="https://s1.dmcdn.net/v/SQtz81XF1Q2rdQZLt/x1080" class="background" alt="Entra\xEEnement">
@@ -85283,7 +84165,7 @@ function showEntrainement() {
                     ${renderEndInventoryEquipment()}
                 </div>
             `;
-      document.getElementById("retourVillageBtn")?.addEventListener("click", goVillage3);
+      document.getElementById("retourVillageBtn")?.addEventListener("click", goVillage2);
       const invButtons = document.querySelectorAll("[data-inv-idx]");
       invButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -85521,6 +84403,324 @@ var init_entrainement_web = __esm({
   }
 });
 
+// dist/village/competences.web.js
+function getLearnedSkillIds2(p2) {
+  return (p2?.learnedSkillIds ?? []).filter(Boolean);
+}
+function hasLearnedSkill(p2, skill) {
+  const id = String(skill.skillId ?? "");
+  if (id)
+    return getLearnedSkillIds2(p2).includes(id);
+  return (p2?.skills ?? []).some((hs) => hs?.name === skill?.name);
+}
+function goVillage3() {
+  void Promise.resolve().then(() => (init_villageMain_web(), villageMain_web_exports)).then((m2) => m2.showVillage());
+}
+function showCompetences() {
+  const app2 = document.getElementById("app");
+  if (!app2)
+    return;
+  const party2 = getPartyMembers();
+  app2.innerHTML = `
+        <img src="https://img.freepik.com/photos-premium/interieur-ecole-magie-est-rempli-bureaux-bois-pour-eleves-enseignants-tableau-noir-ecritures-craie-chaudron-potion-chapeaux-sorciere-sorts-livres-magie-baguettes-balai-dessin-anime_76964-82543.jpg" class="background background-competences" alt="Comp\xE9tences">
+        <div class="centered-content">
+            <h1>Comp\xE9tences</h1>
+            <p>S\xE9lectionner un personnage :</p>
+            <div style="display:flex;flex-direction:column;gap:14px;align-items:center;margin-top:18px;">
+                ${party2.map((p2, idx) => {
+    const label = `${p2.name} \u2014 ${getPartyClassLabel(p2)} (Niv ${p2.level})`;
+    return `<button class="btn" data-pidx="${idx}" style="min-width:320px;">${label}</button>`;
+  }).join("")}
+                <button class="btn" id="retourVillageBtn">Retour village</button>
+            </div>
+        </div>
+    `;
+  document.querySelectorAll("[data-pidx]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.getAttribute("data-pidx"));
+      showCompetencesFor(idx);
+    });
+  });
+  document.getElementById("retourVillageBtn")?.addEventListener("click", goVillage3);
+}
+function getPartyCategoryForIdx(idx) {
+  const p2 = getPartyMember(idx);
+  const cls = String(p2.characterClass ?? "").toLowerCase();
+  if (cls === "mage")
+    return "mage";
+  if (cls === "voleur")
+    return "voleur";
+  return "guerrier";
+}
+function showCompetencesFor(idx) {
+  const app2 = document.getElementById("app");
+  if (!app2)
+    return;
+  const p2 = getPartyMember(idx);
+  const skills = p2.skills ?? [];
+  const skillsHtml = skills.length ? `<ul style="list-style:none;padding:0;">${skills.map((skill) => `<li data-skill-desc="${encodeSkillTooltip(skill)}" style="cursor:help;"><b>${skill.key}</b> : ${escapeHtml(skill.name)}</li>`).join("")}</ul>` : "<p>Aucune comp\xE9tence apprise.</p>";
+  app2.innerHTML = `
+        <img src="https://img.freepik.com/photos-premium/interieur-ecole-magie-est-rempli-bureaux-bois-pour-eleves-enseignants-tableau-noir-ecritures-craie-chaudron-potion-chapeaux-sorciere-sorts-livres-magie-baguettes-balai-dessin-anime_76964-82543.jpg" class="background background-competences" alt="Comp\xE9tences">
+        <div class="centered-content">
+            <h1>Comp\xE9tences \u2014 ${p2.name}</h1>
+            <p>Points de comp\xE9tence : <b>${p2.skillPoints}</b></p>
+            ${skillsHtml}
+            <button class="btn" id="showTalentTreeBtn">Arbre de talents</button>
+            <button class="btn" id="showUnlearnedBtn">Comp\xE9tences non apprises</button>
+            <button class="btn" id="showPassifsBtn">Passifs</button>
+            <button class="btn" id="retourSelectionBtn">Retour s\xE9lection</button>
+            <button class="btn" id="retourVillageBtn">Retour village</button>
+        </div>
+    `;
+  installHoverTooltip(app2, { selector: "[data-skill-desc]" });
+  document.getElementById("showTalentTreeBtn")?.addEventListener("click", () => {
+    showTalentTree({ selectedIdx: idx, onBack: (backIdx) => showCompetencesFor(backIdx) });
+  });
+  document.getElementById("showUnlearnedBtn")?.addEventListener("click", () => showUnlearnedCompetences(idx));
+  document.getElementById("showPassifsBtn")?.addEventListener("click", () => showPassiveCompetences(idx));
+  document.getElementById("retourSelectionBtn")?.addEventListener("click", showCompetences);
+  document.getElementById("retourVillageBtn")?.addEventListener("click", goVillage3);
+}
+function showPassiveCompetences(selectedIdx = 0) {
+  const app2 = document.getElementById("app");
+  if (!app2)
+    return;
+  const selected = getPartyMember(selectedIdx);
+  const passives = Object.values(PASSIVE_DEFS).slice().sort((a2, b2) => a2.unlockLevel - b2.unlockLevel);
+  const learnedItems = [];
+  const unlockedItems = [];
+  const lockedItems = [];
+  const blockLearned = ["blocage_voleur", "blocage_guerrier", "blocage_mage"].find((pid) => selected.hasPassive?.(pid));
+  for (const passive of passives) {
+    if (blockLearned && ["blocage_voleur", "blocage_guerrier", "blocage_mage"].includes(passive.id) && !selected.hasPassive?.(passive.id))
+      continue;
+    const learned = selected.hasPassive?.(passive.id) ?? false;
+    const unlocked = selected.level >= passive.unlockLevel;
+    const meetsCat = true;
+    let status = "";
+    let actionBtn = "";
+    if (learned) {
+      status = `<span style='color:#4caf50;'>(Appris)</span>`;
+    } else if (unlocked) {
+      status = `<span style='color:#ffd700;'>(D\xE9bloqu\xE9)</span>`;
+      if (selected.skillPoints >= passive.costSkillPoints) {
+        actionBtn = `<button class='btn' style='margin-left:12px;min-width:120px;padding:6px 18px;font-size:0.95em;' data-passive-id='${passive.id}'>Apprendre</button>`;
+      } else {
+        actionBtn = `<span style='color:#aaa;margin-left:12px;'>(Pas assez de points)</span>`;
+      }
+    } else {
+      status = `<span style='color:#f55;'>(Niveau ${passive.unlockLevel} requis)</span>`;
+    }
+    const line = `<li data-skill-desc='${encodeURIComponent(passive.description)}' style='margin-bottom:10px;cursor:help;'><b>${passive.name}</b> ${status} <span style='color:#bbb;'>(co\xFBt ${passive.costSkillPoints})</span> ${actionBtn}</li>`;
+    if (learned)
+      learnedItems.push(line);
+    else if (unlocked)
+      unlockedItems.push(line);
+    else
+      lockedItems.push(line);
+  }
+  const learnedHtml = learnedItems.length ? `<ul style="list-style:none;padding:0;">${learnedItems.join("")}</ul>` : `<p style="color:#ccc;">Aucun passif appris.</p>`;
+  const unlockedHtml = unlockedItems.length ? `<ul style="list-style:none;padding:0;">${unlockedItems.join("")}</ul>` : `<p style="color:#ccc;">Aucun passif d\xE9bloqu\xE9.</p>`;
+  const lockedHtml = lockedItems.length ? `<ul style="list-style:none;padding:0;">${lockedItems.join("")}</ul>` : `<p style="color:#ccc;">Aucun passif verrouill\xE9.</p>`;
+  app2.innerHTML = `
+        <img src="https://img.freepik.com/photos-premium/interieur-ecole-magie-est-rempli-bureaux-bois-pour-eleves-enseignants-tableau-noir-ecritures-craie-chaudron-potion-chapeaux-sorciere-sorts-livres-magie-baguettes-balai-dessin-anime_76964-82543.jpg" class="background background-competences" alt="Passifs">
+        <div class="centered-content" style="max-width:1000px;">
+            <h1>Passifs \u2014 ${selected.name}</h1>
+            <p>Points de comp\xE9tence : <b id='skillPointsVal'>${selected.skillPoints}</b></p>
+            <div class="skills-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;align-items:start;">
+                <div class="skills-column" style="background:rgba(0,0,0,0.25);padding:12px;border-radius:8px;">
+                    <h3>Appris</h3>
+                    ${learnedHtml}
+                </div>
+                <div class="skills-column" style="background:rgba(0,0,0,0.18);padding:12px;border-radius:8px;">
+                    <h3>D\xE9bloqu\xE9s</h3>
+                    ${unlockedHtml}
+                </div>
+                <div class="skills-column" style="background:rgba(0,0,0,0.18);padding:12px;border-radius:8px;">
+                    <h3>Verrouill\xE9s</h3>
+                    ${lockedHtml}
+                </div>
+            </div>
+            <div style="margin-top:12px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                <button class="btn" id="retourCompetencesBtn">Retour comp\xE9tences</button>
+                <button class="btn" id="retourVillageBtn">Retour village</button>
+            </div>
+        </div>
+    `;
+  installHoverTooltip(app2, { selector: "[data-skill-desc]" });
+  document.querySelectorAll("[data-passive-id]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-passive-id");
+      getPartyMember(selectedIdx).learnPassive(id);
+      showPassiveCompetences(selectedIdx);
+    });
+  });
+  document.getElementById("retourCompetencesBtn")?.addEventListener("click", () => showCompetencesFor(selectedIdx));
+  document.getElementById("retourVillageBtn")?.addEventListener("click", goVillage3);
+}
+function showUnlearnedCompetences(selectedIdx = 0) {
+  const app2 = document.getElementById("app");
+  const skillTree = window.game?.skillTree ?? [];
+  const p2 = getPartyMember(selectedIdx);
+  let allHtml = '<ul style="list-style:none;padding:0;">';
+  const selectedCat = getPartyCategoryForIdx(selectedIdx);
+  skillTree.forEach((s2, idx) => {
+    const cat = s2.skill.category;
+    const specialShownToVoleur = selectedCat === "voleur" && String(s2.skill.name ?? "").toLowerCase() === "buff permanent";
+    if (cat !== selectedCat && !specialShownToVoleur)
+      return;
+    const learned = hasLearnedSkill(p2, s2.skill);
+    const unlocked = p2.level >= s2.unlockLevel;
+    const meetsCat = true;
+    let status = "";
+    let actionBtn = "";
+    if (learned) {
+      status = `<span style='color:#4caf50;'>(Apprise)</span>`;
+    } else if (unlocked) {
+      status = `<span style='color:#ffd700;'>(D\xE9bloqu\xE9e)</span>`;
+      if (p2.skillPoints > 0) {
+        actionBtn = `<button class='btn' style='margin-left:12px;min-width:120px;padding:6px 18px;font-size:1em;' data-idx='${idx}'>Apprendre</button>`;
+      } else {
+        actionBtn = `<span style='color:#aaa;margin-left:12px;'>(Pas assez de points)</span>`;
+      }
+    } else {
+      status = `<span style='color:#f55;'>(Niveau ${s2.unlockLevel} requis)</span>`;
+    }
+    allHtml += `<li data-skill-desc='${encodeSkillTooltip(s2.skill)}' style='margin-bottom:10px;cursor:help;'><b>${s2.skill.key}</b> : ${s2.skill.name} ${status} ${actionBtn}</li>`;
+  });
+  allHtml += "</ul>";
+  const learnedItems = [];
+  const unlockedNotLearnedItems = [];
+  const lockedItems = [];
+  const categoryOrder = ["guerrier", "mage", "voleur"];
+  const getCategoryIndex = (cat) => {
+    if (!cat)
+      return 999;
+    const idx = categoryOrder.indexOf(cat);
+    return idx >= 0 ? idx : 999;
+  };
+  skillTree.forEach((s2, idx) => {
+    const cat = s2.skill.category;
+    const specialShownToVoleur = selectedCat === "voleur" && String(s2.skill.name ?? "").toLowerCase() === "buff permanent";
+    if (cat !== selectedCat && !specialShownToVoleur)
+      return;
+    const learned = hasLearnedSkill(p2, s2.skill);
+    const unlocked = p2.level >= s2.unlockLevel;
+    const meetsCat = true;
+    let status = "";
+    let actionBtn = "";
+    if (learned) {
+      status = `<span style='color:#4caf50;'>(Apprise)</span>`;
+    } else if (unlocked) {
+      status = `<span style='color:#ffd700;'>(D\xE9bloqu\xE9e)</span>`;
+      if (p2.skillPoints > 0) {
+        actionBtn = `<button class='btn' style='margin-left:12px;min-width:120px;padding:6px 18px;font-size:0.95em;' data-idx='${idx}'>Apprendre</button>`;
+      } else {
+        actionBtn = `<span style='color:#aaa;margin-left:12px;'>(Pas assez de points)</span>`;
+      }
+    } else {
+      status = `<span style='color:#f55;'>(Niveau ${s2.unlockLevel} requis)</span>`;
+    }
+    const li = (inner) => `<li data-skill-desc='${encodeSkillTooltip(s2.skill)}' style='margin-bottom:10px;cursor:help;'>${inner}</li>`;
+    if (learned) {
+      learnedItems.push(li(`<b>${s2.skill.key}</b> : ${escapeHtml(s2.skill.name)} ${status}`));
+    } else if (unlocked) {
+      const itemHtml = li(`<b>${s2.skill.key}</b> : ${escapeHtml(s2.skill.name)} ${status} ${actionBtn}`);
+      const sortKey = `${String(getCategoryIndex(cat)).padStart(3, "0")}_${String(s2.unlockLevel).padStart(4, "0")}_${String(idx).padStart(4, "0")}`;
+      unlockedNotLearnedItems.push({ sortKey, html: itemHtml });
+    } else {
+      lockedItems.push(li(`<b>${s2.skill.key}</b> : ${escapeHtml(s2.skill.name)} ${status}`));
+    }
+  });
+  const baseSkills = (p2.skills ?? []).filter((hs) => hs.category === selectedCat).filter((hs) => !skillTree.some((s2) => s2.skill.name === hs.name));
+  let baseHtml = "";
+  if (baseSkills.length) {
+    const items = baseSkills.map((bs) => `<li data-skill-desc='${encodeSkillTooltip(bs)}' style='margin-bottom:10px;cursor:help;'><b>${bs.key}</b> : ${escapeHtml(bs.name)} <span style='color:#ccc;'>(Comp\xE9tence de base)</span></li>`);
+    baseHtml = `<h4 style="margin-bottom:8px;">Comp\xE9tences de base</h4><ul style="list-style:none;padding:0;">${items.join("")}</ul>`;
+  }
+  const otherLearnedHtml = learnedItems.length ? `<h4 style="margin-top:12px;">Autres apprises</h4><ul style="list-style:none;padding:0;">${learnedItems.join("")}</ul>` : "";
+  const learnedHtml = baseHtml || otherLearnedHtml ? `${baseHtml}${otherLearnedHtml}` : '<p style="color:#ccc;">Aucune comp\xE9tence apprise.</p>';
+  const unlockedSorted = unlockedNotLearnedItems.slice().sort((a2, b2) => a2.sortKey < b2.sortKey ? -1 : a2.sortKey > b2.sortKey ? 1 : 0).map((x2) => x2.html);
+  const unlockedHtml = unlockedSorted.length ? `<ul style="list-style:none;padding:0;">${unlockedSorted.join("")}</ul>` : '<p style="color:#ccc;">Aucune comp\xE9tence d\xE9bloqu\xE9e.</p>';
+  const lockedCols = [];
+  for (let i2 = 0; i2 < lockedItems.length; i2 += 10) {
+    lockedCols.push(`<ul style="list-style:none;padding:0;">${lockedItems.slice(i2, i2 + 10).join("")}</ul>`);
+  }
+  const firstColHtml = lockedCols[0] || "";
+  const secondColHtml = lockedCols[1] || "";
+  const extraCols = lockedCols.slice(2);
+  let extraGridHtml = "";
+  if (extraCols.length) {
+    extraGridHtml = `<div class="extra-grid" style="display:grid;grid-template-columns:repeat(${extraCols.length},1fr);gap:18px;margin-top:12px;">` + extraCols.map((c2) => `<div class="skills-column" style="background:rgba(0,0,0,0.18);padding:12px;border-radius:8px;">${c2}</div>`).join("") + `</div>`;
+  }
+  if (!app2)
+    return;
+  app2.innerHTML = `
+        <img src="https://img.freepik.com/photos-premium/interieur-ecole-magie-est-rempli-bureaux-bois-pour-eleves-enseignants-tableau-noir-ecritures-craie-chaudron-potion-chapeaux-sorciere-sorts-livres-magie-baguettes-balai-dessin-anime_76964-82543.jpg" class="background background-competences" alt="Comp\xE9tences">
+        <div class="centered-content" style="max-width:1000px;">
+            <h1>Comp\xE9tences \u2014 ${getPartyMember(selectedIdx).name}</h1>
+            <p>Points de comp\xE9tence : <b id='skillPointsVal'>${p2.skillPoints}</b></p>
+            <div class="skills-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;align-items:start;">
+                <div class="skills-column" style="background:rgba(0,0,0,0.25);padding:12px;border-radius:8px;">
+                    <h3>Apprises</h3>
+                    ${learnedHtml}
+                </div>
+                <div class="skills-column" style="background:rgba(0,0,0,0.18);padding:12px;border-radius:8px;">
+                    <h3>D\xE9bloqu\xE9es</h3>
+                    ${unlockedHtml}
+                </div>
+                <div class="skills-column" style="background:rgba(0,0,0,0.18);padding:12px;border-radius:8px;">
+                    <h3>Non apprises</h3>
+                    ${firstColHtml}
+                </div>
+            </div>
+            ${extraGridHtml ? `<div style="display:flex;justify-content:flex-end;gap:18px;margin-top:12px;">${extraCols.map((c2) => `<div style="background:rgba(0,0,0,0.18);padding:12px;border-radius:8px;">${c2}</div>`).join("")}</div>` : ""}
+            <div style="margin-top:12px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+                <button class="btn" id="retourCompetencesBtn">Retour comp\xE9tences</button>
+                <button class="btn" id="retourSelectionBtn">Retour s\xE9lection</button>
+            </div>
+        </div>
+    `;
+  installHoverTooltip(app2, { selector: "[data-skill-desc]" });
+  skillTree.forEach((s2, idx) => {
+    const cat = s2.skill.category;
+    const specialShownToVoleur = selectedCat === "voleur" && String(s2.skill.name ?? "").toLowerCase() === "buff permanent";
+    if (cat !== selectedCat && !specialShownToVoleur)
+      return;
+    const meetsCat = true;
+    if (!hasLearnedSkill(p2, s2.skill) && p2.level >= s2.unlockLevel && p2.skillPoints > 0 && meetsCat) {
+      const btn = document.querySelector(`[data-idx='${idx}']`);
+      if (btn) {
+        btn.addEventListener("click", () => {
+          const sid = String(s2.skill.skillId ?? "");
+          if (sid) {
+            const learned = getLearnedSkillIds2(p2);
+            if (!learned.includes(sid))
+              learned.push(sid);
+            p2.learnedSkillIds = learned;
+          }
+          p2.skillPoints = Math.max(0, Math.floor(p2.skillPoints ?? 0) - 1);
+          showUnlearnedCompetences(selectedIdx);
+        });
+      }
+    }
+  });
+  document.getElementById("retourCompetencesBtn")?.addEventListener("click", () => showCompetencesFor(selectedIdx));
+  document.getElementById("retourSelectionBtn")?.addEventListener("click", showCompetences);
+}
+var init_competences_web = __esm({
+  "dist/village/competences.web.js"() {
+    "use strict";
+    init_index_web();
+    init_utils_web();
+    init_skillUi_web();
+    init_utils_web();
+    init_passives();
+    init_party_web();
+    init_talentTree_web();
+  }
+});
+
 // dist/village/villageMain.web.js
 var villageMain_web_exports = {};
 __export(villageMain_web_exports, {
@@ -85621,7 +84821,7 @@ function showVillage() {
         <button class="btn" style="position:absolute;top:2%;right:2%;z-index:2;" id="retourBtn">Retour accueil</button>
     `;
   document.getElementById("retourBtn")?.addEventListener("click", showAccueil);
-  document.getElementById("maisonBtn")?.addEventListener("click", () => showMaisonDeplacement({ onBack: showVillage }));
+  document.getElementById("maisonBtn")?.addEventListener("click", () => showBoaravenWorldMap({ onBack: showVillage, startMapId: "boaraven_house", startEntry: { x: 4, y: 7 } }));
   document.getElementById("combattreBtn")?.addEventListener("click", () => showForetMenu({ onBack: showVillage }));
   document.getElementById("aubergeBtn")?.addEventListener("click", () => showAuberge());
   document.getElementById("boutiqueBtn")?.addEventListener("click", () => showBoutique());
@@ -85649,10 +84849,10 @@ function showAuberge(opts) {
         <img src="ImagesRPG/imagesfond/auberge_Boaraven.jpeg" class="background" alt="Int\xE9rieur de taverne">
 
         <!-- PNJ buttons positioned on top of the background (top:30%) -->
-        <div class="auberge-pnjs" style="position:absolute;top:30%;left:0;right:0;height:0;z-index:3;pointer-events:none;">
-            <button id="pnjBtn1" class="auberge-pnj" aria-label="PNJ 1" title="PNJ 1" style="position:absolute;left:10%;top:0;transform:translateY(-50%);width:56px;height:56px;border-radius:999px;pointer-events:auto;background:rgba(255,255,255,0.85);border:1px solid rgba(0,0,0,0.12);box-shadow:0 2px 8px rgba(0,0,0,0.25);"></button>
+        <div class="auberge-pnjs" style="position:absolute;top:12%;left:0;right:0;height:0;z-index:3;pointer-events:none;">
+            <button id="pnjBtn1" class="auberge-pnj" aria-label="PNJ 1" title="PNJ 1" style="position:absolute;left:10%;top:0;transform:none;width:118px;height:118px;border-radius:0;pointer-events:auto;background:transparent url('ImagesRPG/imagespersonnage/portrait_Villageois Cartoon J.png') center/cover no-repeat;border:none;box-shadow:none;"></button>
             <button id="pnjBtn2" class="auberge-pnj" aria-label="PNJ 2" title="PNJ 2" style="position:absolute;left:30%;top:0;transform:translateY(-50%);width:56px;height:56px;border-radius:999px;pointer-events:auto;background:rgba(255,255,255,0.85);border:1px solid rgba(0,0,0,0.12);box-shadow:0 2px 8px rgba(0,0,0,0.25);"></button>
-            <button id="pnjBtn3" class="auberge-pnj" aria-label="PNJ 3" title="PNJ 3" style="position:absolute;right:30%;top:0;transform:translateY(-50%);width:56px;height:56px;border-radius:999px;pointer-events:auto;background:rgba(255,255,255,0.85);border:1px solid rgba(0,0,0,0.12);box-shadow:0 2px 8px rgba(0,0,0,0.25);"></button>
+            <button id="pnjBtn3" class="auberge-pnj" aria-label="PNJ 3" title="PNJ 3" style="position:absolute;right:30%;top:0;transform:none;width:118px;height:118px;border-radius:0;pointer-events:auto;background:transparent url('ImagesRPG/imagespersonnage/portrait1.1.png') center/cover no-repeat;border:none;box-shadow:none;"></button>
             <button id="pnjBtn4" class="auberge-pnj" aria-label="PNJ 4" title="PNJ 4" style="position:absolute;right:15%;top:0;transform:translateY(-50%);width:56px;height:56px;border-radius:999px;pointer-events:auto;background:rgba(255,255,255,0.85);border:1px solid rgba(0,0,0,0.12);box-shadow:0 2px 8px rgba(0,0,0,0.25);"></button>
         </div>
 
@@ -86208,7 +85408,7 @@ function showPersonnage() {
   });
 }
 function showMaison() {
-  showMaisonDeplacement({ onBack: showVillage });
+  showBoaravenWorldMap({ onBack: showVillage, startMapId: "boaraven_house", startEntry: { x: 4, y: 7 } });
 }
 var hasPlayedAubergeIntroAudio;
 var init_villageMain_web = __esm({
@@ -86226,11 +85426,11 @@ var init_villageMain_web = __esm({
     init_party_web();
     init_styles_web();
     init_uiNotifications();
-    init_houseMovement_web();
     init_market_web();
     init_daySystem_web();
     init_itemIcons_web();
     init_dialogueManager_web();
+    init_worldMap_web();
     hasPlayedAubergeIntroAudio = false;
   }
 });
@@ -86313,7 +85513,7 @@ function showCombat(enemyLevel = hero.level, options = {}) {
   }
   {
     const cls = String(player.characterClass ?? "").toLowerCase();
-    const baseApMax = cls === "voleur" ? 4 : 3;
+    const baseApMax = ["voleur", "mage", "guerrier"].includes(cls) ? 4 : 3;
     player.actionPointsMax = Math.max(1, Math.floor(baseApMax));
     player.actionPoints = player.actionPointsMax;
   }

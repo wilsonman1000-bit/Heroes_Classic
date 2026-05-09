@@ -544,7 +544,7 @@ var init_passives = __esm({
       blocage_guerrier: {
         id: "blocage_guerrier",
         name: "Blocage de guerrier",
-        description: "Quand Blocage est actif, renvoie les d\xE9g\xE2ts re\xE7us \xE0 l\u2019attaquant.",
+        description: "Modifie Blocage: l effet dure 1 tour au lieu de ne bloquer que la prochaine attaque.",
         unlockLevel: 2,
         costSkillPoints: 1,
         category: "guerrier",
@@ -688,7 +688,7 @@ var init_skillLibrary = __esm({
         return s2;
       },
       basic_attack: () => new Damageskill("A", "Fait une attaque de base", "Attaque de base", 1, 20, 1),
-      block: () => new DefenseSkill("B", "R\xE9duit les d\xE9g\xE2ts re\xE7us de 50% pendant 1 tour", "Blocage", 0.5, 1, 0, 1),
+      block: () => new DefenseSkill("B", "R\xE9duit de 50% les d\xE9g\xE2ts de la prochaine attaque re\xE7ue", "Blocage", 0.5, 1, 0, 2),
       mana_gain: () => new ManaSkill("M", "R\xE9g\xE9n\xE8re 20 mana", "Gain de mana", 0, 1),
       tir_a_l_arc: () => {
         const s2 = new Damageskill("ARC", "Tir \xE0 l'arc \xE0 distance (200% de l'attaque). Port\xE9e 4 en carr\xE9. Bonus: +20% chance de coup critique si la cible est sur une diagonale.", "Tir \xE0 l'arc", 2, 25, 2);
@@ -917,8 +917,8 @@ function ensureParty() {
       force: 10,
       sante: cls === "guerrier" ? 10 : cls === "voleur" ? 8 : 6,
       vitesse: 2,
-      magie: 10,
-      energie: 40,
+      magie: cls === "mage" ? 5 : 4,
+      energie: cls === "mage" ? 8 : 6,
       critique: 0,
       defense: 0
     };
@@ -1246,7 +1246,7 @@ var init_player = __esm({
         if ((anyChar.energie ?? 0) <= 0) {
           const legacyPuissance = Math.max(0, Math.floor(Number(anyChar.puissance ?? 0)));
           const legacyManaRegen = Math.max(0, Math.floor(Number(this.manaRegenPerTurn ?? 0)));
-          anyChar.energie = legacyPuissance > 0 ? legacyPuissance : legacyManaRegen;
+          anyChar.energie = legacyPuissance > 0 ? legacyPuissance : Math.floor(legacyManaRegen / _Player.MANA_REGEN_PER_ENERGIE);
         }
       }
       syncDerivedStatsFromCharacteristics(opts = {}) {
@@ -1262,7 +1262,7 @@ var init_player = __esm({
         this.maxPv = Math.max(1, Math.floor(baseMaxPv - hpPenalty));
         this.maxMana = Math.max(0, Math.floor(baseMaxMana + manaBonus));
         this.baseAttack = force;
-        this.manaRegenPerTurn = energie;
+        this.manaRegenPerTurn = energie * _Player.MANA_REGEN_PER_ENERGIE;
         if (opts.fillResources) {
           this.pv = this.effectiveMaxPv;
           this.currentMana = this.effectiveMaxMana;
@@ -1915,6 +1915,7 @@ var init_player = __esm({
         return cloned;
       }
     };
+    __publicField(_Player, "MANA_REGEN_PER_ENERGIE", 5);
     __publicField(_Player, "HP_PER_SANTE", 10);
     __publicField(_Player, "MANA_PER_MAGIE", 10);
     Player = _Player;
@@ -2053,12 +2054,13 @@ function showTemporaryMessage(msg, ms = 2e3) {
     el.style.left = "50%";
     el.style.top = "6%";
     el.style.transform = "translateX(-50%)";
-    el.style.zIndex = "60";
+    el.style.zIndex = "10020";
     el.style.background = "rgba(0,0,0,0.85)";
     el.style.color = "#fff";
     el.style.padding = "10px 18px";
     el.style.borderRadius = "8px";
     el.style.boxShadow = "0 4px 20px rgba(0,0,0,0.6)";
+    el.style.pointerEvents = "none";
     el.style.opacity = "0";
     el.style.transition = "opacity 200ms ease";
     document.body.appendChild(el);
@@ -2223,7 +2225,7 @@ var init_questManager = __esm({
         if (!progress)
           return { ok: false, error: `Qu\xEAte non d\xE9marr\xE9e: ${String(id)}` };
         if (progress.status === "claimed")
-          return { ok: true };
+          return { ok: true, questName: def.name };
         if (progress.status !== "completed")
           return { ok: false, error: `Qu\xEAte non termin\xE9e: ${def.name}` };
         let rewardText = null;
@@ -2245,6 +2247,7 @@ var init_questManager = __esm({
           if (String(def.id) === "auberge_demarrage") {
             const b2 = this.defs["bring_wood_festival"];
             const k2 = this.defs["kill_gobelin_lvl5"];
+            const k22 = this.defs["kill_gobelin_lvl2"];
             if (b2) {
               b2.manualStartAllowed = true;
               b2.__newlyUnlocked = true;
@@ -2253,12 +2256,16 @@ var init_questManager = __esm({
               k2.manualStartAllowed = true;
               k2.__newlyUnlocked = true;
             }
+            if (k22) {
+              k22.manualStartAllowed = true;
+              k22.__newlyUnlocked = true;
+            }
             try {
               showTemporaryMessage("L'aubergiste propose de nouvelles qu\xEAtes (disponibles dans le panneau Qu\xEAtes).", 4e3);
             } catch {
             }
             try {
-              const ev = new CustomEvent("quest:unlocked", { detail: { ids: ["bring_wood_festival", "kill_gobelin_lvl5"] } });
+              const ev = new CustomEvent("quest:unlocked", { detail: { ids: ["bring_wood_festival", "kill_gobelin_lvl5", "kill_gobelin_lvl2"] } });
               document.dispatchEvent(ev);
             } catch {
             }
@@ -2284,7 +2291,7 @@ var init_questManager = __esm({
           }
         } catch {
         }
-        return { ok: true };
+        return { ok: true, ...rewardText ? { rewardText } : {}, questName: def.name };
       }
       log(msg) {
         console.log("[Quest]", msg);
@@ -2383,6 +2390,28 @@ var init_quests = __esm({
         ],
         rewards: { xp: 50, gold: 20, campfire: 1 }
       },
+      talk_to_innkeeper_after_first_steps: {
+        id: "talk_to_innkeeper_after_first_steps",
+        name: "Retourner \xE0 l'auberge",
+        description: "Retourne parler \xE0 l'aubergiste.",
+        manualStartAllowed: false,
+        steps: [
+          {
+            id: "talk_aubergiste",
+            title: "Parler \xE0 l'aubergiste",
+            objectives: [
+              {
+                id: "talk_aubergiste",
+                description: "Parler \xE0 l'aubergiste",
+                type: "flag",
+                eventType: "talk_npc",
+                match: (e2) => e2.type === "talk_npc" && e2.npcId === "aubergiste"
+              }
+            ]
+          }
+        ],
+        rewards: { xp: 20, gold: 10 }
+      },
       bring_wood_festival: {
         id: "bring_wood_festival",
         name: "Bois pour la f\xEAte",
@@ -2436,29 +2465,53 @@ var init_quests = __esm({
       kill_gobelin_lvl5: {
         id: "kill_gobelin_lvl5",
         name: "Chasse gobelinesque",
-        description: "Tue un gobelin de niveau 5 (ou plus).",
+        description: "Vaincs le donjon de la for\xEAt clairi\xE8re.",
         // Indisponible manuellement au départ : débloquée après "auberge_demarrage"
         prerequisiteClaimedQuestId: "auberge_demarrage",
         hiddenUntilClaimedQuestId: "auberge_demarrage",
         manualStartAllowed: false,
         steps: [
           {
-            id: "kill_gobelin_5",
-            title: "Cible: Gobelin niv.5",
+            id: "clear_forest_clearing_dungeon",
+            title: "Donjon de la clairi\xE8re",
             objectives: [
               {
-                id: "kill_gobelin_5",
-                description: "Tue un gobelin de niveau >= 5",
-                type: "counter",
-                eventType: "win_tactical",
-                target: 1,
-                match: (e2) => e2.type === "win_tactical" && e2.enemyId === "gobelin" && e2.enemyLevel >= 5,
-                amount: () => 1
+                id: "clear_forest_clearing_dungeon",
+                description: "Vaincre le donjon de la for\xEAt clairi\xE8re",
+                type: "flag",
+                eventType: "clear_dungeon",
+                match: (e2) => e2.type === "clear_dungeon" && e2.dungeonId === "forest_clearing"
               }
             ]
           }
         ],
         rewards: { xp: 150, gold: 50 }
+      },
+      kill_gobelin_lvl2: {
+        id: "kill_gobelin_lvl2",
+        name: "Prime sur les gobelins",
+        description: "Tue un gobelin de niveau 2 (ou plus).",
+        prerequisiteClaimedQuestId: "auberge_demarrage",
+        hiddenUntilClaimedQuestId: "auberge_demarrage",
+        manualStartAllowed: false,
+        steps: [
+          {
+            id: "kill_gobelin_2",
+            title: "Cible: Gobelin niv.2",
+            objectives: [
+              {
+                id: "kill_gobelin_2",
+                description: "Tue un gobelin de niveau >= 2",
+                type: "counter",
+                eventType: "win_tactical",
+                target: 1,
+                match: (e2) => e2.type === "win_tactical" && e2.enemyId === "gobelin" && e2.enemyLevel >= 2,
+                amount: () => 1
+              }
+            ]
+          }
+        ],
+        rewards: { xp: 90, gold: 35 }
       }
     };
   }
@@ -3299,7 +3352,7 @@ function showMarche(options) {
         `;
   };
   app2.innerHTML = `
-        <img src="https://i.pinimg.com/originals/af/ea/54/afea54a4884f91e673872f822a0c72e6.jpg" class="background" alt="March\xE9">
+        <img src="ImagesRPG/imagesfond/march\xE9.png" class="background" alt="March\xE9">
         <div class="centered-content" style="padding-top:26px;max-width:1100px;">
             <h1>March\xE9</h1>
 
@@ -3630,8 +3683,12 @@ var init_game = __esm({
         this.audioManager = new AudioManager();
         this.questManager = new QuestManager(hero2, QUEST_DEFS);
         this.audioManager.loadSound("background", "sounds/musique.mp3", true, 0.1);
+        this.audioManager.loadSound("mozart_piano_concerto_23_adagio", "sounds/musique/Helene_Grimaud_-_Mozart_Piano_Concerto_No (mp3cut.net).mp3", true, 0.42);
+        this.audioManager.loadSound("voix_tuto_map", "sounds/VOIX PNJ/voix_tuto_map.mp3", false, 0.9);
+        this.audioManager.loadSound("boaraven_baby_crying", "sounds/VOIX PNJ/child-whines.mp3", true, 0.85);
+        this.audioManager.loadSound("boaraven_baby_naughty", "sounds/VOIX PNJ/sound-the-child-is-naughty.mp3", false, 0.9);
         this.audioManager.loadSound("pnjintro", "sounds/Pnjintroaudio.mp3", false, 0.9);
-        this.audioManager.loadSound("auberge", "sounds/aubergesound.mp3", true, 0.9);
+        this.audioManager.loadSound("auberge", "sounds/aubergesound.mp3", true, 0.45);
         this.audioManager.loadSound("riremalefique", "sounds/riremalefique.mp3", false, 0.5);
         this.audioManager.loadSound("attaque", "sounds/attaqueaudio.mp3", false, 0.9);
         this.audioManager.loadSound("bouledefeu", "sounds/bouledefeu.mp3", false, 0.9);
@@ -4121,6 +4178,9 @@ function getEffectiveSkillForCaster(skill, caster) {
   if (caster.hasPassive?.("blocage_mage")) {
     return new DefenseSkill(skill.key, skill.description, skill.name, skill.defenseAmount, skill.duration, -10, skill.actionPoints);
   }
+  if (caster.hasPassive?.("blocage_guerrier")) {
+    return new DefenseSkill(skill.key, "R\xE9duit les d\xE9g\xE2ts re\xE7us de 50% pendant 1 tour", skill.name, skill.defenseAmount, skill.duration, skill.manaCost, skill.actionPoints);
+  }
   return skill;
 }
 function applyPlayerSkillTurn(params) {
@@ -4325,19 +4385,17 @@ function applyPlayerSkillTurn(params) {
     }
   } else if (skill instanceof DefenseSkill) {
     const dur = skill.duration <= 0 ? -1 : skill.duration;
-    const reflectDamage = !!(skill.name === "Blocage" && caster.hasPassive?.("blocage_guerrier"));
+    const blockPersistsFullTurn = baseSkillId === "block" && caster.hasPassive?.("blocage_guerrier");
     caster.activeEffects.push({
       type: "defense",
       amount: skill.defenseAmount,
       remainingTurns: dur,
       sourceSkill: skill.name,
       sourceSkillId: baseSkillId,
-      reflectDamage,
-      // Only the warrior-style block should persist for the full turn (not expire on first hit).
-      // Detect either the warrior class or the specific warrior block passive.
-      expireOnHit: baseSkillId === "block" && (caster.hasPassive?.("blocage_guerrier") || String(caster.characterClass ?? "").toLowerCase() === "guerrier") ? false : true
+      reflectDamage: false,
+      expireOnHit: baseSkillId === "block" ? !blockPersistsFullTurn : true
     });
-    message = `${caster.name} utilise ${skill.name} et r\xE9duira les d\xE9g\xE2ts re\xE7us de ${Math.round(skill.defenseAmount * 100)}%` + (skill.duration > 0 ? ` pendant ${skill.duration} tour(s)` : " pendant tout le combat");
+    message = `${caster.name} utilise ${skill.name} et ` + (baseSkillId === "block" && !blockPersistsFullTurn ? `r\xE9duira de ${Math.round(skill.defenseAmount * 100)}% les d\xE9g\xE2ts de la prochaine attaque re\xE7ue` : `r\xE9duira les d\xE9g\xE2ts re\xE7us de ${Math.round(skill.defenseAmount * 100)}%${skill.duration > 0 ? ` pendant ${skill.duration} tour(s)` : " pendant tout le combat"}`);
   } else if (skill instanceof ManaRegenBuffSkill) {
     const dur = skill.duration <= 0 ? -1 : skill.duration;
     caster.activeEffects.push({
@@ -4565,6 +4623,8 @@ function getSkillIconSrc(skill) {
   const n2 = skill.name.toLowerCase();
   if (skillId === "shuriken" || n2.includes("shuriken"))
     return "./ImagesRPG/imagesobjets/kunai.png";
+  if (skillId === "charge" || n2 === "charge")
+    return "./ImagesRPG/imageskill/icone_sort_charge.png";
   if (skill.type === "movement" || n2.includes("t\xE9l\xE9port") || n2.includes("teleport"))
     return "./ImagesRPG/imageskill/iconemana.png";
   if (skill.type === "mana" || n2.includes("gain de mana") || n2.includes("regen mana") || n2.includes("regen") && n2.includes("mana"))
@@ -5689,16 +5749,24 @@ function createQuickSkirmishFromParty(alliesParty, enemySetup = {}) {
     a2.name = p2.name || `Alli\xE9 ${idx + 1}`;
     return a2;
   });
-  const enemyId = enemySetup.enemyId ?? "gobelin";
-  const enemyLevel = Math.max(1, Math.floor(enemySetup.enemyLevel ?? 1));
-  const enemyCount = Math.max(1, Math.floor(enemySetup.enemyCount ?? 3));
+  const fallbackEnemyId = enemySetup.enemyId ?? "gobelin";
+  const fallbackEnemyLevel = Math.max(1, Math.floor(enemySetup.enemyLevel ?? 1));
+  const fallbackEnemyCount = Math.max(1, Math.floor(enemySetup.enemyCount ?? 3));
+  const enemyGroups = Array.isArray(enemySetup.enemyGroups) && enemySetup.enemyGroups.length ? enemySetup.enemyGroups : [{ enemyId: fallbackEnemyId, enemyLevel: fallbackEnemyLevel, enemyCount: fallbackEnemyCount }];
   const enemies = [];
-  for (let i2 = 0; i2 < enemyCount; ++i2) {
-    const idToCreate = enemyId === "gobelin" && i2 === 0 ? "gobelin_archer" : enemyId === "chef_gobelin" && i2 === 1 ? "sergent_gobelin" : enemyId;
-    const e2 = createEnemy(idToCreate, enemyLevel);
-    e2.level = enemyLevel;
-    e2.name = `${e2.name.split(" niveau ")[0]} ${i2 + 1}`;
-    enemies.push(e2);
+  let enemyOrdinal = 0;
+  for (const group of enemyGroups) {
+    const groupEnemyId = group.enemyId ?? fallbackEnemyId;
+    const groupEnemyLevel = Math.max(1, Math.floor(group.enemyLevel ?? fallbackEnemyLevel));
+    const groupEnemyCount = Math.max(1, Math.floor(group.enemyCount ?? fallbackEnemyCount));
+    for (let i2 = 0; i2 < groupEnemyCount; ++i2) {
+      const idToCreate = groupEnemyId === "gobelin" && i2 === 0 ? "gobelin_archer" : groupEnemyId === "chef_gobelin" && i2 === 1 ? "sergent_gobelin" : groupEnemyId;
+      const e2 = createEnemy(idToCreate, groupEnemyLevel);
+      e2.level = groupEnemyLevel;
+      e2.name = `${e2.name.split(" niveau ")[0]} ${enemyOrdinal + 1}`;
+      enemies.push(e2);
+      enemyOrdinal += 1;
+    }
   }
   const mkUnit = (id, actor, team, pos, enemyIndex) => {
     const effectiveMaxPv = Math.max(1, Math.floor(actor.effectiveMaxPv ?? actor.maxPv ?? 1));
@@ -5749,6 +5817,7 @@ function createQuickSkirmishFromParty(alliesParty, enemySetup = {}) {
     ...enemies.map((e2, i2) => mkUnit(`enemy-${i2 + 1}`, e2, "enemies", enemyPositionForIndex(i2), i2 + 1))
   ];
   const turnOrder = computeTurnOrder(units);
+  const logEnemySummary = enemyGroups.length > 1 ? `${enemies.length} ennemis` : `${enemies.length} ${fallbackEnemyId}(s) (niv ${fallbackEnemyLevel})`;
   return {
     width: 9,
     height: 9,
@@ -5759,7 +5828,7 @@ function createQuickSkirmishFromParty(alliesParty, enemySetup = {}) {
     activeUnitId: null,
     // Canonical tactical mode: turn order determined by speed/initiative.
     turnMode: "speed",
-    log: [`Escarmouche plateau: 3 alli\xE9s vs ${enemyCount} ${enemyId}(s) (niv ${enemyLevel})`, "Ordre des tours: vitesse (initiative)."]
+    log: [`Escarmouche plateau: 3 alli\xE9s vs ${logEnemySummary}`, "Ordre des tours: vitesse (initiative)."]
   };
 }
 function getAliveUnits(state2) {
@@ -7195,14 +7264,14 @@ var init_talentPassives = __esm({
     "use strict";
     PASSIVE_CHARGE_DAMAGE_BOOST_NODE_ID = "passive.guerrier.barbare.t1.p0";
     PASSIVE_CHARGE_STUN_TRAVERSED_NODE_ID = "passive.guerrier.gladiateur.t1.p0";
-    PASSIVE_WARRIOR_BLOCK_CORE_NODE_ID = "passive.guerrier.core.p1";
+    PASSIVE_WARRIOR_BLOCK_CORE_NODE_ID = "passive.guerrier.core.p0";
     PASSIVE_ASSASSIN_POISON_ON_CRIT_NODE_ID = "passive.voleur.assassin.t1.p0";
     PASSIVE_ASSASSIN_COMBO_NODE_ID = "passive.voleur.assassin.t1.p1";
     TALENT_PASSIVE_NODE_DEFS = {
       [PASSIVE_WARRIOR_BLOCK_CORE_NODE_ID]: {
         id: PASSIVE_WARRIOR_BLOCK_CORE_NODE_ID,
         name: "Blocage de guerrier",
-        description: "Quand Blocage est actif, renvoie les d\xE9g\xE2ts re\xE7us \xE0 l\u2019attaquant.",
+        description: "Modifie Blocage: l effet dure 1 tour au lieu de ne bloquer que la prochaine attaque.",
         grantsPassiveId: "blocage_guerrier"
       },
       [PASSIVE_CHARGE_DAMAGE_BOOST_NODE_ID]: {
@@ -73811,19 +73880,53 @@ function showTacticalSkirmish(options = {}) {
       }
     }
   }
-  const enemyId = options.enemyId ?? "gobelin";
-  const enemyCount = Math.max(1, Math.floor(Number(options.enemyCount ?? 3)));
+  const fallbackEnemyId = options.enemyId ?? "gobelin";
+  const fallbackEnemyCount = Math.max(1, Math.floor(Number(options.enemyCount ?? 3)));
   const baseEnemyLevel = Math.max(1, Math.floor(Number(options.enemyLevel ?? hero.level ?? 1)));
+  const defaultWaveSetup = { enemyId: fallbackEnemyId, enemyCount: fallbackEnemyCount, enemyLevel: baseEnemyLevel };
+  const waveSetups = Array.isArray(options.waves) && options.waves.length ? options.waves : [defaultWaveSetup];
+  let currentWaveIndex = 0;
+  let enemyId = fallbackEnemyId;
+  let enemyCount = fallbackEnemyCount;
   let enemyLevel = baseEnemyLevel;
   let baseRewardsAppliedForThisFight = false;
   let questVictoryNotifiedForThisFight = false;
+  const getCurrentWaveSetup = () => waveSetups[Math.min(currentWaveIndex, waveSetups.length - 1)] ?? defaultWaveSetup;
+  const resolveWavePrimaryEnemyId = (setup) => {
+    const firstGroup = Array.isArray(setup.enemyGroups) && setup.enemyGroups.length ? setup.enemyGroups[0] : null;
+    return firstGroup?.enemyId ?? setup.enemyId ?? fallbackEnemyId;
+  };
+  const resolveWaveEnemyCount = (setup) => {
+    if (Array.isArray(setup.enemyGroups) && setup.enemyGroups.length) {
+      return setup.enemyGroups.reduce((sum, group) => sum + Math.max(1, Math.floor(Number(group?.enemyCount ?? 1))), 0);
+    }
+    return Math.max(1, Math.floor(Number(setup.enemyCount ?? fallbackEnemyCount)));
+  };
+  const resolveWaveEnemyLevel = (setup) => {
+    const firstGroup = Array.isArray(setup.enemyGroups) && setup.enemyGroups.length ? setup.enemyGroups[0] : null;
+    return Math.max(1, Math.floor(Number(firstGroup?.enemyLevel ?? setup.enemyLevel ?? baseEnemyLevel)));
+  };
+  const updateWaveContext = () => {
+    const setup = getCurrentWaveSetup();
+    enemyId = resolveWavePrimaryEnemyId(setup);
+    enemyCount = resolveWaveEnemyCount(setup);
+    enemyLevel = resolveWaveEnemyLevel(setup);
+  };
+  const hasNextWave = () => isDonjon && currentWaveIndex < waveSetups.length - 1;
+  updateWaveContext();
   const rewardMultiplierForLevel = (lvl) => {
     const steps = isDonjon ? Math.max(0, Math.floor(lvl) - baseEnemyLevel) : 0;
     return Math.min(2, 1 + steps * 0.25);
   };
   const sessionParty = getPartyMembers().slice(0, 3);
   const buildState = () => {
-    const s2 = createQuickSkirmishFromParty(sessionParty, { enemyId, enemyLevel, enemyCount });
+    const setup = getCurrentWaveSetup();
+    const s2 = createQuickSkirmishFromParty(sessionParty, {
+      enemyId,
+      enemyLevel,
+      enemyCount,
+      ...Array.isArray(setup.enemyGroups) && setup.enemyGroups.length ? { enemyGroups: setup.enemyGroups } : {}
+    });
     s2.__adventureMode = true;
     return s2;
   };
@@ -74140,12 +74243,23 @@ function showTacticalSkirmish(options = {}) {
     playTacticalSkillAudio(skill, audioManager);
   };
   const computeBaseRewardsForFight = () => {
-    const enemy = createEnemy(enemyId, enemyLevel);
-    const mult = rewardMultiplierForLevel(enemyLevel);
-    const totalXp = Math.max(0, Math.floor((enemy.xpReward ?? 0) * enemyCount * mult));
-    const totalGold = Math.max(0, Math.floor((enemy.goldReward ?? 0) * enemyCount * mult));
-    const totalWood = Math.max(0, Math.floor(Number(enemy.woodReward ?? 0) * enemyCount * mult));
-    const totalHerb = Math.max(0, Math.floor(Number(enemy.herbReward ?? 0) * enemyCount * mult));
+    const setup = getCurrentWaveSetup();
+    const groups = Array.isArray(setup.enemyGroups) && setup.enemyGroups.length ? setup.enemyGroups : [{ enemyId, enemyLevel, enemyCount }];
+    let totalXp = 0;
+    let totalGold = 0;
+    let totalWood = 0;
+    let totalHerb = 0;
+    for (const group of groups) {
+      const groupEnemyId = group.enemyId ?? enemyId;
+      const groupEnemyLevel = Math.max(1, Math.floor(Number(group.enemyLevel ?? enemyLevel)));
+      const groupEnemyCount = Math.max(1, Math.floor(Number(group.enemyCount ?? 1)));
+      const enemy = createEnemy(groupEnemyId, groupEnemyLevel);
+      const mult = rewardMultiplierForLevel(groupEnemyLevel);
+      totalXp += Math.max(0, Math.floor((enemy.xpReward ?? 0) * groupEnemyCount * mult));
+      totalGold += Math.max(0, Math.floor((enemy.goldReward ?? 0) * groupEnemyCount * mult));
+      totalWood += Math.max(0, Math.floor(Number(enemy.woodReward ?? 0) * groupEnemyCount * mult));
+      totalHerb += Math.max(0, Math.floor(Number(enemy.herbReward ?? 0) * groupEnemyCount * mult));
+    }
     return { xp: totalXp, gold: totalGold, wood: totalWood, herb: totalHerb };
   };
   const applyBaseRewardsIfNeeded = () => {
@@ -74269,10 +74383,9 @@ function showTacticalSkirmish(options = {}) {
       const maxHp = Math.max(1, Math.floor(Number(a2.effectiveMaxPv ?? a2.maxPv ?? u2.maxPv ?? 1)));
       const maxMana = Math.max(0, Math.floor(Number(a2.effectiveMaxMana ?? a2.maxMana ?? 0)));
       a2.pv = maxHp;
-      a2.maxPv = maxHp;
       a2.currentMana = maxMana;
       u2.pv = Math.max(0, Math.floor(a2.pv));
-      u2.maxPv = Math.max(1, Math.floor(a2.maxPv));
+      u2.maxPv = Math.max(1, Math.floor(Number(a2.effectiveMaxPv ?? a2.maxPv ?? u2.maxPv ?? 1)));
     }
     state2.log.unshift(`Feu de camp: le groupe r\xE9cup\xE8re tous ses PV et son mana.`);
   };
@@ -74311,11 +74424,12 @@ function showTacticalSkirmish(options = {}) {
     }
   };
   const spawnNextWave = () => {
-    if (!isDonjon)
+    if (!isDonjon || !hasNextWave())
       return;
     const prevAllyPositions = state2.units.filter((u2) => u2.team === "allies").map((u2) => ({ x: u2.pos.x, y: u2.pos.y }));
     syncFromActors();
-    enemyLevel += 1;
+    currentWaveIndex += 1;
+    updateWaveContext();
     baseRewardsAppliedForThisFight = false;
     questVictoryNotifiedForThisFight = false;
     selectedSkillKey = null;
@@ -74329,7 +74443,7 @@ function showTacticalSkirmish(options = {}) {
     }
     next.__postWin = void 0;
     state2 = next;
-    state2.log.unshift(`De nouveaux ennemis apparaissent (niv ${enemyLevel}).`);
+    state2.log.unshift(`De nouveaux ennemis apparaissent.`);
     if ((state2.turnMode ?? "speed") !== "pick-alternate" && !state2.activeUnitId) {
       const msgs = advanceTurn(state2);
       for (const m2 of msgs.slice(0, 4))
@@ -74399,7 +74513,8 @@ function showTacticalSkirmish(options = {}) {
     const enemiesAlive = getTeamAliveCount(state2, "enemies");
     const combatEnded = alliesAlive === 0 || enemiesAlive === 0;
     const won = combatEnded && enemiesAlive === 0;
-    if (won)
+    const hasUpcomingWave = won && hasNextWave();
+    if (won && !hasUpcomingWave)
       notifyCombatEnd("won");
     const baseRewards = won ? computeBaseRewardsForFight() : { xp: 0, gold: 0, wood: 0, herb: 0 };
     if (won)
@@ -74417,7 +74532,7 @@ function showTacticalSkirmish(options = {}) {
         console.error("[quest] win_tactical emit error", e2);
       }
     }
-    const postWin = won && isDonjon ? ensurePostWinState(baseRewards.xp, baseRewards.gold) : null;
+    const postWin = won && isDonjon && hasUpcomingWave ? ensurePostWinState(baseRewards.xp, baseRewards.gold) : null;
     const inPostWin = Boolean(postWin && postWin.active);
     syncFromActors();
     const active = state2.activeUnitId ? getUnitById(state2, state2.activeUnitId) : void 0;
@@ -74437,7 +74552,8 @@ function showTacticalSkirmish(options = {}) {
         return;
       selectedSkillKey = null;
     };
-    const title = `Combat plateau \u2014 ${enemyId} (niv ${enemyLevel})`;
+    const currentWaveSetup = getCurrentWaveSetup();
+    const title = Array.isArray(currentWaveSetup.enemyGroups) && currentWaveSetup.enemyGroups.length > 1 ? `Combat plateau \u2014 Donjon (vague ${currentWaveIndex + 1})` : `Combat plateau \u2014 ${enemyId} (niv ${enemyLevel})`;
     const turnInfo = active ? `Tour: ${active.name}` : "Tour";
     const isSpeedTurnMode = (state2.turnMode ?? "speed") !== "pick-alternate";
     const getPortraitSrc = (u2) => {
@@ -76444,6 +76560,18 @@ function enemyImageSrc(enemyId) {
   const src = String(def?.image ?? "");
   return src || "ImagesRPG/imagespersonnage/trueennemi.png";
 }
+function encounterLabelText(map, tile) {
+  const encounter = tile?.encounter;
+  if (!encounter)
+    return "";
+  const enemyId = String(encounter.enemyId ?? "").trim();
+  const def = ENEMY_DEFS[enemyId];
+  const name = String(def?.name ?? enemyId ?? "Ennemi").trim() || "Ennemi";
+  const mapLevelRaw = Number(map?.meta?.encounterLevel);
+  const mapLevel = Number.isFinite(mapLevelRaw) ? Math.max(1, Math.floor(mapLevelRaw)) : 1;
+  const level = Math.max(1, Math.floor(Number(encounter.enemyLevel ?? mapLevel)));
+  return `${name} niv. ${level}`;
+}
 function getApp2() {
   return window.__pixiApp;
 }
@@ -76923,6 +77051,22 @@ function drawBoard(PIXI, s2) {
         }
       });
       s2.markersLayer.addChild(sprite);
+      const label = encounterLabelText(map, t2);
+      if (label) {
+        const text2 = new PIXI.Text({
+          text: label,
+          style: {
+            fontSize: Math.max(9, Math.floor(layout.tileH * 0.22)),
+            fill: 16774111,
+            fontWeight: "800",
+            stroke: { color: 1182218, width: 3 }
+          }
+        });
+        text2.anchor.set(0.5, 1);
+        text2.x = cx;
+        text2.y = cy - layout.tileH * 0.48;
+        s2.markersLayer.addChild(text2);
+      }
       s2.enemySpriteByTile.set(`${t2.x},${t2.y}`, sprite);
       continue;
     }
@@ -76999,6 +77143,44 @@ function drawBoard(PIXI, s2) {
       s2.markersLayer.addChild(sprite);
       continue;
     }
+    if (t2.eventId === "donjon_foret_clairiere") {
+      const sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+      sprite.anchor.set(0.5, 0.64);
+      sprite.x = cx;
+      sprite.y = cy - layout.tileH * 0.04;
+      sprite.alpha = 0;
+      try {
+        sprite.zIndex = Math.floor((t2.x + t2.y) * 100 + t2.x + 50);
+      } catch {
+      }
+      const dungeonImg = "ImagesRPG/imageskill/epees.png";
+      const desiredW = Math.max(10, layout.tileW * 0.72);
+      const desiredH = Math.max(10, layout.tileH * 0.82);
+      const applySize = (tex) => {
+        const t22 = tex ?? sprite.texture;
+        const natW = Math.max(1, Number(t22?.width ?? 1));
+        const natH = Math.max(1, Number(t22?.height ?? 1));
+        if (natW <= 1 || natH <= 1)
+          return;
+        const kW = desiredW / natW;
+        const kH = desiredH / natH;
+        const k2 = Math.max(0.01, Math.min(kW, kH));
+        try {
+          sprite.scale.set(k2, k2);
+        } catch {
+        }
+      };
+      applySize();
+      setSpriteSourceAsync2(PIXI, sprite, dungeonImg, (tex) => {
+        applySize(tex);
+        try {
+          sprite.alpha = 1;
+        } catch {
+        }
+      });
+      s2.markersLayer.addChild(sprite);
+      continue;
+    }
     if (t2.eventId === "dormir") {
       const sprite = new PIXI.Sprite(PIXI.Texture.WHITE);
       sprite.anchor.set(0.5, 0.66);
@@ -77038,9 +77220,11 @@ function drawBoard(PIXI, s2) {
       continue;
     }
     let glyph = "";
-    if (t2.exit)
-      glyph = "\u2197";
-    else if (t2.npc)
+    if (t2.exit) {
+      const label = String(t2.exit.label ?? "").trim().toLowerCase();
+      const destination = String(t2.exit.to ?? "").trim().toLowerCase();
+      glyph = label === "maison" || destination.includes("house") ? "\u{1F3E0}" : "\u2197";
+    } else if (t2.npc)
       glyph = "\u{1F4AC}";
     else if (t2.eventId === "maison")
       glyph = "\u{1F3E0}";
@@ -77090,6 +77274,13 @@ function applyLeader(PIXI, s2, detail) {
   if (src)
     setSpriteSourceAsync2(PIXI, s2.leaderSprite, src, (tex) => applySize(tex));
 }
+function reapplyLeaderIfNeeded(PIXI, s2) {
+  if (!lastLeaderDetail)
+    return;
+  if (String(lastLeaderDetail.containerId ?? "") !== String(s2.containerId ?? ""))
+    return;
+  applyLeader(PIXI, s2, lastLeaderDetail);
+}
 function ensureWorldMapPixiListenerBound() {
   if (listenerBound)
     return;
@@ -77104,6 +77295,7 @@ function ensureWorldMapPixiListenerBound() {
       return;
     const s2 = ensureState(PIXI, app2, String(detail.containerId), detail.map, detail.boardRect, detail.hiddenEncounterTokens);
     drawBoard(PIXI, s2);
+    reapplyLeaderIfNeeded(PIXI, s2);
   });
   window.addEventListener("worldEnemySlide", (ev) => {
     const detail = ev?.detail;
@@ -77128,6 +77320,7 @@ function ensureWorldMapPixiListenerBound() {
     if (!sprite) {
       const s2 = ensureState(PIXI, app2, containerId, map, boardRect, hiddenEncounterTokens);
       drawBoard(PIXI, s2);
+      reapplyLeaderIfNeeded(PIXI, s2);
       return;
     }
     const canvasRect = getCanvasRect(app2);
@@ -77161,6 +77354,7 @@ function ensureWorldMapPixiListenerBound() {
         try {
           const s2 = ensureState(PIXI, app2, containerId, map, boardRect, hiddenEncounterTokens);
           drawBoard(PIXI, s2);
+          reapplyLeaderIfNeeded(PIXI, s2);
         } catch {
         }
       }
@@ -77190,6 +77384,7 @@ function ensureWorldMapPixiListenerBound() {
     if (!sprite) {
       const s2 = ensureState(PIXI, app2, containerId, map, boardRect, hiddenEncounterTokens);
       drawBoard(PIXI, s2);
+      reapplyLeaderIfNeeded(PIXI, s2);
       return;
     }
     const canvasRect = getCanvasRect(app2);
@@ -77223,6 +77418,7 @@ function ensureWorldMapPixiListenerBound() {
         try {
           const s2 = ensureState(PIXI, app2, containerId, map, boardRect, hiddenEncounterTokens);
           drawBoard(PIXI, s2);
+          reapplyLeaderIfNeeded(PIXI, s2);
         } catch {
         }
       }
@@ -77239,6 +77435,7 @@ function ensureWorldMapPixiListenerBound() {
       return;
     if (!state || state.app !== app2 || state.containerId !== String(detail.containerId))
       return;
+    lastLeaderDetail = detail;
     applyLeader(PIXI, state, detail);
   });
   let resizeRaf = 0;
@@ -77257,18 +77454,20 @@ function ensureWorldMapPixiListenerBound() {
         if (!s2)
           return;
         drawBoard(PIXI, s2);
+        reapplyLeaderIfNeeded(PIXI, s2);
       } catch {
       }
     });
   });
 }
-var listenerBound, state, textureByUrl2, texturePromiseByUrl2;
+var listenerBound, state, lastLeaderDetail, textureByUrl2, texturePromiseByUrl2;
 var init_worldMapPixi_web = __esm({
   "dist/pixi/worldMapPixi.web.js"() {
     "use strict";
     init_enemies();
     listenerBound = false;
     state = null;
+    lastLeaderDetail = null;
     textureByUrl2 = /* @__PURE__ */ new Map();
     texturePromiseByUrl2 = /* @__PURE__ */ new Map();
   }
@@ -77376,6 +77575,244 @@ var init_virtueGainDialogueFx = __esm({
   }
 });
 
+// dist/musicJukebox.web.js
+function getTrackById(trackId) {
+  const normalized = String(trackId ?? "").trim();
+  if (!normalized)
+    return void 0;
+  return JUKEBOX_TRACKS.find((track) => track.id === normalized);
+}
+function getDefaultOwnedTrackIds() {
+  return JUKEBOX_TRACKS.filter((track) => track.ownedByDefault).map((track) => track.id);
+}
+function getHeroState(hero2) {
+  if (!hero2)
+    return null;
+  const defaults = getDefaultOwnedTrackIds();
+  const owned = Array.isArray(hero2.__jukeboxOwnedTrackIds) ? hero2.__jukeboxOwnedTrackIds.map((trackId) => String(trackId ?? "").trim()).filter(Boolean) : [];
+  const mergedOwned = Array.from(/* @__PURE__ */ new Set([...defaults, ...owned]));
+  if (!mergedOwned.length && DEFAULT_TRACK_ID)
+    mergedOwned.push(DEFAULT_TRACK_ID);
+  hero2.__jukeboxOwnedTrackIds = mergedOwned;
+  const current = String(hero2.__selectedJukeboxTrackId ?? "").trim();
+  hero2.__selectedJukeboxTrackId = mergedOwned.includes(current) ? current : mergedOwned[0] ?? DEFAULT_TRACK_ID;
+  return {
+    __jukeboxOwnedTrackIds: hero2.__jukeboxOwnedTrackIds,
+    __selectedJukeboxTrackId: hero2.__selectedJukeboxTrackId
+  };
+}
+function getOwnedJukeboxTrackIds(hero2) {
+  return [...getHeroState(hero2)?.__jukeboxOwnedTrackIds ?? []];
+}
+function isJukeboxTrackOwned(hero2, trackId) {
+  return getOwnedJukeboxTrackIds(hero2).includes(String(trackId ?? "").trim());
+}
+function getSelectedJukeboxTrackId(hero2) {
+  return String(getHeroState(hero2)?.__selectedJukeboxTrackId ?? DEFAULT_TRACK_ID);
+}
+function getSelectedJukeboxTrack(hero2) {
+  return getTrackById(getSelectedJukeboxTrackId(hero2)) ?? getTrackById(DEFAULT_TRACK_ID);
+}
+function setSelectedJukeboxTrack(hero2, trackId) {
+  const track = getTrackById(trackId);
+  if (!hero2 || !track)
+    return { ok: false, error: "Musique introuvable." };
+  if (!isJukeboxTrackOwned(hero2, track.id))
+    return { ok: false, error: "Cette musique doit d'abord etre achetee." };
+  getHeroState(hero2);
+  hero2.__selectedJukeboxTrackId = track.id;
+  return { ok: true, track };
+}
+function purchaseJukeboxTrack(hero2, trackId) {
+  const track = getTrackById(trackId);
+  if (!hero2 || !track)
+    return { ok: false, error: "Musique introuvable." };
+  if (isJukeboxTrackOwned(hero2, track.id))
+    return { ok: false, error: "Vous possedez deja cette musique." };
+  const price = Math.max(0, Math.floor(Number(track.price ?? 0)));
+  const gold = Math.max(0, Math.floor(Number(hero2.gold ?? 0)));
+  if (gold < price)
+    return { ok: false, error: `Pas assez d'argent (${price} requis).` };
+  hero2.gold = gold - price;
+  const owned = getOwnedJukeboxTrackIds(hero2);
+  hero2.__jukeboxOwnedTrackIds = Array.from(/* @__PURE__ */ new Set([...owned, track.id]));
+  if (!hero2.__selectedJukeboxTrackId)
+    hero2.__selectedJukeboxTrackId = track.id;
+  return { ok: true, track, spent: price };
+}
+function playSelectedJukeboxTrack(hero2, audioManager) {
+  const track = getSelectedJukeboxTrack(hero2);
+  if (!track)
+    return void 0;
+  const isPlaying = typeof audioManager?.isPlaying === "function" ? Boolean(audioManager.isPlaying(track.audioKey)) : false;
+  if (!isPlaying) {
+    if (typeof audioManager?.pauseAllLooping === "function")
+      audioManager.pauseAllLooping(track.audioKey);
+    else if (typeof audioManager?.pauseAll === "function")
+      audioManager.pauseAll(track.audioKey);
+    if (typeof audioManager?.play === "function")
+      audioManager.play(track.audioKey);
+  }
+  return track;
+}
+var JUKEBOX_TRACKS, musicListModalEl, DEFAULT_TRACK_ID, closeMusicListModal, openMusicListModal;
+var init_musicJukebox_web = __esm({
+  "dist/musicJukebox.web.js"() {
+    "use strict";
+    init_utils_web();
+    JUKEBOX_TRACKS = [
+      {
+        id: "auberge_theme",
+        name: "Ambiance de l'auberge",
+        description: "Le morceau habituel de l'auberge.",
+        audioKey: "auberge",
+        price: 0,
+        ownedByDefault: true
+      },
+      {
+        id: "boaraven_ballad",
+        name: "Ballade de Boaraven",
+        description: "Une variation plus calme basee sur la musique principale.",
+        audioKey: "background",
+        price: 10
+      },
+      {
+        id: "mozart_piano_concerto_23_adagio",
+        name: "Mozart : Piano Concerto No 23 - Adagio",
+        description: "Un adagio pour transformer l'auberge en veritable salon musical.",
+        audioKey: "mozart_piano_concerto_23_adagio",
+        price: 10
+      }
+    ];
+    musicListModalEl = null;
+    DEFAULT_TRACK_ID = JUKEBOX_TRACKS.find((track) => track.ownedByDefault)?.id ?? JUKEBOX_TRACKS[0]?.id ?? "";
+    closeMusicListModal = () => {
+      musicListModalEl?.remove();
+      musicListModalEl = null;
+    };
+    openMusicListModal = (options) => {
+      const hero2 = options.hero;
+      if (!hero2) {
+        options.notify?.("Hero introuvable.", 2600);
+        return;
+      }
+      if (musicListModalEl) {
+        closeMusicListModal();
+      }
+      const notify2 = (message, ms = 2800) => {
+        try {
+          options.notify?.(message, ms);
+        } catch {
+        }
+      };
+      musicListModalEl = document.createElement("div");
+      musicListModalEl.id = "musicListModal";
+      musicListModalEl.style.cssText = [
+        "position:fixed",
+        "inset:0",
+        "display:flex",
+        "align-items:center",
+        "justify-content:center",
+        "background:rgba(0,0,0,0.72)",
+        "z-index:10000",
+        "padding:18px"
+      ].join(";");
+      const panel = document.createElement("div");
+      panel.style.cssText = [
+        "width:min(860px, 96vw)",
+        "max-height:min(84vh, 820px)",
+        "overflow:auto",
+        "background:linear-gradient(180deg, #18120e 0%, #0f0d0b 100%)",
+        "border:1px solid rgba(255,215,120,0.18)",
+        "border-radius:14px",
+        "padding:16px",
+        "color:#fff7ea",
+        "box-shadow:0 24px 50px rgba(0,0,0,0.45)"
+      ].join(";");
+      const renderModal = () => {
+        const owned = new Set(getOwnedJukeboxTrackIds(hero2));
+        const selectedTrackId = getSelectedJukeboxTrackId(hero2);
+        const gold = Math.max(0, Math.floor(Number(hero2.gold ?? 0)));
+        panel.innerHTML = `
+			<div style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
+				<div>
+					<div style="font-weight:900;font-size:20px;">Liste de musiques</div>
+					<div style="color:#d4c4ac;margin-top:4px;">Le pianiste te laisse acheter de nouveaux morceaux pour le jukebox.</div>
+				</div>
+				<button class="btn" id="musicListModalCloseBtn">Fermer</button>
+			</div>
+			<div style="margin-top:12px;padding:12px 14px;border-radius:12px;background:rgba(255,255,255,0.05);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+				<div>Argent disponible : <b>${gold}</b></div>
+				<div>Piste active : <b>${escapeHtml(String(getSelectedJukeboxTrack(hero2)?.name ?? "Aucune"))}</b></div>
+			</div>
+			<div style="display:flex;flex-direction:column;gap:12px;margin-top:14px;">
+				${JUKEBOX_TRACKS.map((track) => {
+          const isOwned = owned.has(track.id);
+          const isSelected = selectedTrackId === track.id;
+          const canAfford = gold >= track.price;
+          const priceLabel = track.price <= 0 ? "Inclus" : `${track.price} argent`;
+          const statusLabel = isSelected ? "En lecture" : isOwned ? "Possedee" : "A acheter";
+          return `
+						<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);padding:14px;border-radius:12px;display:flex;justify-content:space-between;gap:14px;align-items:center;">
+							<div style="min-width:0;flex:1;">
+								<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+									<div style="font-weight:800;font-size:1.05em;">${escapeHtml(track.name)}</div>
+									<span style="font-size:0.86em;padding:4px 8px;border-radius:999px;background:${isSelected ? "rgba(127, 255, 180, 0.14)" : "rgba(255,255,255,0.08)"};color:${isSelected ? "#b8ffd7" : "#e7d5bb"};">${escapeHtml(statusLabel)}</span>
+								</div>
+								<div style="color:#d7c6ae;margin-top:6px;">${escapeHtml(track.description)}</div>
+								<div style="color:#b7a58b;font-size:0.92em;margin-top:8px;">Tarif : ${escapeHtml(priceLabel)}</div>
+							</div>
+							<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+								${isOwned ? `<button class="btn" data-action="play" data-track-id="${escapeHtml(track.id)}" ${isSelected ? "disabled" : ""}>${isSelected ? "En cours" : "Jouer"}</button>` : `<button class="btn" data-action="buy" data-track-id="${escapeHtml(track.id)}" ${canAfford ? "" : "disabled"}>Acheter</button>`}
+							</div>
+						</div>
+					`;
+        }).join("")}
+			</div>
+		`;
+        panel.querySelector("#musicListModalCloseBtn")?.addEventListener("click", () => {
+          closeMusicListModal();
+        });
+        Array.from(panel.querySelectorAll("button[data-action][data-track-id]")).forEach((button) => {
+          button.addEventListener("click", () => {
+            const action = String(button.dataset.action ?? "").trim();
+            const trackId = String(button.dataset.trackId ?? "").trim();
+            if (!trackId)
+              return;
+            if (action === "buy") {
+              const result = purchaseJukeboxTrack(hero2, trackId);
+              if (!result.ok) {
+                notify2(result.error, 3e3);
+                return;
+              }
+              notify2(`Musique achetee : ${result.track.name} (-${result.spent} argent)`, 3200);
+              renderModal();
+              return;
+            }
+            if (action === "play") {
+              const result = setSelectedJukeboxTrack(hero2, trackId);
+              if (!result.ok) {
+                notify2(result.error, 3e3);
+                return;
+              }
+              playSelectedJukeboxTrack(hero2, window.game?.audioManager);
+              notify2(`Lecture : ${result.track.name}`, 2600);
+              renderModal();
+            }
+          });
+        });
+      };
+      renderModal();
+      musicListModalEl.appendChild(panel);
+      musicListModalEl.addEventListener("click", (event) => {
+        if (event.target === musicListModalEl)
+          closeMusicListModal();
+      });
+      document.body.appendChild(musicListModalEl);
+    };
+  }
+});
+
 // dist/dialogue/dialogues.js
 function notify(ctx, message, ms = 3500) {
   try {
@@ -77408,13 +77845,61 @@ function isQuestActiveOrDone(ctx, id) {
     return false;
   }
 }
-var PORTRAIT_AUBERGE_PNJ3, DIALOGUES;
+function isQuestCompleted(ctx, id) {
+  try {
+    const p2 = ctx.questManager?.getProgress?.(id);
+    return p2?.status === "completed";
+  } catch {
+    return false;
+  }
+}
+function questPreviewText(ctx, questId) {
+  const entry = (ctx.questManager?.getAll?.() ?? []).find((item) => String(item?.def?.id ?? "") === questId);
+  const def = entry?.def;
+  if (!def)
+    return "Qu\xEAte indisponible.";
+  const rewardParts = [];
+  const rewards = def.rewards ?? {};
+  const pushReward = (label, value) => {
+    const amount = Math.max(0, Math.floor(Number(value ?? 0)));
+    if (amount > 0)
+      rewardParts.push(`${amount} ${label}`);
+  };
+  pushReward("XP", rewards.xp);
+  pushReward("argent", rewards.gold);
+  pushReward("bois", rewards.wood);
+  pushReward("herbe(s)", rewards.herb);
+  pushReward("point(s) de comp\xE9tence", rewards.skillPoints);
+  pushReward("feu(x) de camp", rewards.campfire);
+  const rewardText = rewardParts.length ? rewardParts.join(", ") : "Aucune r\xE9compense.";
+  return `${String(def.description ?? "").trim() || "Qu\xEAte."}
+
+R\xE9compenses : ${rewardText}`;
+}
+function tryClaimQuest(ctx, questId, successMessage) {
+  try {
+    const res = ctx.questManager?.claim?.(questId);
+    if (res && res.ok === false) {
+      notify(ctx, String(res.error ?? "Impossible de valider."), 3500);
+      return;
+    }
+    const rewardText = String(res?.rewardText ?? "").trim();
+    const baseMessage = successMessage ?? `Qu\xEAte valid\xE9e : ${String(res?.questName ?? "").trim() || questId}`;
+    notify(ctx, rewardText ? `${baseMessage} \u2014 ${rewardText}` : baseMessage, 3200);
+  } catch {
+    notify(ctx, "Erreur de validation.", 2600);
+  }
+}
+var PORTRAIT_AUBERGE_PNJ3, PORTRAIT_BOARAVEN_BABY_CRYING, PORTRAIT_BOARAVEN_BABY_HAPPY, DIALOGUES;
 var init_dialogues = __esm({
   "dist/dialogue/dialogues.js"() {
     "use strict";
     init_quickResponses9();
     init_virtueGainDialogueFx();
+    init_musicJukebox_web();
     PORTRAIT_AUBERGE_PNJ3 = "ImagesRPG/imagespersonnage/portrait1.1.png";
+    PORTRAIT_BOARAVEN_BABY_CRYING = "ImagesRPG/imagespersonnage/villageoise_boaraven b\xE9b\xE9 pleure.png";
+    PORTRAIT_BOARAVEN_BABY_HAPPY = "ImagesRPG/imagespersonnage/villageoise_boaraven bebe happy.png";
     DIALOGUES = {
       auberge_pnj1: {
         id: "auberge_pnj1",
@@ -77438,7 +77923,7 @@ var init_dialogues = __esm({
               let claimableCount = 0;
               try {
                 const all = qm?.getAll?.() ?? [];
-                claimableCount = all.filter((x2) => x2?.progress?.status === "completed").length;
+                claimableCount = all.filter((x2) => x2?.progress?.status === "completed" && String(x2?.def?.id ?? "") !== "auberge_demarrage").length;
               } catch {
                 claimableCount = 0;
               }
@@ -77447,20 +77932,6 @@ var init_dialogues = __esm({
                 enabled: () => claimableCount > 0,
                 next: "claim"
               });
-              const hasFirstQuest = Boolean(qm?.getProgress?.("auberge_demarrage"));
-              if (!hasFirstQuest) {
-                choices.push({
-                  text: "Qu\xEAte : Premiers pas",
-                  onSelect: (ctx2) => {
-                    const res = ctx2.questManager?.start?.("auberge_demarrage");
-                    if (res && res.ok === false)
-                      notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
-                    else
-                      notify(ctx2, "Qu\xEAte accept\xE9e : Premiers pas", 3200);
-                  },
-                  next: "start"
-                });
-              }
               choices.push({ text: "Voir les qu\xEAtes disponibles", next: "offers" });
               const wood = Math.max(0, Math.floor(Number(hero2?.wood ?? 0)));
               const bringWoodActive = qm?.getProgress?.("bring_wood_festival")?.status === "active";
@@ -77498,7 +77969,7 @@ var init_dialogues = __esm({
             choices: (ctx) => {
               const qm = ctx.questManager;
               const all = qm?.getAll?.() ?? [];
-              const claimables = all.filter((x2) => x2?.progress?.status === "completed");
+              const claimables = all.filter((x2) => x2?.progress?.status === "completed" && String(x2?.def?.id ?? "") !== "auberge_demarrage");
               const choices = [];
               for (const c2 of claimables.slice(0, 7)) {
                 const id = String(c2?.def?.id ?? "");
@@ -77513,7 +77984,8 @@ var init_dialogues = __esm({
                       if (res && res.ok === false) {
                         notify(ctx2, String(res.error ?? "Impossible de valider."), 3500);
                       } else {
-                        notify(ctx2, `Qu\xEAte valid\xE9e : ${label}`, 3e3);
+                        const rewardText = String(res?.rewardText ?? "").trim();
+                        notify(ctx2, rewardText ? `Qu\xEAte valid\xE9e : ${label} \u2014 ${rewardText}` : `Qu\xEAte valid\xE9e : ${label}`, 3e3);
                       }
                     } catch {
                       notify(ctx2, "Erreur de validation.", 2600);
@@ -77543,67 +78015,119 @@ var init_dialogues = __esm({
               const canStart = (id) => {
                 if (has(id))
                   return false;
-                if (id === "bring_wood_festival" || id === "kill_gobelin_lvl5")
+                if (id === "bring_wood_festival" || id === "kill_gobelin_lvl5" || id === "kill_gobelin_lvl2")
                   return claimed("auberge_demarrage");
                 if (id === "build_campfire")
                   return claimed("bring_wood_festival");
                 return true;
               };
-              if (canStart("auberge_demarrage")) {
-                choices.push({
-                  text: "Qu\xEAte : Premiers pas",
-                  onSelect: (ctx2) => {
-                    const res = ctx2.questManager?.start?.("auberge_demarrage");
-                    if (res && res.ok === false)
-                      notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
-                    else
-                      notify(ctx2, "Qu\xEAte accept\xE9e : Premiers pas", 3200);
-                  },
-                  next: "offers"
-                });
-              }
               if (canStart("bring_wood_festival")) {
                 choices.push({
                   text: "Qu\xEAte : Bois pour la f\xEAte",
-                  onSelect: (ctx2) => {
-                    const res = ctx2.questManager?.start?.("bring_wood_festival");
-                    if (res && res.ok === false)
-                      notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
-                    else
-                      notify(ctx2, "Qu\xEAte accept\xE9e : Bois pour la f\xEAte", 3200);
-                  },
-                  next: "offers"
+                  next: "offer_bring_wood_festival"
                 });
               }
               if (canStart("kill_gobelin_lvl5")) {
                 choices.push({
                   text: "Qu\xEAte : Chasse gobelinesque",
-                  onSelect: (ctx2) => {
-                    const res = ctx2.questManager?.start?.("kill_gobelin_lvl5");
-                    if (res && res.ok === false)
-                      notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
-                    else
-                      notify(ctx2, "Qu\xEAte accept\xE9e : Chasse gobelinesque", 3200);
-                  },
-                  next: "offers"
+                  next: "offer_kill_gobelin_lvl5"
+                });
+              }
+              if (canStart("kill_gobelin_lvl2")) {
+                choices.push({
+                  text: "Qu\xEAte : Prime sur les gobelins",
+                  next: "offer_kill_gobelin_lvl2"
                 });
               }
               if (canStart("build_campfire")) {
                 choices.push({
                   text: "Qu\xEAte : Cr\xE9ation feu de camp",
-                  onSelect: (ctx2) => {
-                    const res = ctx2.questManager?.start?.("build_campfire");
-                    if (res && res.ok === false)
-                      notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
-                    else
-                      notify(ctx2, "Qu\xEAte accept\xE9e : Cr\xE9ation feu de camp", 3200);
-                  },
-                  next: "offers"
+                  next: "offer_build_campfire"
                 });
               }
               choices.push({ text: "Retour", next: "start" });
               return choices;
             }
+          },
+          offer_bring_wood_festival: {
+            id: "offer_bring_wood_festival",
+            speaker: "Aubergiste",
+            side: "left",
+            text: (ctx) => questPreviewText(ctx, "bring_wood_festival"),
+            choices: (ctx) => [
+              {
+                text: "Accepter la qu\xEAte",
+                onSelect: (ctx2) => {
+                  const res = ctx2.questManager?.start?.("bring_wood_festival");
+                  if (res && res.ok === false)
+                    notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
+                  else
+                    notify(ctx2, "Qu\xEAte accept\xE9e : Bois pour la f\xEAte", 3200);
+                },
+                next: "offers"
+              },
+              { text: "Retour", next: "offers" }
+            ]
+          },
+          offer_kill_gobelin_lvl5: {
+            id: "offer_kill_gobelin_lvl5",
+            speaker: "Aubergiste",
+            side: "left",
+            text: (ctx) => questPreviewText(ctx, "kill_gobelin_lvl5"),
+            choices: (ctx) => [
+              {
+                text: "Accepter la qu\xEAte",
+                onSelect: (ctx2) => {
+                  const res = ctx2.questManager?.start?.("kill_gobelin_lvl5");
+                  if (res && res.ok === false)
+                    notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
+                  else
+                    notify(ctx2, "Qu\xEAte accept\xE9e : Chasse gobelinesque", 3200);
+                },
+                next: "offers"
+              },
+              { text: "Retour", next: "offers" }
+            ]
+          },
+          offer_kill_gobelin_lvl2: {
+            id: "offer_kill_gobelin_lvl2",
+            speaker: "Aubergiste",
+            side: "left",
+            text: (ctx) => questPreviewText(ctx, "kill_gobelin_lvl2"),
+            choices: (ctx) => [
+              {
+                text: "Accepter la qu\xEAte",
+                onSelect: (ctx2) => {
+                  const res = ctx2.questManager?.start?.("kill_gobelin_lvl2");
+                  if (res && res.ok === false)
+                    notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
+                  else
+                    notify(ctx2, "Qu\xEAte accept\xE9e : Prime sur les gobelins", 3200);
+                },
+                next: "offers"
+              },
+              { text: "Retour", next: "offers" }
+            ]
+          },
+          offer_build_campfire: {
+            id: "offer_build_campfire",
+            speaker: "Aubergiste",
+            side: "left",
+            text: (ctx) => questPreviewText(ctx, "build_campfire"),
+            choices: (ctx) => [
+              {
+                text: "Accepter la qu\xEAte",
+                onSelect: (ctx2) => {
+                  const res = ctx2.questManager?.start?.("build_campfire");
+                  if (res && res.ok === false)
+                    notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
+                  else
+                    notify(ctx2, "Qu\xEAte accept\xE9e : Cr\xE9ation feu de camp", 3200);
+                },
+                next: "offers"
+              },
+              { text: "Retour", next: "offers" }
+            ]
           }
         }
       },
@@ -77636,31 +78160,231 @@ var init_dialogues = __esm({
           }
         }
       },
+      boaraven_villageoise_auberge: {
+        id: "boaraven_villageoise_auberge",
+        start: "start",
+        nodes: {
+          start: {
+            id: "start",
+            speaker: "Villageoise",
+            side: "left",
+            portraitSrc: "ImagesRPG/imagespersonnage/Villageoise_ Cartoon J.png",
+            text: "Va \xE0 l'auberge, tu y trouveras un toit et de quoi te sustenter.",
+            onEnter: (ctx) => {
+              try {
+                ctx.questManager?.emit?.({ type: "talk_npc", npcId: "boaraven_villageoise_auberge" });
+              } catch {
+              }
+            },
+            choices: (ctx) => {
+              const choices = [];
+              const hasFirstQuest = isQuestActiveOrDone(ctx, "auberge_demarrage");
+              const canClaimFirstQuest = isQuestCompleted(ctx, "auberge_demarrage");
+              const canOfferInnQuest = isQuestClaimed(ctx, "auberge_demarrage") && !isQuestActiveOrDone(ctx, "talk_to_innkeeper_after_first_steps");
+              if (!hasFirstQuest) {
+                choices.push({
+                  text: "Qu\xEAte : Premiers pas",
+                  next: "offer_auberge_demarrage"
+                });
+              }
+              if (canClaimFirstQuest) {
+                choices.push({
+                  text: "Valider la qu\xEAte : Premiers pas",
+                  onSelect: (ctx2) => tryClaimQuest(ctx2, "auberge_demarrage", "Qu\xEAte valid\xE9e : Premiers pas"),
+                  next: "start"
+                });
+              }
+              if (canOfferInnQuest) {
+                choices.push({
+                  text: "Qu\xEAte : Aller parler \xE0 l'aubergiste",
+                  next: "offer_talk_to_innkeeper"
+                });
+              }
+              if (isQuestActiveOrDone(ctx, "talk_to_innkeeper_after_first_steps")) {
+                choices.push({ text: "\xC0 propos de l'aubergiste\u2026", next: "quest_innkeeper" });
+              }
+              choices.push({ text: "O\xF9 se trouve l'auberge ?", next: "where_inn" });
+              choices.push({ text: "Qu'y sert-on \xE0 l'auberge ?", next: "inn_food" });
+              choices.push({ text: "Le village est-il s\xFBr ?", next: "safe_village" });
+              choices.push({ text: "Parlez-moi de Boaraven.", next: "about_boaraven" });
+              choices.push({ text: "Fermer" });
+              return choices;
+            }
+          },
+          offer_auberge_demarrage: {
+            id: "offer_auberge_demarrage",
+            speaker: "Villageoise",
+            side: "left",
+            portraitSrc: "ImagesRPG/imagespersonnage/Villageoise_ Cartoon J.png",
+            text: (ctx) => questPreviewText(ctx, "auberge_demarrage"),
+            choices: (ctx) => [
+              {
+                text: "Accepter la qu\xEAte",
+                onSelect: (ctx2) => {
+                  const res = ctx2.questManager?.start?.("auberge_demarrage");
+                  if (res && res.ok === false)
+                    notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
+                  else
+                    notify(ctx2, "Qu\xEAte accept\xE9e : Premiers pas", 3200);
+                },
+                next: "start"
+              },
+              { text: "Retour", next: "start" }
+            ]
+          },
+          offer_talk_to_innkeeper: {
+            id: "offer_talk_to_innkeeper",
+            speaker: "Villageoise",
+            side: "left",
+            portraitSrc: "ImagesRPG/imagespersonnage/Villageoise_ Cartoon J.png",
+            text: (ctx) => questPreviewText(ctx, "talk_to_innkeeper_after_first_steps"),
+            choices: (ctx) => [
+              {
+                text: "Accepter la qu\xEAte",
+                onSelect: (ctx2) => {
+                  const res = ctx2.questManager?.start?.("talk_to_innkeeper_after_first_steps");
+                  if (res && res.ok === false)
+                    notify(ctx2, String(res.error ?? "Qu\xEAte verrouill\xE9e."), 3800);
+                  else
+                    notify(ctx2, "Qu\xEAte accept\xE9e : Aller parler \xE0 l'aubergiste", 3200);
+                },
+                next: "start"
+              },
+              { text: "Retour", next: "start" }
+            ]
+          },
+          quest_innkeeper: {
+            id: "quest_innkeeper",
+            speaker: "Villageoise",
+            side: "left",
+            portraitSrc: "ImagesRPG/imagespersonnage/Villageoise_ Cartoon J.png",
+            text: "Tu t'en sors bien. Va parler \xE0 l'aubergiste, il saura quoi faire ensuite.",
+            choices: [{ text: "Compris.", next: "start" }]
+          },
+          where_inn: {
+            id: "where_inn",
+            speaker: "Villageoise",
+            side: "left",
+            portraitSrc: "ImagesRPG/imagespersonnage/Villageoise_ Cartoon J.png",
+            text: "L'auberge est juste l\xE0, \xE0 gauche. C'est l'auberge du Sanglier qui Rit ! Notre fabuleuse auberge de notre baronnie libre de Boaraven !",
+            choices: [{ text: "Retour", next: "start" }]
+          },
+          inn_food: {
+            id: "inn_food",
+            speaker: "Villageoise",
+            side: "left",
+            portraitSrc: "ImagesRPG/imagespersonnage/Villageoise_ Cartoon J.png",
+            text: "De la bonne soupe chaude et un lit douillet. Id\xE9al pour soigner ses blessures apr\xE8s une longue route.",
+            choices: [{ text: "Retour", next: "start" }]
+          },
+          safe_village: {
+            id: "safe_village",
+            speaker: "Villageoise",
+            side: "left",
+            portraitSrc: "ImagesRPG/imagespersonnage/Villageoise_ Cartoon J.png",
+            text: "Boaraven est bien gard\xE9, mais des rumeurs courent... Des voyageurs disparaissent en for\xEAt depuis quelques nuits. Restez prudents.",
+            choices: [{ text: "Retour", next: "start" }]
+          },
+          about_boaraven: {
+            id: "about_boaraven",
+            speaker: "Villageoise",
+            side: "left",
+            portraitSrc: "ImagesRPG/imagespersonnage/Villageoise_ Cartoon J.png",
+            text: "Boaraven est une baronnie libre ! Elle a \xE9t\xE9 cr\xE9\xE9e par l'alliance des villages guerriers de Boar et de Raven. Les chefs sont le Baron de Boar et le Baron de Raven. Boaraven est devenu le c\u0153ur de notre province.",
+            choices: [
+              { text: "Qu'est-ce qu'une baronnie libre ?", next: "free_barony" },
+              { text: "Retour", next: "start" }
+            ]
+          },
+          free_barony: {
+            id: "free_barony",
+            speaker: "Villageoise",
+            side: "left",
+            portraitSrc: "ImagesRPG/imagespersonnage/Villageoise_ Cartoon J.png",
+            text: "Boaraven est un cas tr\xE8s particulier dans le royaume. Les barons de Boar et de Raven ont obtenu leur autonomie et ne sont pas sous l'autorit\xE9 d'un duc, comte, ou marquis ; ils sont directement sujets du roi qui les prot\xE8ge. Les baronnies de Boar et de Raven ont obtenu ce statut lors de la derni\xE8re grande guerre, il y a 30 ans.",
+            choices: [{ text: "Retour", next: "about_boaraven" }]
+          }
+        }
+      },
+      boaraven_villageoise_bebe: {
+        id: "boaraven_villageoise_bebe",
+        start: "start",
+        nodes: {
+          start: {
+            id: "start",
+            speaker: "Villageoise avec b\xE9b\xE9",
+            side: "left",
+            portraitSrc: PORTRAIT_BOARAVEN_BABY_CRYING,
+            text: (ctx) => ctx.boaravenBabyNpc?.isComfortedToday?.() ? "Merci encore. Il s\u2019est calm\xE9 pour aujourd\u2019hui." : "Il pleure depuis un moment... peux-tu essayer de consoler le b\xE9b\xE9 ?",
+            choices: (ctx) => ctx.boaravenBabyNpc?.isComfortedToday?.() ? [{ text: "Fermer" }] : [{ text: "Consoler le b\xE9b\xE9", next: "comfort_baby" }, { text: "Fermer" }]
+          },
+          comfort_baby: {
+            id: "comfort_baby",
+            speaker: "Villageoise avec b\xE9b\xE9",
+            side: "left",
+            portraitSrc: PORTRAIT_BOARAVEN_BABY_CRYING,
+            text: "Quelle approche essaies-tu pour le calmer ?",
+            choicesLayout: "grid-3",
+            choices: quickResponses9Choices({
+              onPick: (ctx, id) => {
+                if (id === "compassion") {
+                  gainVirtue(ctx, "humanite", 1);
+                  ctx.boaravenBabyNpc?.soothe?.();
+                  return;
+                }
+                ctx.boaravenBabyNpc?.reactToWrongChoice?.();
+              },
+              nextById: { compassion: "baby_comforted" },
+              nextDefault: "baby_wrong_choice",
+              feedbackById: { compassion: "good" },
+              feedbackDefault: "bad",
+              feedbackDelayMs: 1700
+            })
+          },
+          baby_comforted: {
+            id: "baby_comforted",
+            speaker: "Villageoise avec b\xE9b\xE9",
+            side: "left",
+            portraitSrc: PORTRAIT_BOARAVEN_BABY_HAPPY,
+            text: "Oh... regarde, il sourit. Merci. Tu as vraiment su l\u2019apaiser.",
+            choices: [{ text: "Fermer" }]
+          },
+          baby_wrong_choice: {
+            id: "baby_wrong_choice",
+            speaker: "Villageoise avec b\xE9b\xE9",
+            side: "left",
+            portraitSrc: PORTRAIT_BOARAVEN_BABY_CRYING,
+            text: "Non... \xE7a le contrarie encore plus.",
+            choices: [{ text: "R\xE9essayer", next: "comfort_baby" }, { text: "Fermer" }]
+          }
+        }
+      },
       auberge_pnj4: {
         id: "auberge_pnj4",
         start: "start",
         nodes: {
           start: {
             id: "start",
-            speaker: "Vieux sage",
+            speaker: "Le pianiste",
             side: "left",
-            text: "Si tu veux des conseils, approche.",
+            text: "Je connais chaque note de cette auberge. Tu veux ecouter quelque chose en particulier ?",
             onEnter: (ctx) => {
               try {
-                ctx.questManager?.emit?.({ type: "talk_npc", npcId: "vieux_sage" });
+                ctx.questManager?.emit?.({ type: "talk_npc", npcId: "le_pianiste" });
               } catch {
               }
             },
             choices: [
+              { text: "Liste de musique", onSelect: (ctx) => openMusicListModal({ hero: ctx.hero, notify: (message, ms) => notify(ctx, message, ms) }) },
               { text: "Un conseil pour survivre ?", next: "advice" },
               { text: "Au revoir." }
             ]
           },
           advice: {
             id: "advice",
-            speaker: "Vieux sage",
+            speaker: "Le pianiste",
             side: "left",
-            text: "Ne cours pas apr\xE8s la victoire : pr\xE9pare-la. \xC9quipe-toi, observe, et replie-toi si n\xE9cessaire.",
+            text: "Un bon aventurier garde le rythme : prepare ton sac, observe la salle, puis entre au bon moment.",
             choices: [{ text: "Je m\u2019en souviendrai.", next: "start" }, { text: "Fermer" }]
           }
         }
@@ -77741,7 +78465,7 @@ var init_dialogues = __esm({
             speaker: "Barde",
             side: "left",
             portraitSrc: PORTRAIT_AUBERGE_PNJ3,
-            text: "Si tu veux prouver ta valeur, traque un gobelin d\u2019un bon niveau. Mais l\u2019aubergiste pr\xE9f\xE8re d\u2019abord voir de quoi tu es capable.",
+            text: "Si tu veux prouver ta valeur, nettoie le donjon de la for\xEAt clairi\xE8re. Mais l\u2019aubergiste pr\xE9f\xE8re d\u2019abord voir de quoi tu es capable.",
             choices: [
               {
                 text: "Je suis pr\xEAt. Donne-moi la mission.",
@@ -77775,7 +78499,7 @@ var init_dialogues = __esm({
             speaker: "Barde",
             side: "left",
             portraitSrc: PORTRAIT_AUBERGE_PNJ3,
-            text: "Parfait. Reviens avec la preuve que tu as vaincu un gobelin d\u2019un bon niveau, et je chanterai ton nom.",
+            text: "Parfait. Vaincs le donjon de la for\xEAt clairi\xE8re, et je chanterai ton nom.",
             choices: [{ text: "Je pars en chasse.", next: "end" }]
           },
           quest_already: {
@@ -78045,7 +78769,7 @@ var init_dialogueManager_web = __esm({
         if (speakerEl)
           speakerEl.textContent = node.speaker;
         if (textEl)
-          textEl.textContent = node.text;
+          textEl.textContent = typeof node.text === "function" ? String(node.text(this.ctx) ?? "") : node.text;
         if (portraitImg && portraitWrap) {
           if (node.portraitSrc) {
             portraitWrap.style.display = "";
@@ -80434,9 +81158,21 @@ var init_fabricationModal_web = __esm({
       if (isStackable) {
         first.quantity = count2;
         hero2.addItem(first);
+        if (String(recipe.id ?? "") === "campfire") {
+          try {
+            window.game?.questManager?.emit?.({ type: "create_campfire" });
+          } catch {
+          }
+        }
         return { itemName, craftedCount: count2 };
       }
       hero2.addItem(first);
+      if (String(recipe.id ?? "") === "campfire") {
+        try {
+          window.game?.questManager?.emit?.({ type: "create_campfire" });
+        } catch {
+        }
+      }
       for (let i2 = 1; i2 < count2; i2++) {
         const extra = recipe.create();
         if (typeof score === "number")
@@ -81198,9 +81934,36 @@ function ensureRendererStyles() {
 			border-radius: 8px;
 			transform: translateY(-3%);
 		}
+		.plateau-marker.combat .plateau-marker-enemy-label {
+			position: absolute;
+			left: 50%;
+			top: -12px;
+			transform: translateX(-50%);
+			max-width: 180%;
+			padding: 2px 8px;
+			border-radius: 999px;
+			background: rgba(18,10,10,0.88);
+			border: 1px solid rgba(255,255,255,0.14);
+			color: #fff3df;
+			font-size: 10px;
+			font-weight: 800;
+			line-height: 1.2;
+			white-space: nowrap;
+			text-shadow: 0 1px 2px rgba(0,0,0,0.85);
+			box-shadow: 0 6px 14px rgba(0,0,0,0.28);
+			pointer-events: none;
+		}
 		.plateau-marker.fabrication .plateau-marker-fabrication {
 			width: 68%;
 			height: 68%;
+			object-fit: contain;
+			display: block;
+			filter: drop-shadow(0 14px 22px rgba(0,0,0,0.48));
+			transform: translateY(0);
+		}
+		.plateau-marker.dungeon .plateau-marker-dungeon {
+			width: 78%;
+			height: 78%;
 			object-fit: contain;
 			display: block;
 			filter: drop-shadow(0 14px 22px rgba(0,0,0,0.48));
@@ -81252,6 +82015,25 @@ function enemyImageSrc2(enemyId) {
   const def = ENEMY_DEFS[id];
   const src = String(def?.image ?? "");
   return src || "ImagesRPG/imagespersonnage/trueennemi.png";
+}
+function encounterLabelHtml(map, tile) {
+  const encounter = tile?.encounter;
+  if (!encounter)
+    return "";
+  const enemyId = String(encounter.enemyId ?? "").trim();
+  const def = ENEMY_DEFS[enemyId];
+  const name = escapeHtml(String(def?.name ?? enemyId ?? "Ennemi"));
+  const mapLevelRaw = Number(map?.meta?.encounterLevel);
+  const mapLevel = Number.isFinite(mapLevelRaw) ? Math.max(1, Math.floor(mapLevelRaw)) : 1;
+  const level = Math.max(1, Math.floor(Number(encounter.enemyLevel ?? mapLevel)));
+  return `<div class="plateau-marker-enemy-label">${name} niv. ${level}</div>`;
+}
+function isHouseExit(tile) {
+  if (!tile?.exit)
+    return false;
+  const label = String(tile.exit.label ?? "").trim().toLowerCase();
+  const destination = String(tile.exit.to ?? "").trim().toLowerCase();
+  return label === "maison" || destination.includes("house");
 }
 function scheduleIsoLayout(app2, gridEl, cols, rows, layout, map) {
   const SCALE = Math.max(0.6, Math.min(2.2, Number(map?.meta?.isoScale ?? layout?.isoScale ?? 0.85)));
@@ -81826,15 +82608,10 @@ function showPlateauMapRenderer(opts) {
           if (!p2)
             continue;
           try {
-            p2.__adventureMaxHpPenalty = 0;
-            if (typeof p2.syncDerivedStatsFromCharacteristics === "function") {
-              p2.syncDerivedStatsFromCharacteristics({ fillResources: true });
-            } else {
-              const maxPv = Math.max(0, Math.floor(Number(p2.effectiveMaxPv ?? p2.maxPv ?? p2.pv ?? 0)));
-              const maxMana = Math.max(0, Math.floor(Number(p2.effectiveMaxMana ?? p2.maxMana ?? p2.currentMana ?? 0)));
-              p2.pv = maxPv;
-              p2.currentMana = maxMana;
-            }
+            const maxPv = Math.max(1, Math.floor(Number(p2.effectiveMaxPv ?? p2.maxPv ?? p2.pv ?? 1)));
+            const maxMana = Math.max(0, Math.floor(Number(p2.effectiveMaxMana ?? p2.maxMana ?? p2.currentMana ?? 0)));
+            p2.pv = maxPv;
+            p2.currentMana = maxMana;
           } catch {
           }
         }
@@ -82061,6 +82838,23 @@ function showPlateauMapRenderer(opts) {
   };
   const startWorldNpcDialogue = (npc) => {
     const qm = window.game?.questManager;
+    const hero2 = getPartyMembers()[0] ?? window.game?.hero;
+    const scriptedId = String(npc.id ?? "").trim();
+    if (scriptedId && DIALOGUES[scriptedId]) {
+      startDialogue(scriptedId, {
+        hero: hero2,
+        questManager: qm,
+        notify: (m2, ms) => showTemporaryMessage(m2, ms ?? 3e3),
+        ...scriptedId === BOARAVEN_BABY_NPC_ID ? {
+          boaravenBabyNpc: {
+            isComfortedToday: () => isBoaravenBabyComfortedToday(),
+            soothe: () => sootheBoaravenBabyForToday(),
+            reactToWrongChoice: () => reactToWrongBoaravenBabyChoice()
+          }
+        } : {}
+      });
+      return;
+    }
     const speaker = String(npc.title ?? "PNJ");
     const portraitSrc = String(npc.imageSrc ?? "").trim() || void 0;
     const extraNodes = {};
@@ -82142,6 +82936,7 @@ function showPlateauMapRenderer(opts) {
       }
     };
     startDialogue(script, {
+      hero: hero2,
       questManager: qm,
       notify: (m2, ms) => showTemporaryMessage(m2, ms ?? 3e3)
     });
@@ -82155,12 +82950,32 @@ function showPlateauMapRenderer(opts) {
   };
   let tileIndex = tileIndexFor();
   const encounterTokenFor = (mapId, x2, y2) => `encounter:${String(mapId)}:${x2},${y2}`;
+  const BOARAVEN_MAP_ID = "village_y0x1";
+  const BOARAVEN_BABY_NPC_ID = "boaraven_villageoise_bebe";
+  const BOARAVEN_BABY_STATE_KEY = `${BOARAVEN_MAP_ID}:${BOARAVEN_BABY_NPC_ID}`;
+  const BOARAVEN_BABY_DEFAULT_IMAGE = "ImagesRPG/imagespersonnage/villageoise_boaraven b\xE9b\xE9 pleure.png";
+  const BOARAVEN_BABY_HAPPY_IMAGE = "ImagesRPG/imagespersonnage/villageoise_boaraven bebe happy.png";
+  const BOARAVEN_BABY_CRYING_AUDIO = "boaraven_baby_crying";
+  const BOARAVEN_BABY_NAUGHTY_AUDIO = "boaraven_baby_naughty";
+  const FOREST_CLEARING_MAP_ID = "forest_1";
+  const FOREST_CLEARING_DUNGEON_EVENT_ID = "donjon_foret_clairiere";
+  const FOREST_CLEARING_DUNGEON_STATE_KEY = `${FOREST_CLEARING_MAP_ID}:${FOREST_CLEARING_DUNGEON_EVENT_ID}`;
+  const FOREST_CLEARING_DUNGEON_BG_SRC = "ImagesRPG/imagesfond/donjon_foret_clairiere.jpeg";
+  const FOREST_CLEARING_FIRST_VISIT_VOICE_STATE_KEY = `${FOREST_CLEARING_MAP_ID}:first_visit_voice`;
   const getHeroForWorld = () => getPartyMembers()[0] ?? window.game?.hero;
   const getHeroDay = () => {
     const hero2 = getHeroForWorld();
     const raw = Number(hero2?.day ?? hero2?.marketDay ?? 1);
     const v2 = Math.floor(Number.isFinite(raw) ? raw : 1);
     return Math.max(1, v2);
+  };
+  const getWorldMapStatesStore2 = (hero2) => {
+    if (!hero2)
+      return {};
+    if (!hero2.__worldMapStates || typeof hero2.__worldMapStates !== "object") {
+      hero2.__worldMapStates = {};
+    }
+    return hero2.__worldMapStates;
   };
   const getEncounterDefeatsStore = (hero2) => {
     if (!hero2)
@@ -82169,6 +82984,131 @@ function showPlateauMapRenderer(opts) {
       hero2.__worldEncounterDefeats = {};
     return hero2.__worldEncounterDefeats;
   };
+  const getBoaravenBabyState = () => {
+    const hero2 = getHeroForWorld();
+    if (!hero2)
+      return {};
+    const store = getWorldMapStatesStore2(hero2);
+    if (!store[BOARAVEN_BABY_STATE_KEY] || typeof store[BOARAVEN_BABY_STATE_KEY] !== "object") {
+      store[BOARAVEN_BABY_STATE_KEY] = { mapId: BOARAVEN_MAP_ID, pos: { x: 4, y: 2 } };
+    }
+    return store[BOARAVEN_BABY_STATE_KEY];
+  };
+  const isBoaravenBabyComfortedToday = () => Number(getBoaravenBabyState().lastComfortedDay) === getHeroDay();
+  const getBoaravenBabyTile = (map) => {
+    const resolvedMap = map ?? opts.world.currentMap;
+    if (!resolvedMap || String(resolvedMap.id) !== BOARAVEN_MAP_ID)
+      return null;
+    return (resolvedMap.tiles ?? []).find((tile) => String(tile?.npc?.id ?? "") === BOARAVEN_BABY_NPC_ID) ?? null;
+  };
+  const syncBoaravenBabyAmbient = () => {
+    const audioManager = window.game?.audioManager;
+    if (!audioManager)
+      return;
+    const shouldCry = String(opts.world.currentMapId) === BOARAVEN_MAP_ID && !isBoaravenBabyComfortedToday();
+    if (!shouldCry) {
+      if (typeof audioManager.pause === "function")
+        audioManager.pause(BOARAVEN_BABY_CRYING_AUDIO);
+      return;
+    }
+    if (typeof audioManager.isPlaying === "function" && audioManager.isPlaying(BOARAVEN_BABY_CRYING_AUDIO))
+      return;
+    if (typeof audioManager.resume === "function") {
+      audioManager.resume(BOARAVEN_BABY_CRYING_AUDIO);
+      return;
+    }
+    if (typeof audioManager.play === "function")
+      audioManager.play(BOARAVEN_BABY_CRYING_AUDIO);
+  };
+  const syncBoaravenBabyNpcPresentation = () => {
+    const tile = getBoaravenBabyTile();
+    const desiredImage = isBoaravenBabyComfortedToday() ? BOARAVEN_BABY_HAPPY_IMAGE : BOARAVEN_BABY_DEFAULT_IMAGE;
+    let visualChanged = false;
+    if (tile?.npc && String(tile.npc.imageSrc ?? "") !== desiredImage) {
+      tile.npc.imageSrc = desiredImage;
+      visualChanged = true;
+    }
+    syncBoaravenBabyAmbient();
+    return { visualChanged };
+  };
+  const playBoaravenBabyReaction = (kind) => {
+    const audioManager = window.game?.audioManager;
+    if (!audioManager)
+      return;
+    const audioKey = BOARAVEN_BABY_NAUGHTY_AUDIO;
+    if (typeof audioManager.pause === "function")
+      audioManager.pause(BOARAVEN_BABY_CRYING_AUDIO);
+    if (typeof audioManager.playOnce === "function") {
+      audioManager.playOnce(audioKey, () => {
+        syncBoaravenBabyAmbient();
+      });
+      return;
+    }
+    if (typeof audioManager.play === "function")
+      audioManager.play(audioKey);
+    syncBoaravenBabyAmbient();
+  };
+  const sootheBoaravenBabyForToday = () => {
+    const state2 = getBoaravenBabyState();
+    state2.lastComfortedDay = getHeroDay();
+    const sync = syncBoaravenBabyNpcPresentation();
+    if (sync.visualChanged && String(opts.world.currentMapId) === BOARAVEN_MAP_ID)
+      render();
+  };
+  const reactToWrongBoaravenBabyChoice = () => {
+    playBoaravenBabyReaction("naughty");
+  };
+  const isForestClearingDungeonCompleted = () => {
+    const hero2 = getHeroForWorld();
+    if (!hero2)
+      return false;
+    return Boolean(getWorldMapStatesStore2(hero2)?.[FOREST_CLEARING_DUNGEON_STATE_KEY]?.completed);
+  };
+  const hasPlayedForestClearingFirstVisitVoice = () => {
+    const hero2 = getHeroForWorld();
+    if (!hero2)
+      return false;
+    return Boolean(getWorldMapStatesStore2(hero2)?.[FOREST_CLEARING_FIRST_VISIT_VOICE_STATE_KEY]?.played);
+  };
+  const markForestClearingDungeonCompleted = () => {
+    const hero2 = getHeroForWorld();
+    if (!hero2)
+      return;
+    const store = getWorldMapStatesStore2(hero2);
+    store[FOREST_CLEARING_DUNGEON_STATE_KEY] = {
+      ...store[FOREST_CLEARING_DUNGEON_STATE_KEY] ?? {},
+      mapId: FOREST_CLEARING_MAP_ID,
+      pos: { x: 7, y: 0 },
+      completed: true
+    };
+  };
+  const markForestClearingFirstVisitVoicePlayed = () => {
+    const hero2 = getHeroForWorld();
+    if (!hero2)
+      return;
+    const store = getWorldMapStatesStore2(hero2);
+    store[FOREST_CLEARING_FIRST_VISIT_VOICE_STATE_KEY] = {
+      ...store[FOREST_CLEARING_FIRST_VISIT_VOICE_STATE_KEY] ?? {},
+      mapId: FOREST_CLEARING_MAP_ID,
+      pos: { x: 0, y: 0 },
+      played: true
+    };
+  };
+  const maybePlayForestClearingFirstVisitVoice = () => {
+    if (hasPlayedForestClearingFirstVisitVoice())
+      return;
+    const audioManager = window.game?.audioManager;
+    if (!audioManager)
+      return;
+    markForestClearingFirstVisitVoicePlayed();
+    if (typeof audioManager.playOnce === "function") {
+      audioManager.playOnce("voix_tuto_map");
+      return;
+    }
+    if (typeof audioManager.play === "function")
+      audioManager.play("voix_tuto_map");
+  };
+  const isMapPermanentlyCleared = (mapId) => String(mapId) === FOREST_CLEARING_MAP_ID && isForestClearingDungeonCompleted();
   const isEncounterDefeatedToday = (mapId, x2, y2) => {
     const hero2 = getHeroForWorld();
     if (!hero2)
@@ -82190,7 +83130,46 @@ function showPlateauMapRenderer(opts) {
     const token = encounterTokenFor(mapId, x2, y2);
     store[mid][token] = day;
   };
-  const listHiddenEncounterTokensForMap = (mapId) => {
+  const isEncounterVisible = (mapId, tile) => {
+    if (!tile?.encounter)
+      return false;
+    if (!(tile.encounter.enemyId || tile.encounter.enemyCount || tile.encounter.enemyLevel))
+      return false;
+    if (isMapPermanentlyCleared(mapId))
+      return false;
+    return !isEncounterDefeatedToday(mapId, tile.x, tile.y);
+  };
+  const isForestClearingDungeonVisible = (map) => {
+    if (!map || String(map.id) !== FOREST_CLEARING_MAP_ID)
+      return false;
+    if (isForestClearingDungeonCompleted())
+      return false;
+    const encounters = (map.tiles ?? []).filter((tile) => Boolean(tile?.encounter));
+    if (!encounters.length)
+      return false;
+    return encounters.every((tile) => !isEncounterVisible(map.id, tile));
+  };
+  const isTileVisible = (map, tile) => {
+    if (!map || !tile)
+      return false;
+    if (tile.eventId === FOREST_CLEARING_DUNGEON_EVENT_ID)
+      return isForestClearingDungeonVisible(map);
+    if (tile.encounter)
+      return isEncounterVisible(map.id, tile);
+    return true;
+  };
+  const getVisibleTile = (map, tiles, x2, y2) => {
+    const tile = getTile(map, tiles, x2, y2);
+    return isTileVisible(map, tile) ? tile : null;
+  };
+  const getVisibleMapForPixi = (map) => ({
+    ...map,
+    tiles: (map.tiles ?? []).filter((tile) => isTileVisible(map, tile) || Boolean(tile?.exit) || Boolean(tile?.npc))
+  });
+  const listHiddenEncounterTokensForMap = (mapId, map) => {
+    if (isMapPermanentlyCleared(mapId)) {
+      return (map?.tiles ?? []).filter((tile) => Boolean(tile?.encounter)).map((tile) => encounterTokenFor(mapId, tile.x, tile.y));
+    }
     const hero2 = getHeroForWorld();
     if (!hero2)
       return [];
@@ -82199,15 +83178,18 @@ function showPlateauMapRenderer(opts) {
     const m2 = store?.[String(mapId)] ?? {};
     return Object.keys(m2).filter((token) => Number(m2[token]) === day);
   };
-  const tooltipLabelForTile = (t2, mapId) => {
+  const tooltipLabelForTile = (map, t2) => {
     if (!t2)
       return "";
     if (t2.npc)
       return String(t2.npc.title ?? "PNJ");
-    if (t2.encounter && !isEncounterDefeatedToday(mapId, t2.x, t2.y)) {
-      const def = ENEMY_DEFS[String(t2.encounter.enemyId ?? "")];
-      const name = String(def?.name ?? t2.encounter.enemyId ?? "Ennemi");
-      const count2 = Math.max(1, Math.floor(Number(t2.encounter.enemyCount ?? 1)));
+    if (isEncounterVisible(map.id, t2)) {
+      const encounter = t2.encounter;
+      if (!encounter)
+        return "";
+      const def = ENEMY_DEFS[String(encounter.enemyId ?? "")];
+      const name = String(def?.name ?? encounter.enemyId ?? "Ennemi");
+      const count2 = Math.max(1, Math.floor(Number(encounter.enemyCount ?? 1)));
       return count2 > 1 ? `${name} \xD7${count2}` : name;
     }
     return "";
@@ -82219,8 +83201,8 @@ function showPlateauMapRenderer(opts) {
     const map = opts.world.currentMap;
     if (!map)
       return;
-    const t2 = getTile(map, tileIndex, Number(d2.x), Number(d2.y));
-    const label = tooltipLabelForTile(t2, String(map.id));
+    const t2 = getVisibleTile(map, tileIndex, Number(d2.x), Number(d2.y));
+    const label = tooltipLabelForTile(map, t2);
     if (label)
       showMapTooltip(label);
     else
@@ -82242,6 +83224,11 @@ function showPlateauMapRenderer(opts) {
       return;
     el.textContent = formatHudTime();
   };
+  opts.world.on("mapEnter", ({ mapId }) => {
+    if (String(mapId) !== FOREST_CLEARING_MAP_ID)
+      return;
+    maybePlayForestClearingFirstVisitVoice();
+  });
   const bindGameTimeListener = () => {
     if (gameTimeHandler) {
       try {
@@ -82250,22 +83237,28 @@ function showPlateauMapRenderer(opts) {
       }
       gameTimeHandler = null;
     }
-    gameTimeHandler = () => updateHudTime();
+    gameTimeHandler = () => {
+      updateHudTime();
+      const sync = syncBoaravenBabyNpcPresentation();
+      if (sync.visualChanged && String(opts.world.currentMapId) === BOARAVEN_MAP_ID)
+        render();
+    };
     try {
       window.addEventListener(GAME_TIME_EVENT, gameTimeHandler);
     } catch {
     }
   };
   const randomEncounterCandidatesForMap = (map) => {
+    if (isMapPermanentlyCleared(map.id))
+      return [];
     const candidates = [];
     for (const t2 of map.tiles ?? []) {
-      if (!t2?.encounter)
+      if (!isEncounterVisible(map.id, t2))
         continue;
-      if (!(t2.encounter.enemyId || t2.encounter.enemyCount || t2.encounter.enemyLevel))
+      const encounter = t2.encounter;
+      if (!encounter)
         continue;
-      if (isEncounterDefeatedToday(map.id, t2.x, t2.y))
-        continue;
-      const id = String(t2.encounter.enemyId ?? "gobelin");
+      const id = String(encounter.enemyId ?? "gobelin");
       const def = ENEMY_DEFS[id];
       if (!def)
         continue;
@@ -82346,6 +83339,9 @@ function showPlateauMapRenderer(opts) {
   const resolveTile = async (tile) => {
     if (!tile)
       return;
+    const currentMap = opts.world.currentMap;
+    if (currentMap && !isTileVisible(currentMap, tile))
+      return;
     if (tile.exit) {
       stopMovement();
       fade.classList.add("on");
@@ -82369,7 +83365,7 @@ function showPlateauMapRenderer(opts) {
       return;
     }
     if (tile.encounter && (tile.encounter.enemyId || tile.encounter.enemyCount || tile.encounter.enemyLevel)) {
-      if (isEncounterDefeatedToday(opts.world.currentMapId, tile.x, tile.y))
+      if (!isEncounterVisible(opts.world.currentMapId, tile))
         return;
       stopMovement();
       teardownWorldPixiOverlay();
@@ -82421,6 +83417,29 @@ function showPlateauMapRenderer(opts) {
         showFabricationModal({ onClose: () => render() });
         return;
       }
+      if (tile.eventId === FOREST_CLEARING_DUNGEON_EVENT_ID) {
+        showTacticalSkirmish({
+          onBack: () => render(),
+          onFlee: () => render(),
+          onReturnAfterCombat: () => render(),
+          onCombatEnd: (outcome) => {
+            if (outcome !== "won")
+              return;
+            markForestClearingDungeonCompleted();
+            try {
+              window.game?.questManager?.emit?.({ type: "clear_dungeon", dungeonId: "forest_clearing" });
+            } catch {
+            }
+          },
+          backgroundSrc: FOREST_CLEARING_DUNGEON_BG_SRC,
+          mode: "donjon",
+          waves: [
+            { enemyId: "gobelin", enemyCount: 3, enemyLevel: 1 },
+            { enemyLevel: 1, enemyGroups: [{ enemyId: "gobelin", enemyCount: 3, enemyLevel: 1 }, { enemyId: "sergent_gobelin", enemyCount: 1, enemyLevel: 1 }] }
+          ]
+        });
+        return;
+      }
       if (tile.eventId === "auberge") {
         showAuberge({ onBack: () => render() });
         return;
@@ -82468,6 +83487,7 @@ function showPlateauMapRenderer(opts) {
   };
   const render = () => {
     const map = opts.world.currentMap;
+    syncBoaravenBabyNpcPresentation();
     const pos = opts.world.playerPos;
     const randomEncounterChance = randomEncounterChanceForMap(map);
     const randomEncounterChancePct = Math.round(Math.max(0, Math.min(1, randomEncounterChance)) * 100);
@@ -82525,17 +83545,17 @@ function showPlateauMapRenderer(opts) {
 								${wantPixiBoard ? "" : Array.from({ length: map.w * map.h }).map((_, i2) => {
       const x2 = i2 % map.w;
       const y2 = Math.floor(i2 / map.w);
-      const t2 = getTile(map, tileIndex, x2, y2);
+      const t2 = getVisibleTile(map, tileIndex, x2, y2);
       const isBlocked = Boolean(t2?.blocked);
       const hasExit = Boolean(t2?.exit);
       const hasNpc = Boolean(t2?.npc);
-      const hasCombat = Boolean(t2?.encounter) && !isEncounterDefeatedToday(map.id, x2, y2);
+      const hasCombat = isEncounterVisible(map.id, t2);
       const isInteractive = hasExit || hasNpc || hasCombat || Boolean(t2?.eventId);
       const npcImg = String(t2?.npc?.imageSrc ?? "").trim();
-      const marker = hasExit ? `<div class="plateau-marker exit ${escapeHtml(String(t2?.exit?.dir ?? ""))}" title="${escapeHtml(String(t2?.exit?.label ?? "Sortie"))}"></div>` : hasNpc ? npcImg ? `<div class="plateau-marker npc npc-img" title="Parler"><img class="plateau-marker-npc" src="${escapeHtml(npcImg)}" alt="PNJ"></div>` : `<div class="plateau-marker npc" title="Parler"></div>` : t2?.eventId === "maison" ? `<div class="plateau-marker house" title="Maison"></div>` : t2?.eventId === "dormir" ? `<div class="plateau-marker sleep" title="Dormir"><img class="plateau-marker-sleep" src="ImagesRPG/imagesobjets/sommeil.svg" alt="Dormir"></div>` : t2?.eventId === "fabrication" ? `<div class="plateau-marker fabrication" title="Fabrication"><img class="plateau-marker-fabrication" src="ImagesRPG/imagesobjets/enclume.png" alt="Fabrication"></div>` : t2?.eventId === "auberge" ? `<div class="plateau-marker inn" title="Auberge"></div>` : t2?.eventId === "marche" ? `<div class="plateau-marker market" title="March\xE9"></div>` : t2?.eventId === "boutique" ? `<div class="plateau-marker shop" title="Boutique"></div>` : hasCombat ? (() => {
+      const marker = hasExit ? isHouseExit(t2) ? `<div class="plateau-marker house" title="${escapeHtml(String(t2?.exit?.label ?? "Maison"))}"></div>` : `<div class="plateau-marker exit ${escapeHtml(String(t2?.exit?.dir ?? ""))}" title="${escapeHtml(String(t2?.exit?.label ?? "Sortie"))}"></div>` : hasNpc ? npcImg ? `<div class="plateau-marker npc npc-img" title="Parler"><img class="plateau-marker-npc" src="${escapeHtml(npcImg)}" alt="PNJ"></div>` : `<div class="plateau-marker npc" title="Parler"></div>` : t2?.eventId === "maison" ? `<div class="plateau-marker house" title="Maison"></div>` : t2?.eventId === "dormir" ? `<div class="plateau-marker sleep" title="Dormir"><img class="plateau-marker-sleep" src="ImagesRPG/imagesobjets/sommeil.svg" alt="Dormir"></div>` : t2?.eventId === "fabrication" ? `<div class="plateau-marker fabrication" title="Fabrication"><img class="plateau-marker-fabrication" src="ImagesRPG/imagesobjets/enclume.png" alt="Fabrication"></div>` : t2?.eventId === "donjon_foret_clairiere" ? `<div class="plateau-marker dungeon" title="Donjon de la clairi\xE8re"><img class="plateau-marker-dungeon" src="ImagesRPG/imageskill/epees.png" alt="Donjon"></div>` : t2?.eventId === "auberge" ? `<div class="plateau-marker inn" title="Auberge"></div>` : t2?.eventId === "marche" ? `<div class="plateau-marker market" title="March\xE9"></div>` : t2?.eventId === "boutique" ? `<div class="plateau-marker shop" title="Boutique"></div>` : hasCombat ? (() => {
         const eid = t2?.encounter?.enemyId ?? "gobelin";
         const imgSrc = enemyImageSrc2(eid);
-        return `<div class="plateau-marker combat" title="Combat"><img class="plateau-marker-enemy" src="${escapeHtml(String(imgSrc))}" alt="${escapeHtml(String(eid))}"></div>`;
+        return `<div class="plateau-marker combat" title="Combat">${encounterLabelHtml(map, t2)}<img class="plateau-marker-enemy" src="${escapeHtml(String(imgSrc))}" alt="${escapeHtml(String(eid))}"></div>`;
       })() : "";
       const content = x2 === pos.x && y2 === pos.y ? renderLeader() : marker;
       const _npcTip = hasNpc ? escapeHtml(String(t2?.npc?.title ?? "PNJ")) : "";
@@ -82558,6 +83578,10 @@ function showPlateauMapRenderer(opts) {
 		`;
     document.getElementById("plateauBackBtn")?.addEventListener("click", () => {
       stopMovement();
+      try {
+        window.game?.audioManager?.pause?.(BOARAVEN_BABY_CRYING_AUDIO);
+      } catch {
+      }
       closeInventoryModal({ silent: true });
       closeHubModal();
       clearWanderingTimers();
@@ -82668,12 +83692,13 @@ function showPlateauMapRenderer(opts) {
       pixiResizeHandler = () => {
         try {
           const r2 = getPixiBoardRect();
+          const pixiMap = getVisibleMapForPixi(map);
           window.dispatchEvent(new CustomEvent("worldPixiInit", {
             detail: {
               containerId: PIXI_CONTAINER_ID,
-              map,
+              map: pixiMap,
               boardRect: { left: r2.left, top: r2.top, width: r2.width, height: r2.height },
-              hiddenEncounterTokens: listHiddenEncounterTokensForMap(map.id)
+              hiddenEncounterTokens: listHiddenEncounterTokensForMap(map.id, map)
             }
           }));
         } catch {
@@ -82685,12 +83710,13 @@ function showPlateauMapRenderer(opts) {
       }
       try {
         const r2 = getPixiBoardRect();
+        const pixiMap = getVisibleMapForPixi(map);
         window.dispatchEvent(new CustomEvent("worldPixiInit", {
           detail: {
             containerId: PIXI_CONTAINER_ID,
-            map,
+            map: pixiMap,
             boardRect: { left: r2.left, top: r2.top, width: r2.width, height: r2.height },
-            hiddenEncounterTokens: listHiddenEncounterTokensForMap(map.id)
+            hiddenEncounterTokens: listHiddenEncounterTokensForMap(map.id, map)
           }
         }));
       } catch {
@@ -82703,11 +83729,13 @@ function showPlateauMapRenderer(opts) {
       }
     };
     const markerHtmlForPos = (x2, y2) => {
-      const t2 = getTile(map, tileIndex, x2, y2);
+      const t2 = getVisibleTile(map, tileIndex, x2, y2);
       const hasExit = Boolean(t2?.exit);
       const hasNpc = Boolean(t2?.npc);
-      const hasCombat = Boolean(t2?.encounter) && !isEncounterDefeatedToday(map.id, x2, y2);
+      const hasCombat = isEncounterVisible(map.id, t2);
       if (hasExit) {
+        if (isHouseExit(t2))
+          return `<div class="plateau-marker house" title="${escapeHtml(String(t2?.exit?.label ?? "Maison"))}"></div>`;
         return `<div class="plateau-marker exit ${escapeHtml(String(t2?.exit?.dir ?? ""))}" title="${escapeHtml(String(t2?.exit?.label ?? "Sortie"))}"></div>`;
       }
       if (hasNpc) {
@@ -82722,6 +83750,8 @@ function showPlateauMapRenderer(opts) {
         return `<div class="plateau-marker sleep" title="Dormir"><img class="plateau-marker-sleep" src="ImagesRPG/imagesobjets/sommeil.svg" alt="Dormir"></div>`;
       if (t2?.eventId === "fabrication")
         return `<div class="plateau-marker fabrication" title="Fabrication"><img class="plateau-marker-fabrication" src="ImagesRPG/imagesobjets/enclume.png" alt="Fabrication"></div>`;
+      if (t2?.eventId === "donjon_foret_clairiere")
+        return `<div class="plateau-marker dungeon" title="Donjon de la clairi\xE8re"><img class="plateau-marker-dungeon" src="ImagesRPG/imageskill/epees.png" alt="Donjon"></div>`;
       if (t2?.eventId === "auberge")
         return `<div class="plateau-marker inn" title="Auberge"></div>`;
       if (t2?.eventId === "marche")
@@ -82731,7 +83761,7 @@ function showPlateauMapRenderer(opts) {
       if (hasCombat) {
         const eid = t2?.encounter?.enemyId ?? "gobelin";
         const imgSrc = enemyImageSrc2(eid);
-        return `<div class="plateau-marker combat" title="Combat"><img class="plateau-marker-enemy" src="${escapeHtml(String(imgSrc))}" alt="${escapeHtml(String(eid))}"></div>`;
+        return `<div class="plateau-marker combat" title="Combat">${encounterLabelHtml(map, t2)}<img class="plateau-marker-enemy" src="${escapeHtml(String(imgSrc))}" alt="${escapeHtml(String(eid))}"></div>`;
       }
       return "";
     };
@@ -82832,12 +83862,13 @@ function showPlateauMapRenderer(opts) {
       pixiMountedHandler = () => {
         try {
           const r2 = getPixiBoardRect();
+          const pixiMap = getVisibleMapForPixi(map);
           window.dispatchEvent(new CustomEvent("worldPixiInit", {
             detail: {
               containerId: PIXI_CONTAINER_ID,
-              map,
+              map: pixiMap,
               boardRect: { left: r2.left, top: r2.top, width: r2.width, height: r2.height },
-              hiddenEncounterTokens: listHiddenEncounterTokensForMap(map.id)
+              hiddenEncounterTokens: listHiddenEncounterTokensForMap(map.id, map)
             }
           }));
         } catch {
@@ -83164,12 +84195,13 @@ function showPlateauMapRenderer(opts) {
         tileIndex = tileIndexFor();
         if (Boolean(window.PIXI) && Boolean(window.__pixiApp)) {
           try {
+            const pixiMap = getVisibleMapForPixi(wanderingMap);
             window.dispatchEvent(new CustomEvent("worldNpcSlide", {
               detail: {
                 containerId: PIXI_CONTAINER_ID,
-                map: wanderingMap,
+                map: pixiMap,
                 boardRect: getPixiBoardRect(),
-                hiddenEncounterTokens: listHiddenEncounterTokensForMap(wanderingMap.id),
+                hiddenEncounterTokens: listHiddenEncounterTokensForMap(wanderingMap.id, wanderingMap),
                 fromX: prev.x,
                 fromY: prev.y,
                 toX: npcX,
@@ -83195,7 +84227,7 @@ function showPlateauMapRenderer(opts) {
               prevEl.insertAdjacentHTML("beforeend", m2);
               prevEl.classList.add("interactive");
             }
-            const prevTip = tooltipLabelForTile(getTile(wanderingMap, tileIndex, prev.x, prev.y), wanderingMap.id);
+            const prevTip = tooltipLabelForTile(wanderingMap, getVisibleTile(wanderingMap, tileIndex, prev.x, prev.y));
             if (prevTip)
               prevEl.setAttribute("data-tooltip", prevTip);
             else
@@ -83237,7 +84269,7 @@ function showPlateauMapRenderer(opts) {
                   nextEl.classList.add("interactive");
                 }
                 nextEl.classList.add("interactive");
-                const nextTip = tooltipLabelForTile(getTile(wanderingMap, tileIndex, npcX, npcY), wanderingMap.id);
+                const nextTip = tooltipLabelForTile(wanderingMap, getVisibleTile(wanderingMap, tileIndex, npcX, npcY));
                 if (nextTip)
                   nextEl.setAttribute("data-tooltip", nextTip);
                 else
@@ -83255,7 +84287,7 @@ function showPlateauMapRenderer(opts) {
                 nextEl.classList.add("interactive");
               }
               nextEl.classList.add("interactive");
-              const nextTip = tooltipLabelForTile(getTile(wanderingMap, tileIndex, npcX, npcY), wanderingMap.id);
+              const nextTip = tooltipLabelForTile(wanderingMap, getVisibleTile(wanderingMap, tileIndex, npcX, npcY));
               if (nextTip)
                 nextEl.setAttribute("data-tooltip", nextTip);
               else
@@ -83276,6 +84308,8 @@ function showPlateauMapRenderer(opts) {
           return;
         if (animating)
           return;
+        if (isMapPermanentlyCleared(wanderingMap.id))
+          return;
         if (isEncounterDefeatedToday(wanderingMap.id, enX, enY))
           return;
         const pp = opts.world.playerPos;
@@ -83291,15 +84325,16 @@ function showPlateauMapRenderer(opts) {
         enX = next.x;
         enY = next.y;
         tileIndex = tileIndexFor();
-        const _enImgSrc = enemyImageSrc2(getTile(wanderingMap, tileIndex, enX, enY)?.encounter?.enemyId ?? _encounterRef.enemyId ?? "");
+        const _enImgSrc = enemyImageSrc2(getVisibleTile(wanderingMap, tileIndex, enX, enY)?.encounter?.enemyId ?? _encounterRef.enemyId ?? "");
         if (Boolean(window.PIXI) && Boolean(window.__pixiApp)) {
           try {
+            const pixiMap = getVisibleMapForPixi(wanderingMap);
             window.dispatchEvent(new CustomEvent("worldEnemySlide", {
               detail: {
                 containerId: PIXI_CONTAINER_ID,
-                map: wanderingMap,
+                map: pixiMap,
                 boardRect: getPixiBoardRect(),
-                hiddenEncounterTokens: listHiddenEncounterTokensForMap(wanderingMap.id),
+                hiddenEncounterTokens: listHiddenEncounterTokensForMap(wanderingMap.id, wanderingMap),
                 fromX: prev.x,
                 fromY: prev.y,
                 toX: enX,
@@ -83325,7 +84360,7 @@ function showPlateauMapRenderer(opts) {
               prevEl.insertAdjacentHTML("beforeend", m2);
               prevEl.classList.add("interactive");
             }
-            const prevTip = tooltipLabelForTile(getTile(wanderingMap, tileIndex, prev.x, prev.y), wanderingMap.id);
+            const prevTip = tooltipLabelForTile(wanderingMap, getVisibleTile(wanderingMap, tileIndex, prev.x, prev.y));
             if (prevTip)
               prevEl.setAttribute("data-tooltip", prevTip);
             else
@@ -83366,7 +84401,7 @@ function showPlateauMapRenderer(opts) {
                   nextEl.classList.add("interactive");
                 }
                 nextEl.classList.add("interactive");
-                const nextTip = tooltipLabelForTile(getTile(wanderingMap, tileIndex, enX, enY), wanderingMap.id);
+                const nextTip = tooltipLabelForTile(wanderingMap, getVisibleTile(wanderingMap, tileIndex, enX, enY));
                 if (nextTip)
                   nextEl.setAttribute("data-tooltip", nextTip);
                 else
@@ -83384,7 +84419,7 @@ function showPlateauMapRenderer(opts) {
                 nextEl.classList.add("interactive");
               }
               nextEl.classList.add("interactive");
-              const nextTip = tooltipLabelForTile(getTile(wanderingMap, tileIndex, enX, enY), wanderingMap.id);
+              const nextTip = tooltipLabelForTile(wanderingMap, getVisibleTile(wanderingMap, tileIndex, enX, enY));
               if (nextTip)
                 nextEl.setAttribute("data-tooltip", nextTip);
               else
@@ -83432,6 +84467,7 @@ var init_mapRenderer_web = __esm({
     init_pixiBootstrap_web();
     init_worldMapPixi_web();
     init_dialogueManager_web();
+    init_dialogues();
     init_daySystem_web();
     init_ui();
     init_fabricationModal_web();
@@ -83442,7 +84478,7 @@ var init_mapRenderer_web = __esm({
 });
 
 // dist/world/npcDefs.js
-var NPC_FOREST_OLDMAN, NPC_FOREST_RUINS_SCOUT, NPC_BOARAVEN_VILLAGEOISE_1;
+var NPC_FOREST_OLDMAN, NPC_FOREST_RUINS_SCOUT, NPC_BOARAVEN_VILLAGEOISE_1, NPC_BOARAVEN_VILLAGEOISE_BABY;
 var init_npcDefs = __esm({
   "dist/world/npcDefs.js"() {
     "use strict";
@@ -83486,6 +84522,12 @@ var init_npcDefs = __esm({
           ]
         }
       ]
+    };
+    NPC_BOARAVEN_VILLAGEOISE_BABY = {
+      id: "boaraven_villageoise_bebe",
+      title: "Villageoise avec b\xE9b\xE9",
+      text: "Mon petit ne veut plus se calmer...",
+      imageSrc: "ImagesRPG/imagespersonnage/villageoise_boaraven b\xE9b\xE9 pleure.png"
     };
   }
 });
@@ -83563,6 +84605,7 @@ var init_maps = __esm({
             y: 3,
             exit: { dir: "east", to: "forest_2", entry: { x: 0, y: 3 }, label: "Vers la for\xEAt (est)" }
           },
+          { x: 7, y: 0, eventId: "donjon_foret_clairiere" },
           { x: 3, y: 3, npc: NPC_FOREST_OLDMAN },
           {
             x: 5,
@@ -83599,6 +84642,7 @@ var init_maps = __esm({
           displayName: "Baronnie libre de Boaraven"
         },
         tiles: [
+          { x: 4, y: 2, blocked: true, npc: NPC_BOARAVEN_VILLAGEOISE_BABY },
           { x: 4, y: 3, blocked: true, npc: NPC_BOARAVEN_VILLAGEOISE_1 },
           { x: 6, y: 0, eventId: "marche" },
           { x: 8, y: 1, exit: { dir: "east", to: "boaraven_house", entry: { x: 4, y: 7 }, label: "Maison" } },
@@ -84833,11 +85877,7 @@ function showVillage() {
 }
 function showAuberge(opts) {
   const audio = window.game?.audioManager;
-  const aubergeIsPlaying = typeof audio?.isPlaying === "function" ? Boolean(audio.isPlaying("auberge")) : false;
-  if (!aubergeIsPlaying) {
-    audio?.pauseAll();
-    audio?.play("auberge");
-  }
+  playSelectedJukeboxTrack(hero, audio);
   if (!hasPlayedAubergeIntroAudio) {
     hasPlayedAubergeIntroAudio = true;
     audio?.playOnce("pnjintro");
@@ -85431,6 +86471,7 @@ var init_villageMain_web = __esm({
     init_itemIcons_web();
     init_dialogueManager_web();
     init_worldMap_web();
+    init_musicJukebox_web();
     hasPlayedAubergeIntroAudio = false;
   }
 });
@@ -86440,6 +87481,10 @@ function buildSaveData(hero2) {
       // World map: encounters defeated today should remain hidden after reload
       worldEncounterDefeats: hero2.__worldEncounterDefeats ?? void 0,
       worldMapStates: hero2.__worldMapStates ?? void 0,
+      ...Array.isArray(hero2.__jukeboxOwnedTrackIds) ? {
+        jukeboxOwnedTrackIds: hero2.__jukeboxOwnedTrackIds.map((trackId) => String(trackId ?? "").trim()).filter(Boolean)
+      } : {},
+      ...String(hero2.__selectedJukeboxTrackId ?? "").trim() ? { selectedJukeboxTrackId: String(hero2.__selectedJukeboxTrackId ?? "").trim() } : {},
       marketDay: clampInt5(hero2.marketDay ?? 1, 1),
       ...market ? { market } : {}
     }
@@ -86536,6 +87581,8 @@ function applySaveData(hero2, save) {
   hero2.marketDay = clampInt5(save.hero.marketDay ?? hero2.marketDay ?? 1, 1);
   hero2.day = clampInt5(save.hero.day ?? hero2.day ?? hero2.marketDay ?? 1, 1);
   hero2.marketDay = clampInt5(hero2.day ?? 1, 1);
+  hero2.__jukeboxOwnedTrackIds = Array.isArray(save.hero.jukeboxOwnedTrackIds) ? save.hero.jukeboxOwnedTrackIds.map((trackId) => String(trackId ?? "").trim()).filter(Boolean) : hero2.__jukeboxOwnedTrackIds;
+  hero2.__selectedJukeboxTrackId = String(save.hero.selectedJukeboxTrackId ?? hero2.__selectedJukeboxTrackId ?? "").trim() || hero2.__selectedJukeboxTrackId;
   hero2.hour = clampInt5(save.hero.hour ?? hero2.hour ?? 0, 0);
   hero2.hour = Math.max(0, Math.min(23, Math.floor(Number(hero2.hour ?? 0))));
   hero2.honneur = Math.max(0, Math.min(100, clampInt5(save.hero.honneur ?? hero2.honneur ?? 0, 0)));
@@ -86711,7 +87758,7 @@ function resetHeroForNewGame() {
   hero.baseAttack = 0;
   hero.maxMana = 0;
   hero.currentMana = 0;
-  hero.manaRegenPerTurn = 20;
+  hero.manaRegenPerTurn = 30;
   hero.level = 1;
   hero.currentXP = 0;
   hero.gold = 50;
@@ -86966,9 +88013,9 @@ var init_newGame_web = __esm({
     BASE_CHARACTERISTICS = {
       force: 10,
       sante: 10,
-      energie: 40,
+      energie: 6,
       vitesse: 2,
-      magie: 10,
+      magie: 4,
       critique: 0,
       defense: 0
     };

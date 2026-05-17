@@ -531,6 +531,15 @@ var init_passives = __esm({
         category: "voleur",
         bonuses: {}
       },
+      blocage_epines: {
+        id: "blocage_epines",
+        name: "Blocage \xE9pineux",
+        description: "Modifie Blocage: les attaques bloqu\xE9es renvoient 50% des d\xE9g\xE2ts re\xE7us \xE0 l\u2019attaquant.",
+        unlockLevel: 10,
+        costSkillPoints: 1,
+        category: "guerrier",
+        bonuses: {}
+      },
       blocage_voleur: {
         id: "blocage_voleur",
         name: "Blocage de voleur",
@@ -696,7 +705,7 @@ var init_skillLibrary = __esm({
         return s2;
       },
       shuriken: () => {
-        const s2 = new Damageskill("TA", "Lance un shuriken \xE0 distance (80% de l'attaque). Port\xE9e 4 en cercle. CD 1.", "Shuriken", 0.8, 20, 1);
+        const s2 = new Damageskill("TA", "Lance un shuriken \xE0 distance (120% de l'attaque). Port\xE9e 4 en cercle. CD 1.", "Shuriken", 1.2, 20, 1);
         s2.tactical = { kind: "single", aim: "circle", range: 4, stopAtFirstUnit: true };
         return s2;
       },
@@ -1698,9 +1707,11 @@ var init_player = __esm({
         }
         const defenseReduction = this.activeEffects.filter((e2) => e2.type === "defense" && e2.remainingTurns !== 0).reduce((sum, e2) => sum + e2.amount, 0);
         const reduced = defenseReduction > 0 || defenseStatReduction > 0;
-        const actualDamage = Math.max(0, Math.round(incoming * (1 - defenseStatReduction) * (1 - defenseReduction)));
+        const damageBeforeBlock = Math.max(0, Math.round(incoming * (1 - defenseStatReduction)));
+        const actualDamage = Math.max(0, Math.round(damageBeforeBlock * (1 - defenseReduction)));
         this.pv -= actualDamage;
         const expiredMessages = [];
+        let reflectedDamageToAttacker = 0;
         if (critical)
           expiredMessages.push("Coup critique ! (d\xE9g\xE2ts x2)");
         try {
@@ -1726,13 +1737,18 @@ var init_player = __esm({
           }
         } catch (e2) {
         }
-        const hasReflect = !opts?.ignoreReflect && !!attacker && this.activeEffects.some((e2) => e2.type === "defense" && e2.remainingTurns !== 0 && e2.reflectDamage);
-        if (hasReflect && attacker && actualDamage > 0) {
-          const beforePvAttacker = attacker.pv;
-          const reflectRes = attacker.takeDamage(actualDamage, void 0, { ignoreReflect: true });
-          expiredMessages.push(`${this.name} renvoie ${reflectRes.actualDamage} d\xE9g\xE2ts \xE0 ${attacker.name} (PV ${beforePvAttacker} \u2192 ${attacker.pv}).`);
-          if (reflectRes.expiredMessages && reflectRes.expiredMessages.length) {
-            expiredMessages.push(...reflectRes.expiredMessages);
+        const reflectEffect = !opts?.ignoreReflect && attacker ? this.activeEffects.find((e2) => e2.type === "defense" && e2.remainingTurns !== 0 && e2.reflectDamage) : void 0;
+        if (reflectEffect && attacker && actualDamage > 0) {
+          const reflectMultiplier = Math.max(0, Number(reflectEffect.reflectDamageMultiplier ?? 1));
+          const reflectAmount = Math.max(0, Math.round(damageBeforeBlock * reflectMultiplier));
+          if (reflectAmount > 0) {
+            const beforePvAttacker = attacker.pv;
+            const reflectRes = attacker.takeDamage(reflectAmount, void 0, { ignoreReflect: true });
+            reflectedDamageToAttacker = Math.max(0, Math.floor(Number(reflectRes.actualDamage ?? 0)));
+            expiredMessages.push(`${this.name} renvoie ${reflectRes.actualDamage} d\xE9g\xE2ts \xE0 ${attacker.name} (PV ${beforePvAttacker} \u2192 ${attacker.pv}).`);
+            if (reflectRes.expiredMessages && reflectRes.expiredMessages.length) {
+              expiredMessages.push(...reflectRes.expiredMessages);
+            }
           }
         }
         if (attacker && critical && actualDamage > 0 && attacker.hasPassive("assassin_poison_crit")) {
@@ -1776,7 +1792,7 @@ var init_player = __esm({
             newEffects.push(effect);
         });
         this.activeEffects = newEffects;
-        return { actualDamage, expiredMessages, reduced, critical };
+        return { actualDamage, expiredMessages, reduced, critical, reflectedDamageToAttacker };
       }
       regenerateMana() {
         const activeManaRegen = this.activeEffects.filter((e2) => e2.type === "mana_regen" && e2.remainingTurns !== 0).reduce((s2, e2) => s2 + e2.amount, 0);
@@ -2518,6 +2534,9 @@ var init_quests = __esm({
 });
 
 // dist/utils.web.js
+function clamp(val, min, max) {
+  return Math.max(min, Math.min(max, val));
+}
 function escapeHtml(s2) {
   return String(s2 ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
@@ -2546,8 +2565,18 @@ function installHoverTooltip(container, opts) {
   let currentEl = null;
   const positionTooltip = (e2) => {
     const offset = 14;
-    tooltip.style.left = `${e2.clientX + offset}px`;
-    tooltip.style.top = `${e2.clientY + offset}px`;
+    const margin = 8;
+    const tooltipWidth = tooltip.offsetWidth;
+    const tooltipHeight = tooltip.offsetHeight;
+    const maxLeft = Math.max(margin, window.innerWidth - tooltipWidth - margin);
+    const left = clamp(e2.clientX + offset, margin, maxLeft);
+    let top = e2.clientY - tooltipHeight - offset;
+    if (top < margin)
+      top = e2.clientY + offset;
+    const maxTop = Math.max(margin, window.innerHeight - tooltipHeight - margin);
+    top = clamp(top, margin, maxTop);
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
   };
   const onOver = (ev) => {
     const target = ev.target;
@@ -2864,7 +2893,7 @@ var init_ui = __esm({
 });
 
 // dist/market/market.web.js
-function clamp(n2, min, max) {
+function clamp2(n2, min, max) {
   return Math.max(min, Math.min(max, n2));
 }
 function clampInt2(n2, min = 0) {
@@ -2910,7 +2939,7 @@ function estimateBasePrice(item) {
   if (item instanceof Equipment) {
     const eq = item;
     const qRaw = clampInt2(eq.fabricationQuality ?? 1, 1);
-    const q = clamp(qRaw, 1, 5);
+    const q = clamp2(qRaw, 1, 5);
     const qualityMult = Math.pow(2, q - 1);
     let baseQ1 = null;
     if (id === "sword_wood")
@@ -2933,7 +2962,7 @@ function estimateSellChance(basePrice, chosenPrice) {
   const bp = Math.max(1, clampInt2(basePrice, 1));
   const p2 = Math.max(1, clampInt2(chosenPrice, 1));
   const chance = 0.9 * (bp / p2);
-  return clamp(chance, 0.05, 0.95);
+  return clamp2(chance, 0.05, 0.95);
 }
 function getStackQty(item) {
   const q = Math.floor(Number(item?.quantity ?? 1));
@@ -4166,6 +4195,152 @@ var init_combatMenu_web = __esm({
   }
 });
 
+// dist/characterSprites.web.js
+function getMoveDir(from, to) {
+  const dx = Math.sign((to?.x ?? 0) - (from?.x ?? 0));
+  const dy = Math.sign((to?.y ?? 0) - (from?.y ?? 0));
+  const sx = dx - dy;
+  const sy = dx + dy;
+  if (sx > 0 && sy < 0)
+    return "upRight";
+  if (sx > 0 && sy > 0)
+    return "downRight";
+  if (sx < 0 && sy < 0)
+    return "upLeft";
+  if (sx < 0 && sy > 0)
+    return "downLeft";
+  if (sx > 0 && sy === 0)
+    return "right";
+  if (sx < 0 && sy === 0)
+    return "left";
+  if (sx === 0 && sy < 0)
+    return "up";
+  if (sx === 0 && sy > 0)
+    return "down";
+  return "none";
+}
+function normalizeSpriteSrc(src) {
+  const value = String(src ?? "").trim();
+  if (!value)
+    return null;
+  if (/^(?:\.\/|\.\.\/|\/|https?:)/.test(value))
+    return value;
+  return `./${value}`;
+}
+function getIdleSpriteSrc(characterClass) {
+  const cls = String(characterClass ?? "").toLowerCase();
+  const def = SPRITES[cls];
+  return def?.idleRight ?? null;
+}
+function getSkillSpriteSrc(characterClass) {
+  const cls = String(characterClass ?? "").toLowerCase();
+  return normalizeSpriteSrc(SPRITES[cls]?.skill);
+}
+function getActorSpriteSrc(actor, fallback = "./ImagesRPG/imagespersonnage/trueplayer.png") {
+  const cls = String(actor?.characterClass ?? "").toLowerCase();
+  const tempSprite = normalizeSpriteSrc(actor?.__tempSprite);
+  if (tempSprite)
+    return tempSprite;
+  const stunTurns = Math.max(0, Math.floor(Number(actor?.stunTurns ?? 0)));
+  const stunnedSprite = stunTurns > 0 ? normalizeSpriteSrc(SPRITES[cls]?.stunned) : null;
+  if (stunnedSprite)
+    return stunnedSprite;
+  return normalizeSpriteSrc(SPRITES[cls]?.idleRight) ?? fallback;
+}
+function getWalkCycle(characterClass, dir) {
+  const cls = String(characterClass ?? "").toLowerCase();
+  const def = SPRITES[cls];
+  const walk = def?.walk?.[dir];
+  const idle = def?.idleRight ?? "";
+  if (!walk || !walk.frames?.length)
+    return null;
+  const cycle = [...walk.frames, idle].filter(Boolean);
+  if (!cycle.length)
+    return null;
+  return { cycle, frameMs: Math.max(60, Math.floor(walk.frameMs)) };
+}
+function preloadImages(srcs) {
+  for (const src of srcs) {
+    try {
+      const img = new Image();
+      img.decoding = "async";
+      img.loading = "eager";
+      img.src = src;
+    } catch {
+    }
+  }
+}
+function startWalkSpriteAnimation(opts) {
+  const cls = String(opts.characterClass ?? "").toLowerCase();
+  const def = SPRITES[cls];
+  const walk = def?.walk?.[opts.dir];
+  const img = opts.container.querySelector("img.unit-sprite");
+  if (!img || !walk || !walk.frames?.length)
+    return { stop: () => void 0 };
+  const idle = def?.idleRight ?? "";
+  const cycle = [...walk.frames, idle].filter(Boolean);
+  if (!cycle.length)
+    return { stop: () => void 0 };
+  preloadImages(idle ? [idle, ...cycle] : cycle);
+  let idx = 0;
+  const startSrc = img.getAttribute("src") ?? "";
+  img.src = cycle[0];
+  const timer = window.setInterval(() => {
+    idx = (idx + 1) % cycle.length;
+    img.src = cycle[idx];
+  }, Math.max(60, Math.floor(walk.frameMs)));
+  const stop = () => {
+    try {
+      window.clearInterval(timer);
+    } catch {
+    }
+    if (idle)
+      img.src = idle;
+    else if (startSrc)
+      img.src = startSrc;
+  };
+  return { stop };
+}
+function getWalkAnimMinDurationMs(characterClass, dir) {
+  const cls = String(characterClass ?? "").toLowerCase();
+  const def = SPRITES[cls];
+  const walk = def?.walk?.[dir];
+  if (!walk || !walk.frames?.length)
+    return 0;
+  const frameMs = Math.max(0, Math.floor(walk.frameMs ?? 0));
+  return Math.max(0, 3 * frameMs);
+}
+var SPRITES;
+var init_characterSprites_web = __esm({
+  "dist/characterSprites.web.js"() {
+    "use strict";
+    SPRITES = {
+      guerrier: {
+        idleRight: "./ImagesRPG/imagespersonnage/guerrier_static_droite.png",
+        skill: "./ImagesRPG/imagespersonnage/perso_guerrier_attaque.png",
+        stunned: "./ImagesRPG/imagespersonnage/perso_guerrier_mort.png",
+        walk: {
+          upRight: {
+            frames: [
+              "./ImagesRPG/imagespersonnage/guerrier_walk_droite1.png",
+              "./ImagesRPG/imagespersonnage/guerrier_walk_droite2.png"
+            ],
+            frameMs: 250
+          }
+        }
+      },
+      mage: {
+        idleRight: "./ImagesRPG/imagespersonnage/perso_mage1.png",
+        skill: "./ImagesRPG/imagespersonnage/perso_mage_combat_dirdroite.png"
+      },
+      voleur: {
+        idleRight: "./ImagesRPG/imagespersonnage/perso_voleur_dirdroite.png",
+        skill: "./ImagesRPG/imagespersonnage/perso_voleur_combat.jpeg"
+      }
+    };
+  }
+});
+
 // dist/battleTurn.web.js
 function getEffectiveSkillForCaster(skill, caster) {
   if (!(skill instanceof DefenseSkill))
@@ -4183,42 +4358,60 @@ function getEffectiveSkillForCaster(skill, caster) {
   }
   return skill;
 }
+function notifyTempSpriteChanged(caster) {
+  try {
+    window.dispatchEvent(new CustomEvent("tempSpriteChanged", { detail: { casterName: caster.name } }));
+  } catch {
+  }
+}
+function applyTemporarySkillSprite(caster, skillId) {
+  try {
+    const cls = String(caster.characterClass ?? "").toLowerCase();
+    const offensiveSkills = /* @__PURE__ */ new Set(["basic_attack", "hache_lourde"]);
+    const normalizedSkillId = String(skillId ?? "");
+    let tempSprite = null;
+    let durationMs = 0;
+    if (cls === "guerrier" && offensiveSkills.has(normalizedSkillId)) {
+      tempSprite = getSkillSpriteSrc(cls);
+      durationMs = 500;
+    } else if (cls === "mage" || cls === "voleur") {
+      tempSprite = getSkillSpriteSrc(cls);
+      durationMs = 1e3;
+    }
+    if (!tempSprite || durationMs <= 0)
+      return;
+    const casterState = caster;
+    if (casterState.__tempSpriteTimer) {
+      try {
+        window.clearTimeout(casterState.__tempSpriteTimer);
+      } catch {
+      }
+    }
+    casterState.__tempSprite = tempSprite;
+    notifyTempSpriteChanged(caster);
+    casterState.__tempSpriteTimer = window.setTimeout(() => {
+      try {
+        delete casterState.__tempSprite;
+        delete casterState.__tempSpriteTimer;
+        notifyTempSpriteChanged(caster);
+      } catch {
+      }
+    }, durationMs);
+  } catch {
+  }
+}
 function applyPlayerSkillTurn(params) {
   const { caster, target, turn } = params;
   const baseSkill = params.skill;
   const skill = getEffectiveSkillForCaster(baseSkill, caster);
   const baseSkillId = baseSkill.skillId;
-  try {
-    const cls = String(caster.characterClass ?? "").toLowerCase();
-    const offensiveSkills = /* @__PURE__ */ new Set(["basic_attack", "hache_lourde"]);
-    if (cls === "guerrier" && offensiveSkills.has(String(baseSkillId ?? ""))) {
-      try {
-        caster.__tempSprite = "ImagesRPG/imagespersonnage/perso_guerrier_attaque.png";
-        try {
-          window.dispatchEvent(new CustomEvent("tempSpriteChanged", { detail: { casterName: caster.name } }));
-        } catch (e2) {
-        }
-        setTimeout(() => {
-          try {
-            delete caster.__tempSprite;
-            try {
-              window.dispatchEvent(new CustomEvent("tempSpriteChanged", { detail: { casterName: caster.name } }));
-            } catch (e2) {
-            }
-          } catch (e2) {
-          }
-        }, 500);
-      } catch (e2) {
-      }
-    }
-  } catch (e2) {
-  }
   const beforeCasterMana = caster.currentMana;
   const beforeCasterPv = caster.pv;
   const beforeTargetPv = target.pv;
   if (caster.currentMana < skill.manaCost) {
     return { ok: false, message: "Pas assez de mana pour utiliser " + skill.name };
   }
+  applyTemporarySkillSprite(caster, baseSkillId);
   if ((baseSkillId === "boule_de_givre" || skill.name === "Boule de Givre") && skill instanceof ManaRegenDebuffSkill) {
     const alreadyPresent = (target.activeEffects || []).some((e2) => e2.type === "mana_regen" && (e2.amount ?? 0) < 0 && e2.remainingTurns !== 0 && e2.sourceSkillId === "boule_de_givre");
     if (alreadyPresent) {
@@ -4232,6 +4425,7 @@ function applyPlayerSkillTurn(params) {
   let message = `${caster.name} utilise ${skill.name}${manaSpentMsg}.`;
   let healFlashOnCaster = false;
   let damageFlashOnTarget = null;
+  let reflectFlashOnCaster = null;
   if (skill instanceof Damageskill) {
     const typeMult = caster.getPassiveSkillTypeMultiplier?.("damage") ?? 1;
     const dmg = Math.round(skill.damage * caster.effectiveAttack * typeMult);
@@ -4270,6 +4464,9 @@ function applyPlayerSkillTurn(params) {
       }
     }
     damageFlashOnTarget = { actualDamage: res.actualDamage, reduced: res.reduced };
+    if (res.reflectedDamageToAttacker > 0) {
+      reflectFlashOnCaster = { actualDamage: Math.max(0, Math.floor(Number(res.reflectedDamageToAttacker ?? 0))) };
+    }
   } else if (skill instanceof DoTSkill) {
     const typeMult = caster.getPassiveSkillTypeMultiplier?.("dot") ?? 1;
     const dmgPerTurn = Math.round(skill.damagePerTurn * caster.effectiveAttack * typeMult);
@@ -4386,16 +4583,20 @@ function applyPlayerSkillTurn(params) {
   } else if (skill instanceof DefenseSkill) {
     const dur = skill.duration <= 0 ? -1 : skill.duration;
     const blockPersistsFullTurn = baseSkillId === "block" && caster.hasPassive?.("blocage_guerrier");
+    const blockReflectsDamage = baseSkillId === "block" && caster.hasPassive?.("blocage_epines");
     caster.activeEffects.push({
       type: "defense",
       amount: skill.defenseAmount,
       remainingTurns: dur,
       sourceSkill: skill.name,
       sourceSkillId: baseSkillId,
-      reflectDamage: false,
+      reflectDamage: blockReflectsDamage,
+      reflectDamageMultiplier: blockReflectsDamage ? 0.5 : 0,
       expireOnHit: baseSkillId === "block" ? !blockPersistsFullTurn : true
     });
     message = `${caster.name} utilise ${skill.name} et ` + (baseSkillId === "block" && !blockPersistsFullTurn ? `r\xE9duira de ${Math.round(skill.defenseAmount * 100)}% les d\xE9g\xE2ts de la prochaine attaque re\xE7ue` : `r\xE9duira les d\xE9g\xE2ts re\xE7us de ${Math.round(skill.defenseAmount * 100)}%${skill.duration > 0 ? ` pendant ${skill.duration} tour(s)` : " pendant tout le combat"}`);
+    if (blockReflectsDamage)
+      message += " et renverra 50% des d\xE9g\xE2ts re\xE7us \xE0 l attaquant";
   } else if (skill instanceof ManaRegenBuffSkill) {
     const dur = skill.duration <= 0 ? -1 : skill.duration;
     caster.activeEffects.push({
@@ -4454,7 +4655,7 @@ function applyPlayerSkillTurn(params) {
       message = `${caster.name} utilise ${skill.name}${manaSpentMsg} : +1 PA pour le groupe au d\xE9but du prochain tour.`;
       if (caster.isPlayer)
         window.game?.audioManager.play("magic");
-      return { ok: true, message, extraHistory, healFlashOnCaster, damageFlashOnTarget };
+      return { ok: true, message, extraHistory, healFlashOnCaster, damageFlashOnTarget, reflectFlashOnCaster };
     }
     if (baseSkillId === "fureur") {
       const sac = Math.max(1, Math.floor(Number(caster.maxPv ?? 0) * 0.1));
@@ -4493,7 +4694,7 @@ function applyPlayerSkillTurn(params) {
       window.game?.audioManager.play("magic");
     }
   }
-  return { ok: true, message, extraHistory, healFlashOnCaster, damageFlashOnTarget };
+  return { ok: true, message, extraHistory, healFlashOnCaster, damageFlashOnTarget, reflectFlashOnCaster };
 }
 function applyAutoTurn(params) {
   const { caster, target, turn } = params;
@@ -4510,7 +4711,8 @@ function applyAutoTurn(params) {
       message: `${caster.name} n'a pas assez de mana pour agir et passe son tour.`,
       extraHistory: [],
       healFlashOnCaster: false,
-      damageFlashOnTarget: null
+      damageFlashOnTarget: null,
+      reflectFlashOnCaster: null
     };
   }
   return applyPlayerSkillTurn({ caster, target, skill, turn });
@@ -4519,6 +4721,7 @@ var init_battleTurn_web = __esm({
   "dist/battleTurn.web.js"() {
     "use strict";
     init_party_web();
+    init_characterSprites_web();
     init_skill();
   }
 });
@@ -4778,6 +4981,47 @@ function ensureTacticalStyles() {
             transform: translateY(24px);
             margin-top: auto;
             z-index: 12;
+        }
+        .tactical-toolbar-fixed {
+            position: fixed;
+            left: 24px;
+            bottom: 24px;
+            z-index: 9500;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 10px 12px;
+            border-radius: 14px;
+            background: rgba(0,0,0,0.62);
+            border: 1px solid rgba(255,255,255,0.10);
+            box-shadow: 0 12px 28px rgba(0,0,0,0.30);
+            backdrop-filter: blur(4px);
+            pointer-events: auto;
+        }
+        .tactical-log-toolbar {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: flex-start;
+            pointer-events: auto;
+        }
+        .tactical-wrap.tactical-combat .tactical-toolbar-fixed {
+            left: 8px;
+            bottom: 8px;
+            z-index: 2700;
+        }
+        .tactical-tool-btn {
+            min-width: 38px;
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            line-height: 1;
         }
 
         /* Bottom skill bars: 7 icons left (right of history), remaining icons bottom-right */
@@ -5115,6 +5359,8 @@ function ensureTacticalStyles() {
 
         /* Pixi units: hide DOM sprite image, keep overlays/bars */
         .tactical-grid.pixi-units .unit-sprite { visibility: hidden; }
+        /* Lightning focus exception: show the DOM sprite above the dimmed neighboring tiles. */
+        body.tactical-dim-tiles .tactical-grid.pixi-units .tile.lightning-focus .unit-sprite { visibility: visible; }
 
         /* Pixi units: hide the white SVG grid overlay (user preference) */
         .tactical-grid.pixi-units.iso .iso-grid-overlay { opacity: 0 !important; }
@@ -5345,9 +5591,13 @@ function ensureTacticalStyles() {
 
         /* Same dim effect, but resilient to re-render (toggle on body).
            IMPORTANT: in iso view, darken ONLY the ground (diamond), like in-range highlights. */
-        body.tactical-dim-tiles #tacticalGrid:not(.iso) .tile { background: rgba(0,0,0,0.92) !important; }
+        body.tactical-dim-tiles #tacticalGrid:not(.iso) .tile:not(.lightning-focus) { background: rgba(0,0,0,0.92) !important; }
 
-        body.tactical-dim-tiles #tacticalGrid.iso .tile::after {
+        body.tactical-dim-tiles #tacticalGrid .tile.lightning-focus {
+            overflow: visible;
+        }
+
+        body.tactical-dim-tiles #tacticalGrid.iso .tile:not(.lightning-focus)::after {
             content: '';
             position: absolute;
             left: 50%;
@@ -6156,125 +6406,12 @@ var init_tacticalBoard = __esm({
   }
 });
 
-// dist/characterSprites.web.js
-function getMoveDir(from, to) {
-  const dx = Math.sign((to?.x ?? 0) - (from?.x ?? 0));
-  const dy = Math.sign((to?.y ?? 0) - (from?.y ?? 0));
-  const sx = dx - dy;
-  const sy = dx + dy;
-  if (sx > 0 && sy < 0)
-    return "upRight";
-  if (sx > 0 && sy > 0)
-    return "downRight";
-  if (sx < 0 && sy < 0)
-    return "upLeft";
-  if (sx < 0 && sy > 0)
-    return "downLeft";
-  if (sx > 0 && sy === 0)
-    return "right";
-  if (sx < 0 && sy === 0)
-    return "left";
-  if (sx === 0 && sy < 0)
-    return "up";
-  if (sx === 0 && sy > 0)
-    return "down";
-  return "none";
-}
-function getIdleSpriteSrc(characterClass) {
-  const cls = String(characterClass ?? "").toLowerCase();
-  const def = SPRITES[cls];
-  return def?.idleRight ?? null;
-}
-function getWalkCycle(characterClass, dir) {
-  const cls = String(characterClass ?? "").toLowerCase();
-  const def = SPRITES[cls];
-  const walk = def?.walk?.[dir];
-  const idle = def?.idleRight ?? "";
-  if (!walk || !walk.frames?.length)
-    return null;
-  const cycle = [...walk.frames, idle].filter(Boolean);
-  if (!cycle.length)
-    return null;
-  return { cycle, frameMs: Math.max(60, Math.floor(walk.frameMs)) };
-}
-function preloadImages(srcs) {
-  for (const src of srcs) {
-    try {
-      const img = new Image();
-      img.decoding = "async";
-      img.loading = "eager";
-      img.src = src;
-    } catch {
-    }
-  }
-}
-function startWalkSpriteAnimation(opts) {
-  const cls = String(opts.characterClass ?? "").toLowerCase();
-  const def = SPRITES[cls];
-  const walk = def?.walk?.[opts.dir];
-  const img = opts.container.querySelector("img.unit-sprite");
-  if (!img || !walk || !walk.frames?.length)
-    return { stop: () => void 0 };
-  const idle = def?.idleRight ?? "";
-  const cycle = [...walk.frames, idle].filter(Boolean);
-  if (!cycle.length)
-    return { stop: () => void 0 };
-  preloadImages(idle ? [idle, ...cycle] : cycle);
-  let idx = 0;
-  const startSrc = img.getAttribute("src") ?? "";
-  img.src = cycle[0];
-  const timer = window.setInterval(() => {
-    idx = (idx + 1) % cycle.length;
-    img.src = cycle[idx];
-  }, Math.max(60, Math.floor(walk.frameMs)));
-  const stop = () => {
-    try {
-      window.clearInterval(timer);
-    } catch {
-    }
-    if (idle)
-      img.src = idle;
-    else if (startSrc)
-      img.src = startSrc;
-  };
-  return { stop };
-}
-function getWalkAnimMinDurationMs(characterClass, dir) {
-  const cls = String(characterClass ?? "").toLowerCase();
-  const def = SPRITES[cls];
-  const walk = def?.walk?.[dir];
-  if (!walk || !walk.frames?.length)
-    return 0;
-  const frameMs = Math.max(0, Math.floor(walk.frameMs ?? 0));
-  return Math.max(0, 3 * frameMs);
-}
-var SPRITES;
-var init_characterSprites_web = __esm({
-  "dist/characterSprites.web.js"() {
-    "use strict";
-    SPRITES = {
-      guerrier: {
-        idleRight: "./ImagesRPG/imagespersonnage/guerrier_static_droite.png",
-        walk: {
-          upRight: {
-            frames: [
-              "./ImagesRPG/imagespersonnage/guerrier_walk_droite1.png",
-              "./ImagesRPG/imagespersonnage/guerrier_walk_droite2.png"
-            ],
-            frameMs: 250
-          }
-        }
-      }
-    };
-  }
-});
-
 // dist/tactical/render.web.js
 function renderUnitHtml(u2) {
   const teamClass = u2.team === "allies" ? "unit-team-allies" : "unit-team-enemies";
   const actor = u2.actor;
   const cls = String(actor?.characterClass ?? "").toLowerCase();
-  let spriteSrc = u2.team === "allies" ? cls === "mage" ? "./ImagesRPG/imagespersonnage/mage.png" : cls === "voleur" ? "./ImagesRPG/imagespersonnage/voleur.png" : cls === "guerrier" ? getIdleSpriteSrc(cls) ?? "./ImagesRPG/imagespersonnage/true_perso_guerrier.png" : "./ImagesRPG/imagespersonnage/trueplayer.png" : actor?.image ?? "./ImagesRPG/imagespersonnage/trueennemi.png";
+  let spriteSrc = u2.team === "allies" ? getActorSpriteSrc(actor, "./ImagesRPG/imagespersonnage/trueplayer.png") : actor?.image ?? "./ImagesRPG/imagespersonnage/trueennemi.png";
   const maxPv = Math.max(1, Math.floor(actor?.maxPv ?? u2.maxPv ?? 1));
   const pv = Math.max(0, Math.floor(actor?.pv ?? u2.pv ?? 0));
   const hpPct = Math.max(0, Math.min(100, pv / maxPv * 100));
@@ -6286,14 +6423,6 @@ function renderUnitHtml(u2) {
   const apDots = apMax > 0 ? Array.from({ length: apMax }).map((_, i2) => `<span class="unit-sprite-apdot ${i2 < ap ? "filled" : ""}"></span>`).join("") : "";
   const stunTurns = Math.max(0, Math.floor(Number(actor?.stunTurns ?? 0)));
   const stunBadge = stunTurns > 0 ? `<div class="unit-sprite-stun" title="\xC9tourdi: ${stunTurns} tour(s)">\u{1F4AB} \xC9tourdi</div>` : "";
-  const tempSprite = String(actor?.__tempSprite ?? "");
-  if (tempSprite) {
-    spriteSrc = tempSprite;
-  } else {
-    if (u2.team === "allies" && cls === "guerrier" && stunTurns > 0) {
-      spriteSrc = "./ImagesRPG/imagespersonnage/perso_guerrier_mort.png";
-    }
-  }
   const activeEffects = getActiveEffects(actor);
   const hpAffecting = activeEffects.filter((e2) => e2.type === "dot" || e2.type === "hot" || e2.type === "defense" || e2.type === "vulnerability");
   const manaAffecting = activeEffects.filter((e2) => e2.type === "mana_regen");
@@ -7258,13 +7387,14 @@ function hasLearnedTalentPassiveNode(actor, nodeId) {
 function getTalentPassiveNodeDef(nodeId) {
   return TALENT_PASSIVE_NODE_DEFS[nodeId] ?? null;
 }
-var PASSIVE_CHARGE_DAMAGE_BOOST_NODE_ID, PASSIVE_CHARGE_STUN_TRAVERSED_NODE_ID, PASSIVE_WARRIOR_BLOCK_CORE_NODE_ID, PASSIVE_ASSASSIN_POISON_ON_CRIT_NODE_ID, PASSIVE_ASSASSIN_COMBO_NODE_ID, TALENT_PASSIVE_NODE_DEFS;
+var PASSIVE_CHARGE_DAMAGE_BOOST_NODE_ID, PASSIVE_CHARGE_STUN_TRAVERSED_NODE_ID, PASSIVE_WARRIOR_BLOCK_CORE_NODE_ID, PASSIVE_WARRIOR_BLOCK_REFLECT_CORE_NODE_ID, PASSIVE_ASSASSIN_POISON_ON_CRIT_NODE_ID, PASSIVE_ASSASSIN_COMBO_NODE_ID, TALENT_PASSIVE_NODE_DEFS;
 var init_talentPassives = __esm({
   "dist/talents/talentPassives.js"() {
     "use strict";
     PASSIVE_CHARGE_DAMAGE_BOOST_NODE_ID = "passive.guerrier.barbare.t1.p0";
     PASSIVE_CHARGE_STUN_TRAVERSED_NODE_ID = "passive.guerrier.gladiateur.t1.p0";
     PASSIVE_WARRIOR_BLOCK_CORE_NODE_ID = "passive.guerrier.core.p0";
+    PASSIVE_WARRIOR_BLOCK_REFLECT_CORE_NODE_ID = "passive.guerrier.core.p1";
     PASSIVE_ASSASSIN_POISON_ON_CRIT_NODE_ID = "passive.voleur.assassin.t1.p0";
     PASSIVE_ASSASSIN_COMBO_NODE_ID = "passive.voleur.assassin.t1.p1";
     TALENT_PASSIVE_NODE_DEFS = {
@@ -7273,6 +7403,12 @@ var init_talentPassives = __esm({
         name: "Blocage de guerrier",
         description: "Modifie Blocage: l effet dure 1 tour au lieu de ne bloquer que la prochaine attaque.",
         grantsPassiveId: "blocage_guerrier"
+      },
+      [PASSIVE_WARRIOR_BLOCK_REFLECT_CORE_NODE_ID]: {
+        id: PASSIVE_WARRIOR_BLOCK_REFLECT_CORE_NODE_ID,
+        name: "Blocage \xE9pineux",
+        description: "Modifie Blocage: les attaques bloqu\xE9es renvoient 50% des d\xE9g\xE2ts re\xE7us \xE0 l attaquant.",
+        grantsPassiveId: "blocage_epines"
       },
       [PASSIVE_CHARGE_DAMAGE_BOOST_NODE_ID]: {
         id: PASSIVE_CHARGE_DAMAGE_BOOST_NODE_ID,
@@ -7586,6 +7722,14 @@ function applySkillOnce(state2, params) {
       kind: "damage",
       amount: Math.max(0, Math.floor(Number(res.damageFlashOnTarget.actualDamage ?? 0))),
       reduced: !!res.damageFlashOnTarget.reduced
+    };
+  }
+  if (res.reflectFlashOnCaster && res.reflectFlashOnCaster.actualDamage > 0) {
+    state2.__lastUnitEffectSecondary = {
+      unitId: unit.id,
+      kind: "damage",
+      amount: Math.max(0, Math.floor(Number(res.reflectFlashOnCaster.actualDamage ?? 0))),
+      reduced: false
     };
   }
   if (target.pv <= 0)
@@ -9307,14 +9451,45 @@ function bindTacticalGridInput(grid, deps) {
             }
             try {
               const w2 = window;
+              const clearLightningFocus = () => {
+                const actors = Array.isArray(w2.__tacticalLightningFocusActors) ? w2.__tacticalLightningFocusActors : [];
+                for (const actor of actors) {
+                  try {
+                    if (actor)
+                      delete actor.__lightningFocus;
+                  } catch {
+                  }
+                }
+                w2.__tacticalLightningFocusActors = [];
+              };
+              clearLightningFocus();
               if (w2.__tacticalDimTilesTimer) {
                 clearTimeout(w2.__tacticalDimTilesTimer);
                 w2.__tacticalDimTilesTimer = null;
               }
+              if (w2.__tacticalLightningFocusTimer) {
+                clearTimeout(w2.__tacticalLightningFocusTimer);
+                w2.__tacticalLightningFocusTimer = null;
+              }
+              const focusActors = [activeNow.actor, effectiveTargetUnit?.actor].filter(Boolean);
+              for (const actor of focusActors) {
+                try {
+                  actor.__lightningFocus = true;
+                } catch {
+                }
+              }
+              w2.__tacticalLightningFocusActors = focusActors;
               document.body.classList.add("tactical-dim-tiles");
               w2.__tacticalDimTilesTimer = setTimeout(() => {
                 try {
                   document.body.classList.remove("tactical-dim-tiles");
+                } catch {
+                }
+              }, 1e3);
+              w2.__tacticalLightningFocusTimer = setTimeout(() => {
+                try {
+                  clearLightningFocus();
+                  deps.render();
                 } catch {
                 }
               }, 1e3);
@@ -9375,6 +9550,10 @@ function bindTacticalGridInput(grid, deps) {
             if (res.damageFlashOnTarget.reduced)
               flashUnitAt(effectiveTargetPos, "reduced");
             spawnFloatAt(effectiveTargetPos, "damage", res.damageFlashOnTarget.actualDamage);
+          }
+          if (res.reflectFlashOnCaster && res.reflectFlashOnCaster.actualDamage > 0) {
+            flashUnitAt(activeNow.pos, "damage");
+            spawnFloatAt(activeNow.pos, "damage", res.reflectFlashOnCaster.actualDamage);
           }
           if (res.healFlashOnCaster) {
             flashUnitAt(activeNow.pos, "heal");
@@ -9477,6 +9656,10 @@ function bindTacticalGridInput(grid, deps) {
         if (res.damageFlashOnTarget.reduced)
           flashUnitAt(activeNow.pos, "reduced");
         spawnFloatAt(activeNow.pos, "damage", res.damageFlashOnTarget.actualDamage);
+      }
+      if (res.reflectFlashOnCaster && res.reflectFlashOnCaster.actualDamage > 0) {
+        flashUnitAt(activeNow.pos, "damage");
+        spawnFloatAt(activeNow.pos, "damage", res.reflectFlashOnCaster.actualDamage);
       }
       if (res.healFlashOnCaster) {
         flashUnitAt(activeNow.pos, "heal");
@@ -73797,6 +73980,10 @@ function renderTacticalOverlayFromDomNow() {
       unitsLayer.addChild(sprite);
     if (src)
       setSpriteSourceAsync(PIXI, sprite, src);
+    const lightningFocusVisibleInDom = document.body.classList.contains("tactical-dim-tiles") && tile.classList.contains("lightning-focus");
+    sprite.visible = !lightningFocusVisibleInDom;
+    if (lightningFocusVisibleInDom)
+      continue;
     sprite.x = c2.x;
     sprite.y = c2.y + tileH2 * 0.15;
     const desiredH = Math.max(24, tileH2 * 1.15);
@@ -73846,6 +74033,1331 @@ var init_tacticalOverlay_web = __esm({
     texturePromiseByUrl = /* @__PURE__ */ new Map();
     textureByUrl = /* @__PURE__ */ new Map();
     overlayRenderScheduled = false;
+  }
+});
+
+// dist/personnages.web.js
+var personnages_web_exports = {};
+__export(personnages_web_exports, {
+  openPersonnageModalFromMap: () => openPersonnageModalFromMap,
+  showPersonnage1: () => showPersonnage1,
+  showPersonnage2: () => showPersonnage2,
+  showPersonnage3: () => showPersonnage3,
+  showSelectionPersonnages: () => showSelectionPersonnages
+});
+function goVillage() {
+  void Promise.resolve().then(() => (init_villageMain_web(), villageMain_web_exports)).then((m2) => m2.showVillage());
+}
+function showSelectionPersonnages(options = {}) {
+  const app2 = document.getElementById("app");
+  if (!app2)
+    return;
+  const party2 = getPartyMembers();
+  app2.innerHTML = `
+        <img src="https://wallpaperaccess.com/full/3486837.jpg" class="background" alt="S\xE9lection personnages">
+        <div class="centered-content">
+            <h1>S\xE9lection des personnages</h1>
+            <div style="display:flex;flex-direction:column;gap:14px;align-items:center;margin-top:18px;">
+                ${party2.map((p2, idx) => {
+    const label = `${p2.name} \u2014 ${getPartyClassLabel(p2)} (Niv ${p2.level})`;
+    return `
+                            <div style="display:flex;gap:10px;align-items:center;">
+                                <button class="btn" data-pidx-full="${idx}" style="min-width:320px;">${label}</button>
+                                <button class="btn" data-pidx-modal="${idx}" style="min-width:120px;padding:6px 10px;font-size:0.9em;">Fiche</button>
+                            </div>
+                        `;
+  }).join("")}
+                <button class="btn" id="backBtn" style="min-width:220px;">Retour</button>
+            </div>
+        </div>
+    `;
+  document.querySelectorAll("[data-pidx-full]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.getAttribute("data-pidx-full"));
+      if (idx === 0)
+        return showPersonnage1(options);
+      if (idx === 1)
+        return showPersonnage2(options);
+      return showPersonnage3(options);
+    });
+  });
+  document.querySelectorAll("[data-pidx-modal]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.getAttribute("data-pidx-modal"));
+      openPersonnageModal({ startIndex: idx });
+    });
+  });
+  document.getElementById("backBtn")?.addEventListener("click", options.onBack ?? goVillage);
+}
+function openPersonnageModalFromMap(opts = {}) {
+  openPersonnageModal(opts);
+}
+function openPersonnageModal(opts = {}) {
+  if (personnageModalEl)
+    return;
+  const party2 = getPartyMembers();
+  let selected = opts.startIndex ?? 0;
+  const close = () => {
+    closeTitlesModal();
+    personnageModalEl?.remove();
+    personnageModalEl = null;
+    document.removeEventListener("keydown", onKeyDown);
+  };
+  const onKeyDown = (e2) => {
+    if (e2.key === "Escape")
+      close();
+  };
+  document.addEventListener("keydown", onKeyDown);
+  const overlay = document.createElement("div");
+  overlay.id = "personnageModal";
+  overlay.style.cssText = [
+    "position:fixed",
+    "inset:0",
+    "background:rgba(0,0,0,0.72)",
+    "z-index:9999",
+    "display:flex",
+    "align-items:center",
+    "justify-content:center",
+    "padding:18px"
+  ].join(";");
+  const panel = document.createElement("div");
+  panel.style.cssText = [
+    "width:min(920px, 96vw)",
+    "max-height:92vh",
+    "overflow:auto",
+    "background:rgba(20,20,24,0.96)",
+    "border:1px solid rgba(255,255,255,0.10)",
+    "border-radius:14px",
+    "box-shadow:0 10px 40px rgba(0,0,0,0.65)",
+    "padding:16px",
+    "color:#fff"
+  ].join(";");
+  const getAvatarUrl = (actor) => {
+    const cls = String(actor?.characterClass ?? "").toLowerCase();
+    if (cls === "mage")
+      return "ImagesRPG/imagespersonnage/mage.jpg";
+    if (cls === "voleur")
+      return "ImagesRPG/imagespersonnage/voleur.png";
+    return "https://img.freepik.com/vecteurs-premium/illustration-personnage_961307-22519.jpg";
+  };
+  const bar = (label, current, max, color) => {
+    const safeMax = Math.max(1, Math.floor(max));
+    const pct2 = Math.max(0, Math.min(100, Math.round(Math.max(0, current) / safeMax * 100)));
+    return `
+            <div style="margin:6px 0 10px 0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.92em;color:#ddd;">
+                    <div>${label}</div>
+                    <div>${Math.floor(current)}/${safeMax}</div>
+                </div>
+                <div style="height:10px;background:rgba(255,255,255,0.10);border-radius:999px;overflow:hidden;">
+                    <div style="height:100%;width:${pct2}%;background:${color};"></div>
+                </div>
+            </div>
+        `;
+  };
+  const xpBar = (p2) => {
+    const next = Math.max(1, Math.floor(p2.getXPForLevel(p2.level + 1) ?? 1));
+    const cur = Math.max(0, Math.floor(p2.currentXP ?? 0));
+    const pct2 = Math.max(0, Math.min(100, Math.round(cur / next * 100)));
+    return `
+            <div style="margin-top:6px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.92em;color:#ddd;">
+                    <div>XP</div>
+                    <div>${cur} / ${next} (${pct2}%)</div>
+                </div>
+                <div style="height:10px;background:rgba(255,255,255,0.10);border-radius:999px;overflow:hidden;">
+                    <div style="height:100%;width:${pct2}%;background:linear-gradient(90deg,#ffd36a,#ff9f4a);"></div>
+                </div>
+            </div>
+        `;
+  };
+  let titlesModalEl = null;
+  const closeTitlesModal = () => {
+    titlesModalEl?.remove();
+    titlesModalEl = null;
+  };
+  const openTitlesModal = () => {
+    if (!personnageModalEl)
+      return;
+    if (titlesModalEl)
+      return;
+    const titles = ensureTitles(hero);
+    const wrap = document.createElement("div");
+    wrap.style.cssText = [
+      "position:fixed",
+      "inset:0",
+      "background:rgba(0,0,0,0.55)",
+      "z-index:10020",
+      "display:flex",
+      "align-items:center",
+      "justify-content:center",
+      "padding:18px"
+    ].join(";");
+    const box = document.createElement("div");
+    box.style.cssText = [
+      "width:min(520px, 92vw)",
+      "background:rgba(20,20,24,0.98)",
+      "border:1px solid rgba(255,255,255,0.12)",
+      "border-radius:14px",
+      "box-shadow:0 10px 40px rgba(0,0,0,0.65)",
+      "padding:14px 14px 12px 14px",
+      "color:#fff"
+    ].join(";");
+    box.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                <div style="font-size:1.05em;font-weight:800;">Titres obtenus</div>
+                <button class="btn" id="titlesModalCloseBtn" style="min-width:90px;">Fermer</button>
+            </div>
+            <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+                ${titles.map((t2) => {
+      const label = escapeHtml(String(t2 ?? "").trim());
+      return `<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);border-radius:12px;padding:8px 10px;">${label}</div>`;
+    }).join("")}
+            </div>
+        `;
+    wrap.appendChild(box);
+    wrap.addEventListener("click", (e2) => {
+      if (e2.target === wrap)
+        closeTitlesModal();
+    });
+    box.querySelector("#titlesModalCloseBtn")?.addEventListener("click", () => closeTitlesModal());
+    document.body.appendChild(wrap);
+    titlesModalEl = wrap;
+  };
+  const clamp01002 = (n2) => {
+    const v2 = Math.floor(Number(n2 ?? 0));
+    if (!Number.isFinite(v2))
+      return 0;
+    return Math.max(0, Math.min(100, v2));
+  };
+  const virtueBar = (label, value, color) => {
+    const pct2 = clamp01002(value);
+    return `
+            <div style="display:flex;align-items:flex-end;gap:8px;min-width:160px;">
+                <div style="position:relative;width:18px;height:56px;background:rgba(255,255,255,0.10);border-radius:0;overflow:hidden;">
+                    <div style="position:absolute;left:0;right:0;bottom:0;height:${pct2}%;background:${color};border-radius:0;"></div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:2px;">
+                    <div style="font-size:0.92em;color:#ddd;">${label}</div>
+                    <div style="font-size:0.82em;color:#999;">${pct2}/100</div>
+                </div>
+            </div>
+        `;
+  };
+  const render = () => {
+    const p2 = getPartyMember(selected);
+    const clsLabel = getPartyClassLabel(p2);
+    const portrait = getAvatarUrl(p2);
+    const pvMax = Math.max(1, Math.floor(p2.effectiveMaxPv ?? p2.maxPv ?? 1));
+    const manaMax = Math.max(1, Math.floor(p2.effectiveMaxMana ?? p2.maxMana ?? 1));
+    const points = Math.max(0, Math.floor(p2.characteristicPoints ?? 0));
+    const honneur = clamp01002(hero.honneur ?? p2.honneur ?? 0);
+    const liberte = clamp01002(hero.liberte ?? p2.liberte ?? 0);
+    const humanite = clamp01002(hero.humanite ?? p2.humanite ?? 0);
+    const chars = [
+      { key: "force", label: "Force", help: "+1 attaque / point" },
+      { key: "sante", label: "Sant\xE9", help: "+10 PV max / point" },
+      { key: "magie", label: "Magie", help: "+10 mana max / point" },
+      { key: "energie", label: "\xC9nergie", help: "+1 mana/tour / point" },
+      { key: "vitesse", label: "Vitesse", help: `initiative (total VIT: ${getBaseSpeedForActor(p2, "allies")})` },
+      { key: "critique", label: "Critique", help: "chance = (critique/force)\xD7100, d\xE9g\xE2ts x2" },
+      { key: "defense", label: "D\xE9fense", help: "r\xE9duction = (d\xE9fense/attaque ennemi)\xD7100" },
+      { key: "connaissance", label: "Connaissance", help: "+1 point de comp\xE9tence / point" }
+    ];
+    panel.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                <div style="display:flex;flex-direction:column;gap:4px;">
+                    <div style="font-size:1.25em;font-weight:700;">${escapeHtml(p2.name)} \u2014 ${escapeHtml(clsLabel)}</div>
+                    <div style="color:#bbb;">Niveau <b>${p2.level}</b> \u2022 Points caract\xE9ristique: <b>${points}</b></div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:center;">
+                    <label style="color:#ccc;font-size:0.92em;">Personnage</label>
+                    <select id="personnageModalSelect" style="background:rgba(255,255,255,0.06);color:#fff;border:1px solid rgba(255,255,255,0.14);border-radius:10px;padding:6px 10px;">
+                        ${party2.map((m2, idx) => {
+      const sel = idx === selected ? "selected" : "";
+      return `<option value="${idx}" ${sel}>${escapeHtml(m2.name)} (${escapeHtml(getPartyClassLabel(m2))})</option>`;
+    }).join("")}
+                    </select>
+                    <button class="btn" id="personnageModalCloseBtn" style="min-width:90px;">Fermer</button>
+                </div>
+            </div>
+
+            ${xpBar(p2)}
+
+            <div style="display:flex;gap:16px;align-items:flex-start;margin-top:14px;flex-wrap:wrap;">
+                <div style="flex:0 0 180px;">
+                    <img src="${portrait}" alt="Portrait" style="width:180px;height:180px;border-radius:14px;object-fit:cover;box-shadow:0 6px 18px rgba(0,0,0,0.6);" />
+                </div>
+                <div style="flex:1 1 320px;min-width:280px;">
+                    ${bar("PV", p2.pv ?? 0, pvMax, "linear-gradient(90deg,#ff4b4b,#a81818)")}
+                    ${bar("Mana", p2.currentMana ?? 0, manaMax, "linear-gradient(90deg,#4ea7ff,#2b58ff)")}
+                    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;color:#ddd;">
+                        <div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:12px;">ATK: <b>${Math.floor(p2.effectiveAttack ?? p2.baseAttack ?? 0)}</b></div>
+                        <div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:12px;">Regen mana: <b>${Math.floor((p2.manaRegenPerTurn ?? 0) + (p2.getPassiveManaRegenPerTurnBonus?.() ?? 0))}</b>/tour</div>
+                        <div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:12px;">PA: <b>${Math.floor(p2.actionPoints ?? 0)}/${Math.floor(p2.actionPointsMax ?? 0)}</b></div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top:14px;border-top:1px solid rgba(255,255,255,0.10);padding-top:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:10px;flex-wrap:wrap;">
+                    <button class="btn" id="virtueTitlesBtn" style="min-width:110px;padding:6px 10px;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);">Titres</button>
+                    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;justify-content:center;">
+                        ${virtueBar("Honneur", honneur, "#ff4b4b")}
+                        ${virtueBar("Libert\xE9", liberte, "#ffd36a")}
+                        ${virtueBar("Humanit\xE9", humanite, "#4ea7ff")}
+                    </div>
+                </div>
+                <div style="font-size:1.05em;font-weight:700;margin-bottom:10px;">Caract\xE9ristiques</div>
+                <div style="display:grid;grid-template-columns: 1fr;gap:8px;">
+                    ${chars.map((c2) => {
+      const val = Math.max(0, Math.floor(Number(p2.characteristics?.[c2.key] ?? 0)));
+      const disabled = points > 0 ? "" : "disabled";
+      return `
+                                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:8px 10px;">
+                                    <div style="display:flex;flex-direction:column;gap:2px;">
+                                        <div style="font-weight:600;">${c2.label} : <b>${val}</b></div>
+                                        <div style="color:#999;font-size:0.85em;">${c2.help}</div>
+                                    </div>
+                                    <button class="btn" data-stat="${c2.key}" ${disabled} style="padding:2px 6px;min-width:34px;min-height:22px;font-size:0.8em;line-height:1;">+1</button>
+                                </div>
+                            `;
+    }).join("")}
+                </div>
+            </div>
+        `;
+    panel.querySelector("#personnageModalCloseBtn")?.addEventListener("click", () => close());
+    panel.querySelector("#virtueTitlesBtn")?.addEventListener("click", () => openTitlesModal());
+    panel.querySelector("#personnageModalSelect")?.addEventListener("change", (e2) => {
+      const v2 = Number(e2.target.value);
+      selected = Number.isFinite(v2) ? v2 : selected;
+      render();
+    });
+    panel.querySelectorAll("[data-stat]").forEach((b2) => {
+      b2.addEventListener("click", () => {
+        const stat = b2.getAttribute("data-stat");
+        try {
+          p2.spendCharacteristicPoint?.(stat);
+        } catch {
+        }
+        render();
+      });
+    });
+  };
+  render();
+  overlay.appendChild(panel);
+  overlay.addEventListener("click", (e2) => {
+    if (e2.target === overlay)
+      close();
+  });
+  document.body.appendChild(overlay);
+  personnageModalEl = overlay;
+}
+function renderFiche(idx, options) {
+  setSelectedPartyIndex(idx);
+  const p2 = getPartyMember(idx);
+  const app2 = document.getElementById("app");
+  if (!app2)
+    return;
+  const cls = String(p2.characterClass ?? "").toLowerCase();
+  const avatarUrl = cls === "mage" ? "ImagesRPG/imagespersonnage/mage.jpg" : cls === "voleur" ? "ImagesRPG/imagespersonnage/voleur.png" : "https://img.freepik.com/vecteurs-premium/illustration-personnage_961307-22519.jpg";
+  const backgroundUrl = "https://thumbs.dreamstime.com/z/cozy-fantasy-medieval-tavern-inn-interior-food-drink-tables-burning-open-fireplace-candles-stone-ground-middle-277116558.jpg";
+  app2.innerHTML = `
+        <img src="${backgroundUrl}" class="background" alt="Personnage">
+        <div class="centered-content" style="max-width:1200px;margin:0 auto;">
+            <h1>Fiche du personnage</h1>
+            <div style="margin-top:6px;color:#ddd;">S\xE9lection : <b>${p2.name}</b> \u2014 Classe <b>${getPartyClassLabel(p2)}</b></div>
+
+            <div style="display:flex;gap:32px;justify-content:space-between;align-items:flex-start;margin-top:18px;flex-wrap:nowrap;width:100%;">
+                <!-- Colonne 1 : Stats (comme avant) -->
+                <div style="background:rgba(255,255,255,0.04);border-radius:12px;padding:18px;min-width:220px;max-width:260px;box-shadow:0 2px 12px rgba(0,0,0,0.15);flex:1 1 220px;align-self:stretch;">
+                    <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:12px;">
+                        <img id="character-img" src="${avatarUrl}" alt="Avatar" style="width:120px;height:120px;border-radius:10px;object-fit:cover;box-shadow:0 2px 12px rgba(0,0,0,0.6);margin-bottom:8px;" data-fixed="true">
+                        <div style="font-size:1.1em;font-weight:600;">${p2.name}</div>
+                    </div>
+                    <p><b>Niveau :</b> ${p2.level}</p>
+                    <p><b>XP :</b> ${p2.currentXP} / ${p2.getXPForLevel(p2.level + 1)}</p>
+                    <p><b>PV :</b> ${p2.pv} / ${p2.effectiveMaxPv}</p>
+                    <p><b>Mana :</b> ${p2.currentMana} / ${p2.effectiveMaxMana}</p>
+                    <p><b>R\xE9g\xE9n\xE9ration mana :</b> ${p2.manaRegenPerTurn + p2.getPassiveManaRegenPerTurnBonus()} /tour <small style="color:#777;">(base ${p2.manaRegenPerTurn}${p2.getPassiveManaRegenPerTurnBonus() ? " + " + p2.getPassiveManaRegenPerTurnBonus() : ""})</small></p>
+                    <p><b>Attaque :</b> ${p2.effectiveAttack} <small style="color:#777;">(base ${p2.baseAttack} + eq ${Object.values(p2.equipment).reduce((s2, eq) => s2 + (eq?.attackBonus || 0), 0)})</small></p>
+                    <p><b>Argent :</b> ${p2.gold}</p>
+                    <p><b>Points de comp\xE9tence :</b> ${p2.skillPoints}</p>
+                    <p><b>Points de caract\xE9ristique :</b> ${p2.characteristicPoints ?? 0}</p>
+                </div>
+
+                <!-- Colonne 2 : Caract\xE9ristiques (comme avant) -->
+                <div style="background:rgba(255,255,255,0.04);border-radius:12px;padding:18px;min-width:220px;max-width:260px;box-shadow:0 2px 12px rgba(0,0,0,0.15);flex:1 1 220px;align-self:stretch;">
+                    <h2 style="margin-top:0;">Caract\xE9ristiques</h2>
+                    <div style="font-size:0.95em; color:#ddd;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
+                            <div>Force : <b>${p2.characteristics?.force ?? 0}</b><br><small style="color:#999;">+1 attaque / point</small></div>
+                            <button class="btn" data-stat="force" ${p2.characteristicPoints > 0 ? "" : "disabled"} style="padding:4px 8px;min-width:44px;font-size:0.85em;">+1</button>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
+                            <div>Sant\xE9 : <b>${p2.characteristics?.sante ?? 0}</b><br><small style="color:#999;">+10 PV max / point</small></div>
+                            <button class="btn" data-stat="sante" ${p2.characteristicPoints > 0 ? "" : "disabled"} style="padding:4px 8px;min-width:44px;font-size:0.85em;">+1</button>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
+                            <div>\xC9nergie : <b>${p2.characteristics?.energie ?? 0}</b><br><small style="color:#999;">+1 mana/tour / point</small></div>
+                            <button class="btn" data-stat="energie" ${p2.characteristicPoints > 0 ? "" : "disabled"} style="padding:4px 8px;min-width:44px;font-size:0.85em;">+1</button>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
+                            <div>Magie : <b>${p2.characteristics?.magie ?? 0}</b><br><small style="color:#999;">+1 mana / tour / point</small></div>
+                            <button class="btn" data-stat="magie" ${p2.characteristicPoints > 0 ? "" : "disabled"} style="padding:4px 8px;min-width:44px;font-size:0.85em;">+1</button>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
+                            <div>Vitesse : <b>${p2.characteristics?.vitesse ?? 0}</b><br><small style="color:#999;"><span title="Total VIT = base de classe (guerrier/mage/voleur) + bonus de la caract\xE9ristique Vitesse">total VIT: ${getBaseSpeedForActor(p2, "allies")}</span></small></div>
+                            <button class="btn" data-stat="vitesse" ${p2.characteristicPoints > 0 ? "" : "disabled"} style="padding:4px 8px;min-width:44px;font-size:0.85em;">+1</button>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
+                            <div>Critique : <b>${p2.characteristics?.critique ?? 0}</b><br><small style="color:#999;">chance crit = (critique/force)\xD7100, d\xE9g\xE2ts x2</small></div>
+                            <button class="btn" data-stat="critique" ${p2.characteristicPoints > 0 ? "" : "disabled"} style="padding:4px 8px;min-width:44px;font-size:0.85em;">+1</button>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
+                            <div>D\xE9fense : <b>${p2.characteristics?.defense ?? 0}</b><br><small style="color:#999;">r\xE9duction = (d\xE9fense/attaque ennemi)\xD7100</small></div>
+                            <button class="btn" data-stat="defense" ${p2.characteristicPoints > 0 ? "" : "disabled"} style="padding:4px 8px;min-width:44px;font-size:0.85em;">+1</button>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                            <div>Connaissance : <b>${p2.characteristics?.connaissance ?? 0}</b><br><small style="color:#999;">+1 point de comp\xE9tence / point</small></div>
+                            <button class="btn" data-stat="connaissance" ${p2.characteristicPoints > 0 ? "" : "disabled"} style="padding:4px 8px;min-width:44px;font-size:0.85em;">+1</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Colonne 3 : Comp\xE9tences (comme avant, mais celles du perso s\xE9lectionn\xE9) -->
+                <div style="background:rgba(255,255,255,0.04);border-radius:12px;padding:18px;min-width:220px;max-width:260px;box-shadow:0 2px 12px rgba(0,0,0,0.15);flex:1 1 220px;align-self:stretch;">
+                    <h2 style="margin-top:0;">Comp\xE9tences</h2>
+                    <ul style="list-style:none;padding:0;">
+                        ${p2.skills.map((skill) => `<li><b>${skill.key}</b> : ${escapeHtml(skill.name)}</li>`).join("")}
+                    </ul>
+                </div>
+            </div>
+
+            <div style="margin-top:24px;text-align:center;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                <button class="btn" id="backSelectBtn" style="min-width:220px;">Retour s\xE9lection</button>
+                <button class="btn" id="backVillageBtn" style="min-width:220px;">Retour village</button>
+            </div>
+        </div>
+    `;
+  document.getElementById("backSelectBtn")?.addEventListener("click", () => showSelectionPersonnages(options));
+  document.getElementById("backVillageBtn")?.addEventListener("click", options.onBack ?? goVillage);
+  const charImg = document.getElementById("character-img");
+  if (charImg) {
+    const clone = charImg.cloneNode(true);
+    charImg.parentElement?.replaceChild(clone, charImg);
+  }
+  app2.querySelectorAll("[data-stat]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const stat = btn.getAttribute("data-stat");
+      const msg = p2.spendCharacteristicPoint?.(stat);
+      renderFiche(idx, options);
+    });
+  });
+}
+function showPersonnage1(options = {}) {
+  renderFiche(0, options);
+}
+function showPersonnage2(options = {}) {
+  renderFiche(1, options);
+}
+function showPersonnage3(options = {}) {
+  renderFiche(2, options);
+}
+var personnageModalEl;
+var init_personnages_web = __esm({
+  "dist/personnages.web.js"() {
+    "use strict";
+    init_index_web();
+    init_utils_web();
+    init_party_web();
+    init_tacticalBoard();
+    init_titles();
+    personnageModalEl = null;
+  }
+});
+
+// dist/questJournalModal.web.js
+var questJournalModal_web_exports = {};
+__export(questJournalModal_web_exports, {
+  closeQuestJournalModal: () => closeQuestJournalModal,
+  openQuestJournalModal: () => openQuestJournalModal
+});
+var questJournalModalEl, closeQuestJournalModal, openQuestJournalModal;
+var init_questJournalModal_web = __esm({
+  "dist/questJournalModal.web.js"() {
+    "use strict";
+    init_utils_web();
+    questJournalModalEl = null;
+    closeQuestJournalModal = () => {
+      questJournalModalEl?.remove();
+      questJournalModalEl = null;
+    };
+    openQuestJournalModal = () => {
+      if (questJournalModalEl)
+        return;
+      questJournalModalEl = document.createElement("div");
+      questJournalModalEl.id = "questJournalModal";
+      questJournalModalEl.style.cssText = [
+        "position:fixed",
+        "inset:0",
+        "display:flex",
+        "align-items:center",
+        "justify-content:center",
+        "background:rgba(0,0,0,0.65)",
+        "z-index:10000",
+        "padding:18px"
+      ].join(";");
+      const panel = document.createElement("div");
+      panel.style.cssText = [
+        "width:min(860px, 96vw)",
+        "max-height:min(84vh, 820px)",
+        "overflow:auto",
+        "background:#111",
+        "border:1px solid rgba(255,255,255,0.10)",
+        "border-radius:12px",
+        "padding:14px",
+        "color:#fff"
+      ].join(";");
+      let tab = "active";
+      const renderStatus = (p2) => {
+        const s2 = String(p2?.status ?? "");
+        if (s2 === "claimed")
+          return "Termin\xE9e";
+        if (s2 === "completed")
+          return "\xC0 valider";
+        if (s2 === "active")
+          return "En cours";
+        return "Non d\xE9marr\xE9e";
+      };
+      const renderProgress = (def, p2) => {
+        if (!p2 || p2.status === void 0)
+          return '<div style="color:#bbb;">Non d\xE9marr\xE9e.</div>';
+        const stepIndex = Math.max(0, Math.floor(Number(p2.stepIndex ?? 0)));
+        const step = Array.isArray(def?.steps) ? def.steps[stepIndex] : null;
+        if (!step) {
+          if (p2?.status === "claimed" || p2?.status === "completed") {
+            return '<div style="margin-top:10px;color:#c8e6c9;font-weight:700;">Objectifs termin\xE9s.</div>';
+          }
+          return '<div style="color:#bbb;">Aucune \xE9tape.</div>';
+        }
+        const objectives = Array.isArray(step.objectives) ? step.objectives : [];
+        const objState = p2.objectives ?? {};
+        return `
+			<div style="margin-top:10px;">
+				<div style="font-weight:700;">\xC9tape: ${escapeHtml(String(step.title ?? step.id ?? ""))}</div>
+				<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+					${objectives.map((o2) => {
+          const cur = Math.max(0, Math.floor(Number(objState?.[String(o2.id)] ?? 0)));
+          const t2 = String(o2.type ?? "");
+          if (t2 === "counter") {
+            const target = Math.max(1, Math.floor(Number(o2.target ?? 1)));
+            const done2 = cur >= target;
+            return `<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
+									<div style="color:${done2 ? "#c8e6c9" : "#ddd"};">${done2 ? "\u2714" : "\u2022"} ${escapeHtml(String(o2.description ?? o2.id ?? ""))}</div>
+									<div style="color:#bbb;white-space:nowrap;">${cur}/${target}</div>
+								</div>`;
+          }
+          const done = cur >= 1;
+          return `<div style="color:${done ? "#c8e6c9" : "#ddd"};">${done ? "\u2714" : "\u2022"} ${escapeHtml(String(o2.description ?? o2.id ?? ""))}</div>`;
+        }).join("")}
+				</div>
+			</div>
+		`;
+      };
+      const renderModal = () => {
+        const qm = window.game?.questManager;
+        const items = typeof qm?.getAll === "function" ? qm.getAll() : [];
+        const list = items.filter(({ progress }) => {
+          const status = String(progress?.status ?? "");
+          if (tab === "completed")
+            return status === "claimed";
+          return status === "active" || status === "completed";
+        });
+        panel.innerHTML = `
+			<div style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
+				<div style="font-weight:900;font-size:18px;">Qu\xEAtes</div>
+				<button class="btn" id="questJournalModalCloseBtn">Fermer</button>
+			</div>
+			<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:10px;">
+				<button class="btn" id="questJournalTabActiveBtn" style="min-width:220px;${tab === "active" ? "border:2px solid #ffd700;" : ""}">Qu\xEAtes en cours</button>
+				<button class="btn" id="questJournalTabCompletedBtn" style="min-width:220px;${tab === "completed" ? "border:2px solid #ffd700;" : ""}">Qu\xEAtes termin\xE9es</button>
+			</div>
+			${!qm ? '<div style="margin-top:12px;background:rgba(0,0,0,0.55);padding:14px;border-radius:10px;">Qu\xEAtes indisponibles (questManager manquant).</div>' : ""}
+			<div style="display:flex;flex-direction:column;gap:14px;margin-top:14px;text-align:left;">
+				${list.map(({ def, progress }) => {
+          const status = renderStatus(progress);
+          return `
+							<div style="background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.08);padding:14px;border-radius:12px;">
+								<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
+									<div>
+										<div style="font-size:1.1em;font-weight:800;">${escapeHtml(String(def?.name ?? def?.id ?? "Qu\xEAte"))}</div>
+										<div style="color:#ddd;margin-top:4px;">${escapeHtml(String(def?.description ?? ""))}</div>
+									</div>
+									<div style="text-align:right;min-width:120px;">
+										<div style="font-weight:800;color:#ffd700;">${escapeHtml(status)}</div>
+									</div>
+								</div>
+								${renderProgress(def, progress)}
+							</div>
+						`;
+        }).join("")}
+				${list.length === 0 ? '<div style="background:rgba(0,0,0,0.55);padding:14px;border-radius:10px;">Aucune qu\xEAte.</div>' : ""}
+			</div>
+		`;
+        panel.querySelector("#questJournalModalCloseBtn")?.addEventListener("click", () => {
+          closeQuestJournalModal();
+        });
+        panel.querySelector("#questJournalTabActiveBtn")?.addEventListener("click", () => {
+          tab = "active";
+          renderModal();
+        });
+        panel.querySelector("#questJournalTabCompletedBtn")?.addEventListener("click", () => {
+          tab = "completed";
+          renderModal();
+        });
+      };
+      renderModal();
+      questJournalModalEl.appendChild(panel);
+      questJournalModalEl.addEventListener("click", (e2) => {
+        if (e2.target === questJournalModalEl)
+          closeQuestJournalModal();
+      });
+      document.body.appendChild(questJournalModalEl);
+    };
+  }
+});
+
+// dist/talents/talentTree.js
+function getCharacterClassId(p2) {
+  const cls = norm2(String(p2?.characterClass ?? ""));
+  if (cls === "mage")
+    return "mage";
+  if (cls === "voleur")
+    return "voleur";
+  return "guerrier";
+}
+function coreNodesFromSkills(classId) {
+  const ids = CORE_SKILLS[classId];
+  return ids.map((skillId) => {
+    let s2;
+    try {
+      s2 = createSkill(skillId);
+    } catch {
+      s2 = null;
+    }
+    const name = String(s2?.name ?? skillId);
+    const description = String(s2?.description ?? "Comp\xE9tence de classe (d\xE9bloqu\xE9e par niveau).");
+    return {
+      id: `core.${skillId}`,
+      kind: "core-skill",
+      skillId,
+      name,
+      description
+    };
+  });
+}
+function getTalentTreeDefinition(classId) {
+  const specUnlockLevel = 10;
+  const specTierCount = 4;
+  const specsSrc = CLASS_SPECS[classId];
+  const specs = specsSrc.map((s2, idx) => ({
+    id: s2.id,
+    name: s2.name,
+    direction: idx,
+    tierCount: specTierCount
+  }));
+  const getSpecNodeId = (specId, tier, slot) => `spec.${classId}.${specId}.t${tier}.s${slot}`;
+  const coreNodes = coreNodesFromSkills(classId);
+  return {
+    classId,
+    className: classId === "mage" ? "Mage" : classId === "voleur" ? "Voleur" : "Guerrier",
+    coreNodes,
+    specUnlockLevel,
+    specs,
+    getSpecNodeId
+  };
+}
+function getSpecNodeSkillId(classId, specId, tier, slot) {
+  if (classId === "voleur" && specId === "assassin" && tier === 1 && slot === 0)
+    return "poison";
+  if (classId === "voleur" && specId === "assassin" && tier === 1 && slot === 1)
+    return "drain_de_vie";
+  if (classId === "voleur" && specId === "chasseur" && tier === 1 && slot === 1)
+    return "tir_a_l_arc";
+  return void 0;
+}
+function getOrCreateTalentTreeState(p2) {
+  const cur = p2.talentTreeState;
+  if (cur && Array.isArray(cur.learnedSpecNodeIds) && typeof cur.version === "number") {
+    if (!Array.isArray(cur.learnedCoreSkillIds))
+      cur.learnedCoreSkillIds = [];
+    if (!Array.isArray(cur.learnedPassiveNodeIds))
+      cur.learnedPassiveNodeIds = [];
+    return cur;
+  }
+  const next = { version: 1, learnedSpecNodeIds: [], learnedCoreSkillIds: [], learnedPassiveNodeIds: [] };
+  p2.talentTreeState = next;
+  return next;
+}
+var CLASS_SPECS, norm2, CORE_SKILLS;
+var init_talentTree = __esm({
+  "dist/talents/talentTree.js"() {
+    "use strict";
+    init_skillLibrary();
+    CLASS_SPECS = {
+      mage: [
+        { id: "invocateur", name: "Invocateur" },
+        { id: "enchanteur", name: "Enchanteur" },
+        { id: "magicien", name: "Magicien" },
+        { id: "barde", name: "Barde" }
+      ],
+      voleur: [
+        { id: "assassin", name: "Assassin" },
+        { id: "arlequin", name: "Arlequin" },
+        { id: "chasseur", name: "Chasseur" },
+        { id: "saboteur", name: "Saboteur" }
+      ],
+      guerrier: [
+        { id: "paladin", name: "Paladin" },
+        { id: "barbare", name: "Barbare" },
+        { id: "chevalier", name: "Chevalier" },
+        { id: "gladiateur", name: "Gladiateur" }
+      ]
+    };
+    norm2 = (s2) => s2.trim().toLowerCase();
+    CORE_SKILLS = {
+      mage: ["missile_magique", "mana_gain", "couteau_magique", "eclair", "boule_de_feu", "mana_groupe", "teleportation", "rayon_de_feu", "soin"],
+      guerrier: ["basic_attack", "block", "charge", "hache_lourde", "lancer_allie", "lancer_ennemi", "repouser", "harpon_chaine", "fureur"],
+      voleur: ["basic_attack", "mouvement_de_fou", "shuriken", "bombe_fumigene", "buff_attaque", "fragiliser", "assassinat", "immobiliser", "gain_pa_groupe"]
+    };
+  }
+});
+
+// dist/talents/talentTree.web.js
+var talentTree_web_exports = {};
+__export(talentTree_web_exports, {
+  showTalentTree: () => showTalentTree
+});
+function clamp3(n2, min, max) {
+  return Math.max(min, Math.min(max, n2));
+}
+function getSkillPoints(p2) {
+  return Math.max(0, Math.floor(Number(p2?.skillPoints ?? 0)));
+}
+function setSkillPoints(p2, v2) {
+  p2.skillPoints = Math.max(0, Math.floor(v2));
+}
+function getLearnedSkillIds(p2) {
+  return (p2?.learnedSkillIds ?? []).filter(Boolean);
+}
+function hasLearnedSkillId(p2, skillId, skillNameFallback) {
+  const id = String(skillId ?? "").trim();
+  if (id) {
+    if (getLearnedSkillIds(p2).includes(id))
+      return true;
+    if ((p2?.skills ?? []).some((s2) => String(s2?.skillId ?? "") === id))
+      return true;
+  }
+  const name = String(skillNameFallback ?? "").trim();
+  if (!name)
+    return false;
+  return (p2?.skills ?? []).some((s2) => String(s2?.name ?? "") === name);
+}
+function learnSkill(p2, skillId) {
+  let skill;
+  try {
+    skill = createSkill(skillId);
+  } catch {
+    return { ok: false, message: `Comp\xE9tence introuvable: ${String(skillId)}` };
+  }
+  const already = hasLearnedSkillId(p2, String(skillId), String(skill?.name ?? ""));
+  if (already)
+    return { ok: false, message: "D\xE9j\xE0 apprise." };
+  if (!Array.isArray(p2.skills))
+    p2.skills = [];
+  p2.skills = [...p2.skills, skill];
+  const ids = new Set(getLearnedSkillIds(p2));
+  ids.add(String(skillId));
+  p2.learnedSkillIds = Array.from(ids);
+  return { ok: true };
+}
+function removeLearnedSkillsById(p2, skillIds) {
+  const toRemove = new Set((skillIds ?? []).map((s2) => String(s2)).filter(Boolean));
+  if (!toRemove.size)
+    return;
+  const keepIds = getLearnedSkillIds(p2).filter((id) => !toRemove.has(String(id)));
+  p2.learnedSkillIds = keepIds;
+  const idsArray = Array.from(toRemove);
+  const namesToRemove = /* @__PURE__ */ new Set();
+  for (const id of idsArray) {
+    try {
+      const s2 = createSkill(id);
+      if (s2?.name)
+        namesToRemove.add(String(s2.name));
+    } catch {
+    }
+  }
+  const curSkills = Array.isArray(p2?.skills) ? p2.skills : [];
+  p2.skills = curSkills.filter((s2) => {
+    const sid = String(s2?.skillId ?? "");
+    if (sid && toRemove.has(sid))
+      return false;
+    const nm = String(s2?.name ?? "");
+    if (nm && namesToRemove.has(nm))
+      return false;
+    return true;
+  });
+}
+function buildUnlockLevelBySkillIdFromGame(p2) {
+  const map = {};
+  const gameSkillTree = window.game?.skillTree ?? [];
+  for (const entry of gameSkillTree) {
+    const skill = entry?.skill;
+    const skillId = String(skill?.skillId ?? "");
+    const unlockLevel = Math.max(1, Math.floor(Number(entry?.unlockLevel ?? NaN)));
+    if (!skillId || !Number.isFinite(unlockLevel))
+      continue;
+    if (map[skillId] === void 0 || unlockLevel < map[skillId])
+      map[skillId] = unlockLevel;
+  }
+  const playerSkills = p2?.skills ?? [];
+  for (const s2 of playerSkills) {
+    const skillId = String(s2?.skillId ?? "");
+    if (!skillId)
+      continue;
+    if (map[skillId] === void 0 || 1 < map[skillId])
+      map[skillId] = 1;
+  }
+  return map;
+}
+function buildLayout(classId, w2, h2, unlockLevelBySkillId) {
+  const def = getTalentTreeDefinition(classId);
+  const cx = w2 * 0.5;
+  const cy = h2 * 0.52;
+  const nodes = [];
+  const edges = [];
+  const BASE_GRID_DX = Math.min(106, w2 * 0.11);
+  const BASE_GRID_DY = Math.min(96, h2 * 0.11);
+  const CORE_SHRINK = 0.65;
+  const gridDx = Math.max(36, Math.floor(BASE_GRID_DX * CORE_SHRINK));
+  const gridDy = Math.max(32, Math.floor(BASE_GRID_DY * CORE_SHRINK));
+  const startX = cx - gridDx;
+  const startY = cy - gridDy;
+  for (let i2 = 0; i2 < def.coreNodes.length; i2++) {
+    const gx = i2 % 3;
+    const gy = Math.floor(i2 / 3);
+    const n2 = def.coreNodes[i2];
+    if (!n2)
+      continue;
+    let label = n2.name;
+    let iconSrc;
+    let requiredLevel;
+    let skillId;
+    if (n2.skillId) {
+      skillId = n2.skillId;
+      try {
+        const s2 = createSkill(n2.skillId);
+        label = s2.name;
+        iconSrc = getSkillIconSrc(s2);
+      } catch {
+        iconSrc = GENERIC_NODE_ICON_SRC;
+      }
+      requiredLevel = unlockLevelBySkillId[String(n2.skillId)] ?? n2.requiredLevel;
+    } else {
+      requiredLevel = n2.requiredLevel;
+    }
+    const ln = {
+      id: n2.id,
+      x: startX + gx * gridDx,
+      y: startY + gy * gridDy,
+      label,
+      kind: "core"
+    };
+    if (iconSrc)
+      ln.iconSrc = iconSrc;
+    if (skillId)
+      ln.skillId = skillId;
+    if (typeof requiredLevel === "number")
+      ln.requiredLevel = requiredLevel;
+    nodes.push(ln);
+  }
+  const coreCellSize = Math.max(gridDx, gridDy);
+  const passiveRingRadius = coreCellSize * 1.8;
+  const corePassivePositions = [
+    { x: cx - passiveRingRadius * 1.2, y: cy - passiveRingRadius, label: "Passif central (coin haut-gauche)" },
+    { x: cx, y: cy - passiveRingRadius, label: "Passif central (milieu haut)" },
+    { x: cx + passiveRingRadius * 1.2, y: cy - passiveRingRadius, label: "Passif central (coin haut-droit)" },
+    { x: cx + passiveRingRadius * 1.2, y: cy, label: "Passif central (milieu droit)" },
+    { x: cx + passiveRingRadius * 1.2, y: cy + passiveRingRadius, label: "Passif central (coin bas-droit)" },
+    { x: cx, y: cy + passiveRingRadius, label: "Passif central (milieu bas)" },
+    { x: cx - passiveRingRadius * 1.2, y: cy + passiveRingRadius, label: "Passif central (coin bas-gauche)" },
+    { x: cx - passiveRingRadius * 1.2, y: cy, label: "Passif central (milieu gauche)" }
+  ];
+  for (let i2 = 0; i2 < corePassivePositions.length; i2++) {
+    const pos = corePassivePositions[i2];
+    const id = `passive.${classId}.core.p${i2}`;
+    nodes.push({ id, x: pos.x, y: pos.y, label: pos.label, kind: "passive" });
+  }
+  const directions = [
+    { dx: 0, dy: -1, ox: 1, oy: 0 },
+    { dx: 1, dy: 0, ox: 0, oy: 1 },
+    { dx: 0, dy: 1, ox: 1, oy: 0 },
+    { dx: -1, dy: 0, ox: 0, oy: 1 }
+  ];
+  const margin = 44;
+  const coreRadius = Math.max(gridDx, gridDy) * 1.9;
+  const baseRadius0 = coreRadius + Math.min(w2, h2) * 0.22;
+  const baseStepR = Math.min(w2, h2) * 0.22;
+  const baseLateral = Math.min(w2, h2) * 0.12;
+  const lrMultiplier = 2;
+  const udMultiplier = 1.6;
+  const getMaxAlongDir = (dx, dy) => {
+    if (dy < 0)
+      return Math.max(20, cy - margin);
+    if (dy > 0)
+      return Math.max(20, h2 - cy - margin);
+    if (dx > 0)
+      return Math.max(20, w2 - cx - margin);
+    return Math.max(20, cx - margin);
+  };
+  const fitDir = (dx, dy, radius0, stepR, tierCount) => {
+    const maxR = getMaxAlongDir(dx, dy);
+    const needed = radius0 + Math.max(0, tierCount - 1) * stepR;
+    if (needed <= maxR)
+      return { radius0, stepR };
+    const scale = maxR / needed;
+    return { radius0: radius0 * scale, stepR: stepR * scale };
+  };
+  for (const spec of def.specs) {
+    const d2 = directions[spec.direction];
+    if (!d2)
+      continue;
+    const isLeftRight = spec.direction === 1 || spec.direction === 3;
+    const dirMultiplier = isLeftRight ? lrMultiplier : udMultiplier;
+    const fitted = fitDir(d2.dx, d2.dy, baseRadius0 * dirMultiplier, baseStepR, spec.tierCount);
+    const lateral = baseLateral;
+    for (let tier = 1; tier <= spec.tierCount; tier++) {
+      const r2 = fitted.radius0 + (tier - 1) * fitted.stepR;
+      for (let slot = 0; slot < 3; slot++) {
+        const offsetIndex = slot - 1;
+        const x2 = cx + d2.dx * r2 + d2.ox * offsetIndex * lateral;
+        const y2 = cy + d2.dy * r2 + d2.oy * offsetIndex * lateral;
+        const id = def.getSpecNodeId(spec.id, tier, slot);
+        const specSkillId = getSpecNodeSkillId(classId, spec.id, tier, slot);
+        const nodeObj = { id, x: x2, y: y2, label: "", kind: "spec", specId: spec.id, tier, slot };
+        if (specSkillId)
+          nodeObj.skillId = specSkillId;
+        nodes.push(nodeObj);
+      }
+      const passiveOffsets = [-1.5, -0.5, 0.5, 1.5];
+      for (let i2 = 0; i2 < passiveOffsets.length; i2++) {
+        const offsetIndex = passiveOffsets[i2];
+        const x2 = cx + d2.dx * r2 + d2.ox * offsetIndex * lateral;
+        const y2 = cy + d2.dy * r2 + d2.oy * offsetIndex * lateral;
+        const id = `passive.${classId}.${spec.id}.t${tier}.p${i2}`;
+        nodes.push({ id, x: x2, y: y2, label: "", kind: "passive", specId: spec.id, tier, slot: i2 });
+      }
+      if (tier === 1) {
+        const centerId = def.coreNodes[4]?.id ?? def.coreNodes[0]?.id ?? "core-center";
+        for (let slot = 0; slot < 3; slot++) {
+          edges.push({ from: centerId, to: def.getSpecNodeId(spec.id, 1, slot) });
+        }
+      } else {
+        for (let slot = 0; slot < 3; slot++) {
+          edges.push({ from: def.getSpecNodeId(spec.id, tier - 1, slot), to: def.getSpecNodeId(spec.id, tier, slot) });
+        }
+      }
+    }
+  }
+  for (const n2 of nodes) {
+    n2.x = clamp3(n2.x, margin, w2 - margin);
+    n2.y = clamp3(n2.y, margin, h2 - margin);
+  }
+  return { def, nodes, edges };
+}
+function canUseSpecTree(p2, specUnlockLevel) {
+  return Math.floor(Number(p2?.level ?? 0)) >= specUnlockLevel;
+}
+function getTierSpentCount(state2, classId, specId, tier) {
+  const specPrefix = `spec.${classId}.${specId}.t${tier}.s`;
+  const passivePrefix = `passive.${classId}.${specId}.t${tier}.p`;
+  const specSpent = (state2.learnedSpecNodeIds ?? []).filter((id) => String(id).startsWith(specPrefix)).length;
+  const passiveSpent = (state2.learnedPassiveNodeIds ?? []).filter((id) => String(id).startsWith(passivePrefix)).length;
+  return specSpent + passiveSpent;
+}
+function isSpecNodeLearned(state2, id) {
+  return (state2.learnedSpecNodeIds ?? []).includes(id);
+}
+function isPassiveNodeLearned(state2, id) {
+  return (state2.learnedPassiveNodeIds ?? []).includes(id);
+}
+function getLearnedPassiveNodeIds(state2) {
+  return Array.isArray(state2?.learnedPassiveNodeIds) ? state2.learnedPassiveNodeIds : [];
+}
+function canLearnPassiveNode(state2, id) {
+  const def = getTalentPassiveNodeDef(id);
+  const grants = String(def?.grantsPassiveId ?? "").trim();
+  if (grants) {
+    const cur = Array.isArray(state2?.__owner?.passiveSkills) ? state2.__owner.passiveSkills : null;
+    if (Array.isArray(cur) && cur.includes(grants))
+      return { ok: false, message: "D\xE9j\xE0 appris." };
+  }
+  if (!def?.exclusiveGroup)
+    return { ok: true };
+  const learned = getLearnedPassiveNodeIds(state2);
+  const conflict = learned.find((pid) => TALENT_PASSIVE_NODE_DEFS[String(pid)]?.exclusiveGroup === def.exclusiveGroup);
+  if (conflict)
+    return { ok: false, message: "Passif incompatible avec un autre d\xE9j\xE0 appris." };
+  return { ok: true };
+}
+function canLearnPassiveNodeForPlayer(p2, state2, id) {
+  const def = getTalentPassiveNodeDef(id);
+  const grants = String(def?.grantsPassiveId ?? "").trim();
+  if (grants) {
+    if (typeof p2?.hasPassive === "function" && p2.hasPassive(grants))
+      return { ok: false, message: "D\xE9j\xE0 appris." };
+    const passiveDef = PASSIVE_DEFS[grants];
+    const group = String(passiveDef?.exclusiveGroup ?? "").trim();
+    if (group) {
+      const learnedPassives = Array.isArray(p2?.passiveSkills) ? p2.passiveSkills : [];
+      const conflict = learnedPassives.find((pid) => PASSIVE_DEFS[pid]?.exclusiveGroup === group);
+      if (conflict)
+        return { ok: false, message: "Passif incompatible avec un autre d\xE9j\xE0 appris." };
+    }
+  }
+  return canLearnPassiveNode(state2, id);
+}
+function applyGrantedPassiveFromTalentNode(p2, nodeId) {
+  const def = getTalentPassiveNodeDef(nodeId);
+  const grants = String(def?.grantsPassiveId ?? "").trim();
+  if (!grants)
+    return { ok: true };
+  if (typeof p2?.hasPassive === "function" && p2.hasPassive(grants))
+    return { ok: false, message: "D\xE9j\xE0 appris." };
+  if (!Array.isArray(p2.passiveSkills))
+    p2.passiveSkills = [];
+  p2.passiveSkills = [.../* @__PURE__ */ new Set([...p2.passiveSkills, grants])];
+  return { ok: true };
+}
+function removeGrantedPassivesForTalentNodes(p2, nodeIds) {
+  if (!Array.isArray(nodeIds) || !nodeIds.length)
+    return;
+  const grants = nodeIds.map((id) => String(getTalentPassiveNodeDef(id)?.grantsPassiveId ?? "").trim()).filter(Boolean);
+  if (!grants.length)
+    return;
+  if (!Array.isArray(p2?.passiveSkills))
+    return;
+  const toRemove = new Set(grants);
+  p2.passiveSkills = p2.passiveSkills.filter((pid) => !toRemove.has(String(pid)));
+}
+function isTierUnlocked(p2, state2, classId, specId, tier, specUnlockLevel) {
+  if (!canUseSpecTree(p2, specUnlockLevel))
+    return false;
+  if (tier <= 1)
+    return true;
+  return getTierSpentCount(state2, classId, specId, tier - 1) >= REQUIRED_POINTS_IN_TIER_TO_UNLOCK_NEXT;
+}
+function showTalentTree(options = {}) {
+  const app2 = document.getElementById("app");
+  if (!app2)
+    return;
+  let selectedIdx = options.selectedIdx ?? 0;
+  const render = () => {
+    const party2 = getPartyMembers();
+    selectedIdx = Math.max(0, Math.min(party2.length - 1, Math.floor(Number(selectedIdx) || 0)));
+    const p2 = getPartyMember(selectedIdx);
+    const classId = getCharacterClassId(p2);
+    const def = getTalentTreeDefinition(classId);
+    const state2 = getOrCreateTalentTreeState(p2);
+    const unlockLevelBySkillId = buildUnlockLevelBySkillIdFromGame(p2);
+    app2.innerHTML = `
+				<img src="ImagesRPG/imagesobjets/grimoire_skilltree.png" class="background background-competences" alt="Talents" style="transform: scale(1.037); transform-origin: center;">
+			<div class="centered-content" style="max-width:min(1500px,98vw);">
+				<style>
+					.talent-wrap{ --boardSize:min(94vh, 62vw, 960px); }
+					.talent-layout{ display:grid; grid-template-columns:minmax(240px,320px) var(--boardSize) minmax(240px,320px); gap:12px; align-items:start; justify-content:center; }
+					.talent-panel{ background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.10); border-radius:12px; padding:12px 14px; }
+					.talent-actions{ display:flex; gap:10px; align-items:center; justify-content:flex-end; flex-wrap:wrap; }
+					@media (max-width: 980px){
+						.talent-layout{ grid-template-columns:1fr; }
+						.talent-panel{ max-width: var(--boardSize); margin: 0 auto; }
+						.talent-actions{ justify-content:center; }
+					}
+				</style>
+
+				<div class="talent-wrap">
+					<div class="talent-layout">
+						<div class="talent-panel">
+							<h1 style="margin:0 0 8px 0;">Arbre de talents \u2014 ${escapeHtml(def.className)}</h1>
+							<div style="color:#ddd;">Niveau: <b>${Math.floor(Number(p2.level ?? 0))}</b></div>
+							<div style="color:#ddd; margin-top:4px;">Points: <b id="talentSkillPointsVal">${getSkillPoints(p2)}</b></div>
+						</div>
+
+						<div id="talentTreeWrap" style="position:relative;width:calc(var(--boardSize) * 1.09);height:var(--boardSize);border:1px solid rgba(255,255,255,0.12);border-radius:14px;background:rgba(0,0,0,0.25);overflow:hidden;">
+							<svg id="talentTreeSvg" width="100%" height="100%" style="position:absolute;inset:0;pointer-events:none;"></svg>
+							<div id="talentTreeNodes" style="position:absolute;inset:0;"></div>
+						</div>
+
+						<div class="talent-panel">
+							<div style="color:#ddd; margin-bottom:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+								<label>Perso:</label>
+								<select id="talentMemberSelect">
+									${party2.map((m2, idx) => `<option value="${idx}" ${idx === selectedIdx ? "selected" : ""}>${escapeHtml(m2.name)}</option>`).join("")}
+								</select>
+							</div>
+							<div class="talent-actions">
+								<button class="btn" id="talentResetBtn">R\xE9initialiser</button>
+								<button class="btn" id="talentBackBtn">Retour</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		`;
+    const wrap = document.getElementById("talentTreeWrap");
+    const svg = document.getElementById("talentTreeSvg");
+    const nodesHost = document.getElementById("talentTreeNodes");
+    if (!wrap || !svg || !nodesHost)
+      return;
+    const rect = wrap.getBoundingClientRect();
+    const layout = buildLayout(classId, rect.width, rect.height, unlockLevelBySkillId);
+    svg.innerHTML = layout.edges.map((e2) => {
+      const a2 = layout.nodes.find((n2) => n2.id === e2.from);
+      const b2 = layout.nodes.find((n2) => n2.id === e2.to);
+      if (!a2 || !b2)
+        return "";
+      return `<line x1="${a2.x}" y1="${a2.y}" x2="${b2.x}" y2="${b2.y}" stroke="rgba(255,255,255,0.14)" stroke-width="2" />`;
+    }).join("");
+    const specNames = new Map(def.specs.map((s2) => [s2.id, s2.name]));
+    const playerLevel = Math.floor(Number(p2.level ?? 0));
+    const havePts = getSkillPoints(p2) >= 1;
+    const PASSIVE_ICON_SRC = "ImagesRPG/imagesobjets/passif3.png";
+    const SKILL_ICON_SIZE = 44;
+    const PASSIVE_ICON_SIZE = Math.max(12, Math.floor(SKILL_ICON_SIZE * 0.5));
+    const nodeHtml = layout.nodes.map((n2) => {
+      if (n2.kind === "core") {
+        const requiredLevel = Math.max(1, Math.floor(Number(n2.requiredLevel ?? 1)));
+        const unlocked = playerLevel >= requiredLevel;
+        const skillId2 = String(n2.skillId ?? "").trim();
+        const learned2 = skillId2 ? hasLearnedSkillId(p2, skillId2, n2.label) : hasLearnedSkillId(p2, "", n2.label);
+        const canLearn2 = Boolean(skillId2) && unlocked && !learned2 && havePts;
+        const disabled2 = !canLearn2;
+        const label2 = escapeHtml(n2.label);
+        const iconSrc2 = escapeHtml(n2.iconSrc ?? GENERIC_NODE_ICON_SRC);
+        const imgFilter2 = learned2 ? "filter:drop-shadow(0 2px 6px rgba(0,0,0,0.35));" : canLearn2 ? "filter:grayscale(1) brightness(0.70) contrast(0.95) drop-shadow(0 0 10px rgba(255,215,0,0.90)) drop-shadow(0 0 18px rgba(255,215,0,0.55)) drop-shadow(0 2px 6px rgba(0,0,0,0.35));" : "filter:grayscale(1) brightness(0.55) contrast(0.95) drop-shadow(0 2px 6px rgba(0,0,0,0.35));";
+        const statusText = learned2 ? "Apprise" : unlocked ? havePts ? "D\xE9bloqu\xE9e (cliquer pour apprendre)" : "D\xE9bloqu\xE9e (pas assez de points)" : `Verrouill\xE9e (niveau ${requiredLevel} requis)`;
+        let tooltip2 = `${decodeURIComponent(encodeURIComponent(n2.label))}
+${statusText}`;
+        if (!learned2)
+          tooltip2 += `
+Co\xFBt: 1 point`;
+        tooltip2 += `
+Niveau requis: ${requiredLevel}`;
+        if (skillId2) {
+          try {
+            const s2 = createSkill(skillId2);
+            const desc = String(s2?.description ?? "");
+            if (desc)
+              tooltip2 += `
+
+${desc}`;
+          } catch {
+          }
+        }
+        const encodedTooltip2 = escapeHtml(encodeURIComponent(tooltip2));
+        const btnStyle2 = `all:unset;display:block;width:${SKILL_ICON_SIZE}px;height:${SKILL_ICON_SIZE}px;cursor:${disabled2 ? "not-allowed" : "pointer"};pointer-events:auto;`;
+        return `
+					<div style="position:absolute;left:${n2.x}px;top:${n2.y}px;transform:translate(-50%,-50%);">
+						<button type="button" ${disabled2 ? "disabled" : ""} data-core-skill-id="${escapeHtml(skillId2)}" data-skill-desc="${encodedTooltip2}"
+							style="${btnStyle2}">
+								<img src="${iconSrc2}" alt="${label2}" style="width:${SKILL_ICON_SIZE}px;height:${SKILL_ICON_SIZE}px;object-fit:contain;${imgFilter2}" />
+							</button>
+						</div>
+					`;
+      }
+      if (n2.kind === "passive") {
+        const specId2 = String(n2.specId ?? "");
+        const tier2 = Math.max(1, Math.floor(Number(n2.tier ?? 1)));
+        const slot2 = Math.max(0, Math.floor(Number(n2.slot ?? 0)));
+        const isCorePassive = n2.id.includes(".core.p");
+        const unlockedTier2 = isCorePassive || isTierUnlocked(p2, state2, classId, specId2, tier2, def.specUnlockLevel);
+        const learned2 = isPassiveNodeLearned(state2, n2.id);
+        const canLearn2 = unlockedTier2 && !learned2 && havePts;
+        const disabled2 = !canLearn2;
+        const passiveDef = getTalentPassiveNodeDef(n2.id);
+        const specName2 = escapeHtml(specNames.get(specId2) ?? (isCorePassive ? "Central" : "Sp\xE9"));
+        const title2 = isCorePassive ? learned2 ? "D\xE9j\xE0 appris" : havePts ? "Cliquer pour apprendre (1 point)" : "Pas assez de points" : canUseSpecTree(p2, def.specUnlockLevel) ? unlockedTier2 ? learned2 ? "D\xE9j\xE0 appris" : havePts ? "Cliquer pour apprendre (1 point)" : "Pas assez de points" : `\xC9tage verrouill\xE9 (d\xE9penser ${REQUIRED_POINTS_IN_TIER_TO_UNLOCK_NEXT} points dans l'\xE9tage pr\xE9c\xE9dent)` : `Sp\xE9cialisations verrouill\xE9es (niv ${def.specUnlockLevel})`;
+        const iconSrc2 = escapeHtml(PASSIVE_ICON_SRC);
+        const imgFilter2 = learned2 ? "filter:drop-shadow(0 2px 6px rgba(0,0,0,0.35));" : canLearn2 ? "filter:grayscale(1) brightness(0.70) contrast(0.95) drop-shadow(0 0 10px rgba(255,215,0,0.90)) drop-shadow(0 0 18px rgba(255,215,0,0.55)) drop-shadow(0 2px 6px rgba(0,0,0,0.35));" : "filter:grayscale(1) brightness(0.55) contrast(0.95) drop-shadow(0 2px 6px rgba(0,0,0,0.35));";
+        const label2 = passiveDef?.name ? passiveDef.name : isCorePassive ? `Passif central ${n2.label || ""}` : `Passif ${specName2} : \xE9tage ${tier2}`;
+        let tooltipText = `${label2}
+${title2}
+Co\xFBt: 1 point`;
+        if (passiveDef?.description)
+          tooltipText += `
+
+${passiveDef.description}`;
+        const tooltip2 = encodeURIComponent(tooltipText);
+        const btnStyle2 = `all:unset;display:block;width:${PASSIVE_ICON_SIZE}px;height:${PASSIVE_ICON_SIZE}px;cursor:${disabled2 ? "not-allowed" : "pointer"};pointer-events:auto;`;
+        return `
+						<div style="position:absolute;left:${n2.x}px;top:${n2.y}px;transform:translate(-50%,-50%);">
+							<button type="button" data-passive-id="${escapeHtml(n2.id)}" ${disabled2 ? "disabled" : ""} data-skill-desc="${escapeHtml(tooltip2)}"
+								style="${btnStyle2}">
+								<img src="${iconSrc2}" alt="${escapeHtml(label2)}" style="width:${PASSIVE_ICON_SIZE}px;height:${PASSIVE_ICON_SIZE}px;object-fit:contain;${imgFilter2}" />
+							</button>
+						</div>
+					`;
+      }
+      const specId = String(n2.specId ?? "");
+      const tier = Math.max(1, Math.floor(Number(n2.tier ?? 1)));
+      const slot = Math.max(0, Math.floor(Number(n2.slot ?? 0)));
+      const unlockedTier = isTierUnlocked(p2, state2, classId, specId, tier, def.specUnlockLevel);
+      const skillId = String(n2.skillId ?? "").trim();
+      let learned = isSpecNodeLearned(state2, n2.id);
+      let label = `Sp\xE9cialisation ${escapeHtml(specNames.get(specId) ?? "Sp\xE9")} : \xE9tage ${tier}`;
+      let iconSrc = escapeHtml(GENERIC_NODE_ICON_SRC);
+      if (skillId) {
+        try {
+          const s2 = createSkill(skillId);
+          if (s2?.name)
+            label = s2.name;
+          iconSrc = getSkillIconSrc(s2);
+        } catch {
+        }
+        if (hasLearnedSkillId(p2, skillId, n2.label))
+          learned = true;
+      }
+      const canLearn = unlockedTier && !learned && havePts;
+      const disabled = !canLearn;
+      const specName = escapeHtml(specNames.get(specId) ?? "Sp\xE9");
+      const title = canUseSpecTree(p2, def.specUnlockLevel) ? unlockedTier ? learned ? "D\xE9j\xE0 appris" : havePts ? "Cliquer pour apprendre (1 point)" : "Pas assez de points" : `\xC9tage verrouill\xE9 (d\xE9penser ${REQUIRED_POINTS_IN_TIER_TO_UNLOCK_NEXT} points dans l'\xE9tage pr\xE9c\xE9dent)` : `Sp\xE9cialisations verrouill\xE9es (niv ${def.specUnlockLevel})`;
+      let tooltip = `${label}
+${title}
+Co\xFBt: 1 point`;
+      if (skillId) {
+        try {
+          const s2 = createSkill(skillId);
+          const desc = String(s2?.description ?? "");
+          if (desc)
+            tooltip += `
+
+${desc}`;
+        } catch {
+        }
+      }
+      const encodedTooltip = encodeURIComponent(tooltip);
+      const imgFilter = learned ? "filter:drop-shadow(0 2px 6px rgba(0,0,0,0.35));" : canLearn ? "filter:grayscale(1) brightness(0.70) contrast(0.95) drop-shadow(0 0 10px rgba(255,215,0,0.90)) drop-shadow(0 0 18px rgba(255,215,0,0.55)) drop-shadow(0 2px 6px rgba(0,0,0,0.35));" : "filter:grayscale(1) brightness(0.55) contrast(0.95) drop-shadow(0 2px 6px rgba(0,0,0,0.35));";
+      const btnStyle = `all:unset;display:block;width:${SKILL_ICON_SIZE}px;height:${SKILL_ICON_SIZE}px;cursor:${disabled ? "not-allowed" : "pointer"};pointer-events:auto;`;
+      return `
+				<div style="position:absolute;left:${n2.x}px;top:${n2.y}px;transform:translate(-50%,-50%);">
+					<button type="button" data-talent-id="${escapeHtml(n2.id)}" ${disabled ? "disabled" : ""} data-spec-skill-id="${escapeHtml(skillId)}" data-skill-desc="${escapeHtml(encodedTooltip)}"
+						style="${btnStyle}">
+						<img src="${iconSrc}" alt="${escapeHtml(label)}" style="width:${SKILL_ICON_SIZE}px;height:${SKILL_ICON_SIZE}px;object-fit:contain;${imgFilter}" />
+						</button>
+					</div>
+				`;
+    }).join("");
+    nodesHost.innerHTML = nodeHtml;
+    installHoverTooltip(nodesHost, { selector: "[data-skill-desc]" });
+    document.getElementById("talentMemberSelect")?.addEventListener("change", (e2) => {
+      selectedIdx = Number(e2.target.value);
+      render();
+    });
+    document.getElementById("talentBackBtn")?.addEventListener("click", () => {
+      options.onBack?.(selectedIdx);
+    });
+    document.getElementById("talentResetBtn")?.addEventListener("click", () => {
+      const ok = window.confirm("R\xE9initialiser l'arbre de talents ? Les points d\xE9pens\xE9s seront rembours\xE9s.");
+      if (!ok)
+        return;
+      const refund = (state2.learnedSpecNodeIds ?? []).length + (state2.learnedCoreSkillIds ?? []).length + (state2.learnedPassiveNodeIds ?? []).length;
+      state2.learnedSpecNodeIds = [];
+      const learnedPassiveNodes = (state2.learnedPassiveNodeIds ?? []).slice();
+      removeGrantedPassivesForTalentNodes(p2, learnedPassiveNodes);
+      state2.learnedPassiveNodeIds = [];
+      const coreIds = Array.isArray(state2.learnedCoreSkillIds) ? state2.learnedCoreSkillIds : [];
+      removeLearnedSkillsById(p2, coreIds);
+      state2.learnedCoreSkillIds = [];
+      setSkillPoints(p2, getSkillPoints(p2) + refund);
+      render();
+    });
+    nodesHost.querySelectorAll("[data-talent-id]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = String(btn.getAttribute("data-talent-id") ?? "");
+        if (!id)
+          return;
+        if (isSpecNodeLearned(state2, id))
+          return;
+        if (getSkillPoints(p2) < 1)
+          return;
+        state2.learnedSpecNodeIds = [...state2.learnedSpecNodeIds ?? [], id];
+        const skillId = String(btn.getAttribute("data-spec-skill-id") ?? "").trim();
+        if (skillId) {
+          const res = learnSkill(p2, skillId);
+          if (res.ok) {
+            state2.learnedCoreSkillIds = Array.isArray(state2.learnedCoreSkillIds) ? [...state2.learnedCoreSkillIds, skillId] : [skillId];
+          }
+        }
+        setSkillPoints(p2, getSkillPoints(p2) - 1);
+        render();
+      });
+    });
+    nodesHost.querySelectorAll("[data-passive-id]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = String(btn.getAttribute("data-passive-id") ?? "");
+        if (!id)
+          return;
+        if (isPassiveNodeLearned(state2, id))
+          return;
+        if (getSkillPoints(p2) < 1)
+          return;
+        const can = canLearnPassiveNodeForPlayer(p2, state2, id);
+        if (!can.ok) {
+          window.alert(can.message);
+          return;
+        }
+        const applied = applyGrantedPassiveFromTalentNode(p2, id);
+        if (!applied.ok) {
+          window.alert(applied.message);
+          return;
+        }
+        state2.learnedPassiveNodeIds = Array.isArray(state2.learnedPassiveNodeIds) ? [...state2.learnedPassiveNodeIds, id] : [id];
+        setSkillPoints(p2, getSkillPoints(p2) - 1);
+        render();
+      });
+    });
+    nodesHost.querySelectorAll("[data-core-skill-id]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const skillId = String(btn.getAttribute("data-core-skill-id") ?? "").trim();
+        if (!skillId)
+          return;
+        if (getSkillPoints(p2) < 1)
+          return;
+        const res = learnSkill(p2, skillId);
+        if (!res.ok)
+          return;
+        state2.learnedCoreSkillIds = Array.isArray(state2.learnedCoreSkillIds) ? [.../* @__PURE__ */ new Set([...state2.learnedCoreSkillIds, skillId])] : [skillId];
+        setSkillPoints(p2, getSkillPoints(p2) - 1);
+        render();
+      });
+    });
+  };
+  render();
+}
+var GENERIC_NODE_ICON_SRC, REQUIRED_POINTS_IN_TIER_TO_UNLOCK_NEXT;
+var init_talentTree_web = __esm({
+  "dist/talents/talentTree.web.js"() {
+    "use strict";
+    init_utils_web();
+    init_party_web();
+    init_talentTree();
+    init_skillLibrary();
+    init_skillUi_web();
+    init_talentPassives();
+    init_passives();
+    GENERIC_NODE_ICON_SRC = "./ImagesRPG/imagesobjets/journal_quete.png";
+    REQUIRED_POINTS_IN_TIER_TO_UNLOCK_NEXT = 3;
   }
 });
 
@@ -73954,7 +75466,7 @@ function showTacticalSkirmish(options = {}) {
   let integratedBgNaturalW = 0;
   let integratedBgNaturalH = 0;
   let integratedBgLoading = false;
-  const clamp7 = (n2, a2, b2) => Math.max(a2, Math.min(b2, n2));
+  const clamp8 = (n2, a2, b2) => Math.max(a2, Math.min(b2, n2));
   const applyCombatBoardRectLikeMap = () => {
     const wrapEl = document.querySelector(".tactical-wrap.tactical-combat");
     if (!wrapEl)
@@ -73962,7 +75474,7 @@ function showTacticalSkirmish(options = {}) {
     const vw = Math.max(1, Math.floor(Number(window.innerWidth ?? 1)));
     const vh = Math.max(1, Math.floor(Number(window.innerHeight ?? 1)));
     const rawScale = Number(options.boardScale ?? 0.6);
-    const scale = clamp7(Number.isFinite(rawScale) ? rawScale : 0.6, 0.35, 1);
+    const scale = clamp8(Number.isFinite(rawScale) ? rawScale : 0.6, 0.35, 1);
     const w2 = Math.max(1, Math.floor(vw * scale));
     const h2 = Math.max(1, Math.floor(vh * scale));
     const left = Math.floor((vw - w2) / 2);
@@ -73989,8 +75501,8 @@ function showTacticalSkirmish(options = {}) {
     if (gridW < 80 || gridH < 80)
       return;
     const pad = 10;
-    const ISO_SCALE = clamp7(Number(options.isoScale ?? 0.85), 0.6, 2.2);
-    const ASPECT = clamp7(Number(options.tileAspect ?? 0.68), 0.35, 0.9);
+    const ISO_SCALE = clamp8(Number(options.isoScale ?? 0.85), 0.6, 2.2);
+    const ASPECT = clamp8(Number(options.tileAspect ?? 0.68), 0.35, 0.9);
     const gap = Math.max(0, Math.floor(Number(options.tileGap ?? 2)));
     const baseTileW = Math.max(26, (gridW - pad * 2 - gap * (cols - 1)) / Math.max(4, cols));
     const tileW = Math.max(28, Math.floor(baseTileW * ISO_SCALE));
@@ -74085,7 +75597,9 @@ function showTacticalSkirmish(options = {}) {
       const cy = offsetY + (x2 + y2) * stepH;
       el.style.left = `${cx}px`;
       el.style.top = `${cy}px`;
-      el.style.zIndex = String(Math.floor((x2 + y2) * 100 + x2));
+      const baseZ = Math.floor((x2 + y2) * 100 + x2);
+      const boostedZ = el.classList.contains("lightning-focus") ? baseZ + 1e5 : baseZ;
+      el.style.zIndex = String(boostedZ);
       if (bgEl && bgRect && bgRect.width > 10 && bgRect.height > 10) {
         const tileViewportX = gridRect.left + cx;
         const tileViewportY = gridRect.top + cy;
@@ -74469,6 +75983,177 @@ function showTacticalSkirmish(options = {}) {
   };
   const onFlee = options.onFlee ?? options.onBack ?? showAccueil;
   const onBackAfterCombat = options.onReturnAfterCombat ?? options.onBack ?? showAccueil;
+  let utilityModalEl = null;
+  const closeUtilityModal = () => {
+    if (!utilityModalEl)
+      return;
+    utilityModalEl.remove();
+    utilityModalEl = null;
+  };
+  const openInventoryUtilityModal = () => {
+    if (utilityModalEl)
+      return;
+    const inventoryHero = getPartyMembers()[0];
+    if (!inventoryHero) {
+      showTemporaryMessage("Aucun inventaire disponible.", 1600);
+      return;
+    }
+    utilityModalEl = document.createElement("div");
+    utilityModalEl.className = "tactical-utility-modal";
+    utilityModalEl.style.cssText = [
+      "position:fixed",
+      "inset:0",
+      "display:flex",
+      "align-items:center",
+      "justify-content:center",
+      "background:rgba(0,0,0,0.65)",
+      "z-index:10000",
+      "padding:18px"
+    ].join(";");
+    const panel = document.createElement("div");
+    panel.style.cssText = [
+      "width:min(860px, 96vw)",
+      "max-height:min(84vh, 860px)",
+      "overflow:auto",
+      "background:#111",
+      "border:1px solid rgba(255,255,255,0.10)",
+      "border-radius:12px",
+      "padding:14px",
+      "color:#fff"
+    ].join(";");
+    const renderInventoryPanel = () => {
+      panel.innerHTML = `
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+                    <div>
+                        <div style="font-size:1.1em;font-weight:800;">Inventaire</div>
+                        <div style="color:#bbb;font-size:0.92em;">Utilisable pendant le tour d'un alli\xE9</div>
+                    </div>
+                    <button class="btn" id="tacticalUtilityInventoryCloseBtn" style="min-width:90px;">Fermer</button>
+                </div>
+                <div style="margin-top:10px;">
+                    ${renderInventory(inventoryHero, { showGold: true, showWood: true })}
+                </div>
+            `;
+      const inventoryContainer = panel.querySelector(".inventory-items");
+      const updateSelection = () => {
+        if (!inventoryContainer)
+          return;
+        const sel = inventoryContainer.getAttribute("data-selected-inv") ?? "";
+        inventoryContainer.querySelectorAll("[data-inv-actions]").forEach((actionsEl) => {
+          const idx = actionsEl.getAttribute("data-inv-actions") ?? "";
+          actionsEl.style.display = sel && idx === sel ? "flex" : "none";
+        });
+        inventoryContainer.querySelectorAll("[data-inv-row]").forEach((rowEl) => {
+          const idx = rowEl.getAttribute("data-inv-row") ?? "";
+          if (sel && idx === sel) {
+            rowEl.style.background = "rgba(255,255,255,0.06)";
+            rowEl.style.outline = "1px solid rgba(255,235,59,0.35)";
+          } else {
+            rowEl.style.background = "transparent";
+            rowEl.style.outline = "none";
+          }
+        });
+      };
+      inventoryContainer?.addEventListener("click", (ev) => {
+        const target = ev.target;
+        if (!target || target.closest("button"))
+          return;
+        const row = target.closest("[data-inv-row]");
+        if (!row || !inventoryContainer.contains(row))
+          return;
+        const idx = row.getAttribute("data-inv-row") ?? "";
+        if (!idx)
+          return;
+        inventoryContainer.setAttribute("data-selected-inv", idx);
+        updateSelection();
+      });
+      panel.querySelector("#tacticalUtilityInventoryCloseBtn")?.addEventListener("click", () => {
+        closeUtilityModal();
+      });
+      panel.querySelectorAll("[data-inv-idx]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const targetUnit = getInventoryTargetUnit();
+          const targetActor = targetUnit?.actor;
+          if (!targetUnit || !targetActor || targetUnit.team !== "allies" || targetUnit.pv <= 0) {
+            state2.log.unshift("Impossible d'utiliser un objet hors du tour d'un alli\xE9.");
+            closeUtilityModal();
+            render();
+            return;
+          }
+          const idx = Number(btn.getAttribute("data-inv-idx"));
+          const inv = inventoryHero.inventory ?? [];
+          const item = inv[idx];
+          if (!item)
+            return;
+          const ctor = String(item?.constructor?.name ?? "");
+          if (ctor !== "Consumable" || typeof item.use !== "function") {
+            state2.log.unshift("Cet objet ne peut pas \xEAtre utilis\xE9 en combat.");
+            closeUtilityModal();
+            render();
+            return;
+          }
+          const msg = String(item.use(targetActor));
+          const q = Math.max(1, Math.floor(Number(item?.quantity ?? 1)));
+          if (Boolean(item?.stackable) && q > 1) {
+            item.quantity = q - 1;
+          } else {
+            inv.splice(idx, 1);
+          }
+          inventoryHero.inventory = inv;
+          syncFromActors();
+          state2.log.unshift(msg);
+          const healAmount = String(item?.effect ?? "") === "heal" ? Math.max(0, Math.floor(Number(item?.amount ?? 0))) : 0;
+          if (healAmount > 0) {
+            flashUnitAtPos(targetUnit.pos, "heal");
+            spawnFloatAtPos(targetUnit.pos, "heal", healAmount);
+          }
+          closeUtilityModal();
+          render();
+        });
+      });
+      updateSelection();
+    };
+    renderInventoryPanel();
+    utilityModalEl.appendChild(panel);
+    utilityModalEl.addEventListener("click", (e2) => {
+      if (e2.target === utilityModalEl)
+        closeUtilityModal();
+    });
+    document.body.appendChild(utilityModalEl);
+  };
+  const openCharacterUtilityModal = () => {
+    void Promise.resolve().then(() => (init_personnages_web(), personnages_web_exports)).then((m2) => {
+      try {
+        m2.openPersonnageModalFromMap?.({ startIndex: 0 });
+      } catch {
+        showTemporaryMessage("Impossible d'ouvrir la fiche.", 1600);
+      }
+    });
+  };
+  const openQuestUtilityModal = () => {
+    void Promise.resolve().then(() => (init_questJournalModal_web(), questJournalModal_web_exports)).then((m2) => {
+      try {
+        m2.openQuestJournalModal?.();
+      } catch {
+        showTemporaryMessage("Impossible d'ouvrir les qu\xEAtes.", 1600);
+      }
+    });
+  };
+  const openTalentUtilityScreen = () => {
+    closeUtilityModal();
+    void Promise.resolve().then(() => (init_talentTree_web(), talentTree_web_exports)).then((m2) => {
+      try {
+        m2.showTalentTree?.({
+          selectedIdx: 0,
+          onBack: () => {
+            render();
+          }
+        });
+      } catch {
+        showTemporaryMessage("Impossible d'ouvrir les talents.", 1600);
+      }
+    });
+  };
   let combatEndOutcomeNotified = null;
   const notifyCombatEnd = (outcome) => {
     if (combatEndOutcomeNotified)
@@ -74563,22 +76248,8 @@ function showTacticalSkirmish(options = {}) {
         const img = String(u2.actor?.image ?? "");
         return img || "ImagesRPG/imagespersonnage/trueennemi.png";
       }
-      const cls = String(u2.actor?.characterClass ?? "").toLowerCase();
-      const stun = Math.max(0, Math.floor(Number(u2.actor?.stunTurns ?? 0)));
-      const temp = String(u2.actor?.__tempSprite ?? "");
-      if (temp)
-        return temp;
-      if (cls === "guerrier" && stun > 0)
-        return "ImagesRPG/imagespersonnage/perso_guerrier_mort.png";
-      if (cls === "mage")
-        return "ImagesRPG/imagespersonnage/mage.png";
-      if (cls === "voleur")
-        return "ImagesRPG/imagespersonnage/voleur.png";
-      if (cls === "guerrier") {
-        const idle = getIdleSpriteSrc(cls);
-        return idle ? idle.replace(/^\.\//, "") : "ImagesRPG/imagespersonnage/true_perso_guerrier.png";
-      }
-      return "ImagesRPG/imagespersonnage/trueplayer.png";
+      const spriteSrc = getActorSpriteSrc(u2.actor, "./ImagesRPG/imagespersonnage/trueplayer.png");
+      return spriteSrc.replace(/^\.\//, "");
     };
     const initiativeHtml = (() => {
       if (!isSpeedTurnMode)
@@ -74657,6 +76328,8 @@ function showTacticalSkirmish(options = {}) {
         if (active && active.pos.x === x2 && active.pos.y === y2) {
           cls += active.team === "enemies" ? " active-enemy-turn" : " active";
         }
+        if (u2 && Boolean(u2.actor?.__lightningFocus))
+          cls += " lightning-focus";
         if (reachableSet.has(posKey(pos)))
           cls += " reachable";
         if (activeActor && selectedSkill) {
@@ -74776,6 +76449,20 @@ function showTacticalSkirmish(options = {}) {
 
                 <div class="tactical-skillbar tactical-skillbar-left" id="tacticalSkillsLeft"></div>
                 <div class="tactical-skillbar tactical-skillbar-right" id="tacticalSkillsRight"></div>
+                <div class="tactical-log-toolbar tactical-toolbar-fixed" aria-label="Raccourcis">
+                    <button class="btn tactical-tool-btn" id="tacticalToolbarInventoryBtn" title="Inventaire" aria-label="Inventaire">
+                        <span aria-hidden="true">\u{1F4E6}</span>
+                    </button>
+                    <button class="btn tactical-tool-btn" id="tacticalToolbarQuestsBtn" title="Journal de qu\xEAtes" aria-label="Journal de qu\xEAtes">
+                        <span aria-hidden="true">\u{1F4DC}</span>
+                    </button>
+                    <button class="btn tactical-tool-btn" id="tacticalToolbarTalentsBtn" title="Arbre de talents" aria-label="Arbre de talents">
+                        <span aria-hidden="true">\u{1F333}</span>
+                    </button>
+                    <button class="btn tactical-tool-btn" id="tacticalToolbarCharacterBtn" title="Personnage" aria-label="Personnage">
+                        <span aria-hidden="true">\u{1F464}</span>
+                    </button>
+                </div>
 
                 <div class="tactical-actions tactical-board-actions" aria-label="Actions de combat">
                     ${!combatEnded || inPostWin ? `<button class="btn" id="tacticalPassBtn">Passer le tour</button>` : ""}
@@ -74805,6 +76492,10 @@ function showTacticalSkirmish(options = {}) {
       notifyCombatEnd("fled");
       leaveSkirmish(onFlee);
     });
+    document.getElementById("tacticalToolbarInventoryBtn")?.addEventListener("click", () => openInventoryUtilityModal());
+    document.getElementById("tacticalToolbarQuestsBtn")?.addEventListener("click", () => openQuestUtilityModal());
+    document.getElementById("tacticalToolbarTalentsBtn")?.addEventListener("click", () => openTalentUtilityScreen());
+    document.getElementById("tacticalToolbarCharacterBtn")?.addEventListener("click", () => openCharacterUtilityModal());
     document.getElementById("tacticalBackBtn")?.addEventListener("click", () => {
       notifyCombatEnd("back");
       leaveSkirmish(onBackAfterCombat);
@@ -74817,6 +76508,7 @@ function showTacticalSkirmish(options = {}) {
     if (gridForPixi) {
       gridForPixi.classList.add("pixi-units");
       gridForPixi.classList.remove("integrated-terrain");
+      closeUtilityModal();
     }
     const boardPanelForPixi = document.querySelector(".tactical-board-panel");
     if (boardPanelForPixi) {
@@ -75463,6 +77155,21 @@ function showTacticalSkirmish(options = {}) {
       }
       state2.__lastUnitEffect = void 0;
     }
+    const secondaryEffect = state2.__lastUnitEffectSecondary;
+    if (secondaryEffect && secondaryEffect.unitId) {
+      const u2 = getUnitById(state2, secondaryEffect.unitId);
+      if (u2) {
+        if (secondaryEffect.kind === "damage")
+          flashUnitAtPos(u2.pos, "damage");
+        else if (secondaryEffect.kind === "heal")
+          flashUnitAtPos(u2.pos, "heal");
+        const amt = Math.max(0, Math.floor(Number(secondaryEffect.amount ?? 0)));
+        if (amt > 0 && (secondaryEffect.kind === "damage" || secondaryEffect.kind === "heal")) {
+          spawnFloatAtPos(u2.pos, secondaryEffect.kind, amt);
+        }
+      }
+      state2.__lastUnitEffectSecondary = void 0;
+    }
   };
   renderRef = render;
   render();
@@ -75480,6 +77187,7 @@ var init_skirmish_web = __esm({
     init_index_web();
     init_accueil_web();
     init_battleTurn_web();
+    init_characterSprites_web();
     init_skillUi_web();
     init_party_web();
     init_enemies();
@@ -75496,7 +77204,6 @@ var init_skirmish_web = __esm({
     init_utils_web();
     init_itemIcons_web();
     init_ui();
-    init_characterSprites_web();
     init_pixiBootstrap_web();
     init_tacticalOverlay_web();
     init_daySystem_web();
@@ -75824,735 +77531,6 @@ var init_world = __esm({
   }
 });
 
-// dist/talents/talentTree.js
-function getCharacterClassId(p2) {
-  const cls = norm2(String(p2?.characterClass ?? ""));
-  if (cls === "mage")
-    return "mage";
-  if (cls === "voleur")
-    return "voleur";
-  return "guerrier";
-}
-function coreNodesFromSkills(classId) {
-  const ids = CORE_SKILLS[classId];
-  return ids.map((skillId) => {
-    let s2;
-    try {
-      s2 = createSkill(skillId);
-    } catch {
-      s2 = null;
-    }
-    const name = String(s2?.name ?? skillId);
-    const description = String(s2?.description ?? "Comp\xE9tence de classe (d\xE9bloqu\xE9e par niveau).");
-    return {
-      id: `core.${skillId}`,
-      kind: "core-skill",
-      skillId,
-      name,
-      description
-    };
-  });
-}
-function getTalentTreeDefinition(classId) {
-  const specUnlockLevel = 10;
-  const specTierCount = 4;
-  const specsSrc = CLASS_SPECS[classId];
-  const specs = specsSrc.map((s2, idx) => ({
-    id: s2.id,
-    name: s2.name,
-    direction: idx,
-    tierCount: specTierCount
-  }));
-  const getSpecNodeId = (specId, tier, slot) => `spec.${classId}.${specId}.t${tier}.s${slot}`;
-  const coreNodes = coreNodesFromSkills(classId);
-  return {
-    classId,
-    className: classId === "mage" ? "Mage" : classId === "voleur" ? "Voleur" : "Guerrier",
-    coreNodes,
-    specUnlockLevel,
-    specs,
-    getSpecNodeId
-  };
-}
-function getSpecNodeSkillId(classId, specId, tier, slot) {
-  if (classId === "voleur" && specId === "assassin" && tier === 1 && slot === 0)
-    return "poison";
-  if (classId === "voleur" && specId === "assassin" && tier === 1 && slot === 1)
-    return "drain_de_vie";
-  if (classId === "voleur" && specId === "chasseur" && tier === 1 && slot === 1)
-    return "tir_a_l_arc";
-  return void 0;
-}
-function getOrCreateTalentTreeState(p2) {
-  const cur = p2.talentTreeState;
-  if (cur && Array.isArray(cur.learnedSpecNodeIds) && typeof cur.version === "number") {
-    if (!Array.isArray(cur.learnedCoreSkillIds))
-      cur.learnedCoreSkillIds = [];
-    if (!Array.isArray(cur.learnedPassiveNodeIds))
-      cur.learnedPassiveNodeIds = [];
-    return cur;
-  }
-  const next = { version: 1, learnedSpecNodeIds: [], learnedCoreSkillIds: [], learnedPassiveNodeIds: [] };
-  p2.talentTreeState = next;
-  return next;
-}
-var CLASS_SPECS, norm2, CORE_SKILLS;
-var init_talentTree = __esm({
-  "dist/talents/talentTree.js"() {
-    "use strict";
-    init_skillLibrary();
-    CLASS_SPECS = {
-      mage: [
-        { id: "invocateur", name: "Invocateur" },
-        { id: "enchanteur", name: "Enchanteur" },
-        { id: "magicien", name: "Magicien" },
-        { id: "barde", name: "Barde" }
-      ],
-      voleur: [
-        { id: "assassin", name: "Assassin" },
-        { id: "arlequin", name: "Arlequin" },
-        { id: "chasseur", name: "Chasseur" },
-        { id: "saboteur", name: "Saboteur" }
-      ],
-      guerrier: [
-        { id: "paladin", name: "Paladin" },
-        { id: "barbare", name: "Barbare" },
-        { id: "chevalier", name: "Chevalier" },
-        { id: "gladiateur", name: "Gladiateur" }
-      ]
-    };
-    norm2 = (s2) => s2.trim().toLowerCase();
-    CORE_SKILLS = {
-      mage: ["missile_magique", "mana_gain", "couteau_magique", "eclair", "boule_de_feu", "mana_groupe", "teleportation", "rayon_de_feu", "soin"],
-      guerrier: ["basic_attack", "block", "charge", "hache_lourde", "lancer_allie", "lancer_ennemi", "repouser", "harpon_chaine", "fureur"],
-      voleur: ["basic_attack", "mouvement_de_fou", "shuriken", "bombe_fumigene", "buff_attaque", "fragiliser", "assassinat", "immobiliser", "gain_pa_groupe"]
-    };
-  }
-});
-
-// dist/talents/talentTree.web.js
-function clamp2(n2, min, max) {
-  return Math.max(min, Math.min(max, n2));
-}
-function getSkillPoints(p2) {
-  return Math.max(0, Math.floor(Number(p2?.skillPoints ?? 0)));
-}
-function setSkillPoints(p2, v2) {
-  p2.skillPoints = Math.max(0, Math.floor(v2));
-}
-function getLearnedSkillIds(p2) {
-  return (p2?.learnedSkillIds ?? []).filter(Boolean);
-}
-function hasLearnedSkillId(p2, skillId, skillNameFallback) {
-  const id = String(skillId ?? "").trim();
-  if (id) {
-    if (getLearnedSkillIds(p2).includes(id))
-      return true;
-    if ((p2?.skills ?? []).some((s2) => String(s2?.skillId ?? "") === id))
-      return true;
-  }
-  const name = String(skillNameFallback ?? "").trim();
-  if (!name)
-    return false;
-  return (p2?.skills ?? []).some((s2) => String(s2?.name ?? "") === name);
-}
-function learnSkill(p2, skillId) {
-  let skill;
-  try {
-    skill = createSkill(skillId);
-  } catch {
-    return { ok: false, message: `Comp\xE9tence introuvable: ${String(skillId)}` };
-  }
-  const already = hasLearnedSkillId(p2, String(skillId), String(skill?.name ?? ""));
-  if (already)
-    return { ok: false, message: "D\xE9j\xE0 apprise." };
-  if (!Array.isArray(p2.skills))
-    p2.skills = [];
-  p2.skills = [...p2.skills, skill];
-  const ids = new Set(getLearnedSkillIds(p2));
-  ids.add(String(skillId));
-  p2.learnedSkillIds = Array.from(ids);
-  return { ok: true };
-}
-function removeLearnedSkillsById(p2, skillIds) {
-  const toRemove = new Set((skillIds ?? []).map((s2) => String(s2)).filter(Boolean));
-  if (!toRemove.size)
-    return;
-  const keepIds = getLearnedSkillIds(p2).filter((id) => !toRemove.has(String(id)));
-  p2.learnedSkillIds = keepIds;
-  const idsArray = Array.from(toRemove);
-  const namesToRemove = /* @__PURE__ */ new Set();
-  for (const id of idsArray) {
-    try {
-      const s2 = createSkill(id);
-      if (s2?.name)
-        namesToRemove.add(String(s2.name));
-    } catch {
-    }
-  }
-  const curSkills = Array.isArray(p2?.skills) ? p2.skills : [];
-  p2.skills = curSkills.filter((s2) => {
-    const sid = String(s2?.skillId ?? "");
-    if (sid && toRemove.has(sid))
-      return false;
-    const nm = String(s2?.name ?? "");
-    if (nm && namesToRemove.has(nm))
-      return false;
-    return true;
-  });
-}
-function buildUnlockLevelBySkillIdFromGame(p2) {
-  const map = {};
-  const gameSkillTree = window.game?.skillTree ?? [];
-  for (const entry of gameSkillTree) {
-    const skill = entry?.skill;
-    const skillId = String(skill?.skillId ?? "");
-    const unlockLevel = Math.max(1, Math.floor(Number(entry?.unlockLevel ?? NaN)));
-    if (!skillId || !Number.isFinite(unlockLevel))
-      continue;
-    if (map[skillId] === void 0 || unlockLevel < map[skillId])
-      map[skillId] = unlockLevel;
-  }
-  const playerSkills = p2?.skills ?? [];
-  for (const s2 of playerSkills) {
-    const skillId = String(s2?.skillId ?? "");
-    if (!skillId)
-      continue;
-    if (map[skillId] === void 0 || 1 < map[skillId])
-      map[skillId] = 1;
-  }
-  return map;
-}
-function buildLayout(classId, w2, h2, unlockLevelBySkillId) {
-  const def = getTalentTreeDefinition(classId);
-  const cx = w2 * 0.5;
-  const cy = h2 * 0.52;
-  const nodes = [];
-  const edges = [];
-  const BASE_GRID_DX = Math.min(106, w2 * 0.11);
-  const BASE_GRID_DY = Math.min(96, h2 * 0.11);
-  const CORE_SHRINK = 0.65;
-  const gridDx = Math.max(36, Math.floor(BASE_GRID_DX * CORE_SHRINK));
-  const gridDy = Math.max(32, Math.floor(BASE_GRID_DY * CORE_SHRINK));
-  const startX = cx - gridDx;
-  const startY = cy - gridDy;
-  for (let i2 = 0; i2 < def.coreNodes.length; i2++) {
-    const gx = i2 % 3;
-    const gy = Math.floor(i2 / 3);
-    const n2 = def.coreNodes[i2];
-    if (!n2)
-      continue;
-    let label = n2.name;
-    let iconSrc;
-    let requiredLevel;
-    let skillId;
-    if (n2.skillId) {
-      skillId = n2.skillId;
-      try {
-        const s2 = createSkill(n2.skillId);
-        label = s2.name;
-        iconSrc = getSkillIconSrc(s2);
-      } catch {
-        iconSrc = GENERIC_NODE_ICON_SRC;
-      }
-      requiredLevel = unlockLevelBySkillId[String(n2.skillId)] ?? n2.requiredLevel;
-    } else {
-      requiredLevel = n2.requiredLevel;
-    }
-    const ln = {
-      id: n2.id,
-      x: startX + gx * gridDx,
-      y: startY + gy * gridDy,
-      label,
-      kind: "core"
-    };
-    if (iconSrc)
-      ln.iconSrc = iconSrc;
-    if (skillId)
-      ln.skillId = skillId;
-    if (typeof requiredLevel === "number")
-      ln.requiredLevel = requiredLevel;
-    nodes.push(ln);
-  }
-  const coreCellSize = Math.max(gridDx, gridDy);
-  const passiveRingRadius = coreCellSize * 1.8;
-  const corePassivePositions = [
-    { x: cx - passiveRingRadius * 1.2, y: cy - passiveRingRadius, label: "Passif central (coin haut-gauche)" },
-    { x: cx, y: cy - passiveRingRadius, label: "Passif central (milieu haut)" },
-    { x: cx + passiveRingRadius * 1.2, y: cy - passiveRingRadius, label: "Passif central (coin haut-droit)" },
-    { x: cx + passiveRingRadius * 1.2, y: cy, label: "Passif central (milieu droit)" },
-    { x: cx + passiveRingRadius * 1.2, y: cy + passiveRingRadius, label: "Passif central (coin bas-droit)" },
-    { x: cx, y: cy + passiveRingRadius, label: "Passif central (milieu bas)" },
-    { x: cx - passiveRingRadius * 1.2, y: cy + passiveRingRadius, label: "Passif central (coin bas-gauche)" },
-    { x: cx - passiveRingRadius * 1.2, y: cy, label: "Passif central (milieu gauche)" }
-  ];
-  for (let i2 = 0; i2 < corePassivePositions.length; i2++) {
-    const pos = corePassivePositions[i2];
-    const id = `passive.${classId}.core.p${i2}`;
-    nodes.push({ id, x: pos.x, y: pos.y, label: pos.label, kind: "passive" });
-  }
-  const directions = [
-    { dx: 0, dy: -1, ox: 1, oy: 0 },
-    { dx: 1, dy: 0, ox: 0, oy: 1 },
-    { dx: 0, dy: 1, ox: 1, oy: 0 },
-    { dx: -1, dy: 0, ox: 0, oy: 1 }
-  ];
-  const margin = 44;
-  const coreRadius = Math.max(gridDx, gridDy) * 1.9;
-  const baseRadius0 = coreRadius + Math.min(w2, h2) * 0.22;
-  const baseStepR = Math.min(w2, h2) * 0.22;
-  const baseLateral = Math.min(w2, h2) * 0.12;
-  const lrMultiplier = 2;
-  const udMultiplier = 1.6;
-  const getMaxAlongDir = (dx, dy) => {
-    if (dy < 0)
-      return Math.max(20, cy - margin);
-    if (dy > 0)
-      return Math.max(20, h2 - cy - margin);
-    if (dx > 0)
-      return Math.max(20, w2 - cx - margin);
-    return Math.max(20, cx - margin);
-  };
-  const fitDir = (dx, dy, radius0, stepR, tierCount) => {
-    const maxR = getMaxAlongDir(dx, dy);
-    const needed = radius0 + Math.max(0, tierCount - 1) * stepR;
-    if (needed <= maxR)
-      return { radius0, stepR };
-    const scale = maxR / needed;
-    return { radius0: radius0 * scale, stepR: stepR * scale };
-  };
-  for (const spec of def.specs) {
-    const d2 = directions[spec.direction];
-    if (!d2)
-      continue;
-    const isLeftRight = spec.direction === 1 || spec.direction === 3;
-    const dirMultiplier = isLeftRight ? lrMultiplier : udMultiplier;
-    const fitted = fitDir(d2.dx, d2.dy, baseRadius0 * dirMultiplier, baseStepR, spec.tierCount);
-    const lateral = baseLateral;
-    for (let tier = 1; tier <= spec.tierCount; tier++) {
-      const r2 = fitted.radius0 + (tier - 1) * fitted.stepR;
-      for (let slot = 0; slot < 3; slot++) {
-        const offsetIndex = slot - 1;
-        const x2 = cx + d2.dx * r2 + d2.ox * offsetIndex * lateral;
-        const y2 = cy + d2.dy * r2 + d2.oy * offsetIndex * lateral;
-        const id = def.getSpecNodeId(spec.id, tier, slot);
-        const specSkillId = getSpecNodeSkillId(classId, spec.id, tier, slot);
-        const nodeObj = { id, x: x2, y: y2, label: "", kind: "spec", specId: spec.id, tier, slot };
-        if (specSkillId)
-          nodeObj.skillId = specSkillId;
-        nodes.push(nodeObj);
-      }
-      const passiveOffsets = [-1.5, -0.5, 0.5, 1.5];
-      for (let i2 = 0; i2 < passiveOffsets.length; i2++) {
-        const offsetIndex = passiveOffsets[i2];
-        const x2 = cx + d2.dx * r2 + d2.ox * offsetIndex * lateral;
-        const y2 = cy + d2.dy * r2 + d2.oy * offsetIndex * lateral;
-        const id = `passive.${classId}.${spec.id}.t${tier}.p${i2}`;
-        nodes.push({ id, x: x2, y: y2, label: "", kind: "passive", specId: spec.id, tier, slot: i2 });
-      }
-      if (tier === 1) {
-        const centerId = def.coreNodes[4]?.id ?? def.coreNodes[0]?.id ?? "core-center";
-        for (let slot = 0; slot < 3; slot++) {
-          edges.push({ from: centerId, to: def.getSpecNodeId(spec.id, 1, slot) });
-        }
-      } else {
-        for (let slot = 0; slot < 3; slot++) {
-          edges.push({ from: def.getSpecNodeId(spec.id, tier - 1, slot), to: def.getSpecNodeId(spec.id, tier, slot) });
-        }
-      }
-    }
-  }
-  for (const n2 of nodes) {
-    n2.x = clamp2(n2.x, margin, w2 - margin);
-    n2.y = clamp2(n2.y, margin, h2 - margin);
-  }
-  return { def, nodes, edges };
-}
-function canUseSpecTree(p2, specUnlockLevel) {
-  return Math.floor(Number(p2?.level ?? 0)) >= specUnlockLevel;
-}
-function getTierSpentCount(state2, classId, specId, tier) {
-  const specPrefix = `spec.${classId}.${specId}.t${tier}.s`;
-  const passivePrefix = `passive.${classId}.${specId}.t${tier}.p`;
-  const specSpent = (state2.learnedSpecNodeIds ?? []).filter((id) => String(id).startsWith(specPrefix)).length;
-  const passiveSpent = (state2.learnedPassiveNodeIds ?? []).filter((id) => String(id).startsWith(passivePrefix)).length;
-  return specSpent + passiveSpent;
-}
-function isSpecNodeLearned(state2, id) {
-  return (state2.learnedSpecNodeIds ?? []).includes(id);
-}
-function isPassiveNodeLearned(state2, id) {
-  return (state2.learnedPassiveNodeIds ?? []).includes(id);
-}
-function getLearnedPassiveNodeIds(state2) {
-  return Array.isArray(state2?.learnedPassiveNodeIds) ? state2.learnedPassiveNodeIds : [];
-}
-function canLearnPassiveNode(state2, id) {
-  const def = getTalentPassiveNodeDef(id);
-  const grants = String(def?.grantsPassiveId ?? "").trim();
-  if (grants) {
-    const cur = Array.isArray(state2?.__owner?.passiveSkills) ? state2.__owner.passiveSkills : null;
-    if (Array.isArray(cur) && cur.includes(grants))
-      return { ok: false, message: "D\xE9j\xE0 appris." };
-  }
-  if (!def?.exclusiveGroup)
-    return { ok: true };
-  const learned = getLearnedPassiveNodeIds(state2);
-  const conflict = learned.find((pid) => TALENT_PASSIVE_NODE_DEFS[String(pid)]?.exclusiveGroup === def.exclusiveGroup);
-  if (conflict)
-    return { ok: false, message: "Passif incompatible avec un autre d\xE9j\xE0 appris." };
-  return { ok: true };
-}
-function canLearnPassiveNodeForPlayer(p2, state2, id) {
-  const def = getTalentPassiveNodeDef(id);
-  const grants = String(def?.grantsPassiveId ?? "").trim();
-  if (grants) {
-    if (typeof p2?.hasPassive === "function" && p2.hasPassive(grants))
-      return { ok: false, message: "D\xE9j\xE0 appris." };
-    const passiveDef = PASSIVE_DEFS[grants];
-    const group = String(passiveDef?.exclusiveGroup ?? "").trim();
-    if (group) {
-      const learnedPassives = Array.isArray(p2?.passiveSkills) ? p2.passiveSkills : [];
-      const conflict = learnedPassives.find((pid) => PASSIVE_DEFS[pid]?.exclusiveGroup === group);
-      if (conflict)
-        return { ok: false, message: "Passif incompatible avec un autre d\xE9j\xE0 appris." };
-    }
-  }
-  return canLearnPassiveNode(state2, id);
-}
-function applyGrantedPassiveFromTalentNode(p2, nodeId) {
-  const def = getTalentPassiveNodeDef(nodeId);
-  const grants = String(def?.grantsPassiveId ?? "").trim();
-  if (!grants)
-    return { ok: true };
-  if (typeof p2?.hasPassive === "function" && p2.hasPassive(grants))
-    return { ok: false, message: "D\xE9j\xE0 appris." };
-  if (!Array.isArray(p2.passiveSkills))
-    p2.passiveSkills = [];
-  p2.passiveSkills = [.../* @__PURE__ */ new Set([...p2.passiveSkills, grants])];
-  return { ok: true };
-}
-function removeGrantedPassivesForTalentNodes(p2, nodeIds) {
-  if (!Array.isArray(nodeIds) || !nodeIds.length)
-    return;
-  const grants = nodeIds.map((id) => String(getTalentPassiveNodeDef(id)?.grantsPassiveId ?? "").trim()).filter(Boolean);
-  if (!grants.length)
-    return;
-  if (!Array.isArray(p2?.passiveSkills))
-    return;
-  const toRemove = new Set(grants);
-  p2.passiveSkills = p2.passiveSkills.filter((pid) => !toRemove.has(String(pid)));
-}
-function isTierUnlocked(p2, state2, classId, specId, tier, specUnlockLevel) {
-  if (!canUseSpecTree(p2, specUnlockLevel))
-    return false;
-  if (tier <= 1)
-    return true;
-  return getTierSpentCount(state2, classId, specId, tier - 1) >= REQUIRED_POINTS_IN_TIER_TO_UNLOCK_NEXT;
-}
-function showTalentTree(options = {}) {
-  const app2 = document.getElementById("app");
-  if (!app2)
-    return;
-  let selectedIdx = options.selectedIdx ?? 0;
-  const render = () => {
-    const party2 = getPartyMembers();
-    selectedIdx = Math.max(0, Math.min(party2.length - 1, Math.floor(Number(selectedIdx) || 0)));
-    const p2 = getPartyMember(selectedIdx);
-    const classId = getCharacterClassId(p2);
-    const def = getTalentTreeDefinition(classId);
-    const state2 = getOrCreateTalentTreeState(p2);
-    const unlockLevelBySkillId = buildUnlockLevelBySkillIdFromGame(p2);
-    app2.innerHTML = `
-				<img src="ImagesRPG/imagesobjets/grimoire_skilltree.png" class="background background-competences" alt="Talents" style="transform: scale(1.037); transform-origin: center;">
-			<div class="centered-content" style="max-width:min(1500px,98vw);">
-				<style>
-					.talent-wrap{ --boardSize:min(94vh, 62vw, 960px); }
-					.talent-layout{ display:grid; grid-template-columns:minmax(240px,320px) var(--boardSize) minmax(240px,320px); gap:12px; align-items:start; justify-content:center; }
-					.talent-panel{ background:rgba(0,0,0,0.35); border:1px solid rgba(255,255,255,0.10); border-radius:12px; padding:12px 14px; }
-					.talent-actions{ display:flex; gap:10px; align-items:center; justify-content:flex-end; flex-wrap:wrap; }
-					@media (max-width: 980px){
-						.talent-layout{ grid-template-columns:1fr; }
-						.talent-panel{ max-width: var(--boardSize); margin: 0 auto; }
-						.talent-actions{ justify-content:center; }
-					}
-				</style>
-
-				<div class="talent-wrap">
-					<div class="talent-layout">
-						<div class="talent-panel">
-							<h1 style="margin:0 0 8px 0;">Arbre de talents \u2014 ${escapeHtml(def.className)}</h1>
-							<div style="color:#ddd;">Niveau: <b>${Math.floor(Number(p2.level ?? 0))}</b></div>
-							<div style="color:#ddd; margin-top:4px;">Points: <b id="talentSkillPointsVal">${getSkillPoints(p2)}</b></div>
-						</div>
-
-						<div id="talentTreeWrap" style="position:relative;width:calc(var(--boardSize) * 1.09);height:var(--boardSize);border:1px solid rgba(255,255,255,0.12);border-radius:14px;background:rgba(0,0,0,0.25);overflow:hidden;">
-							<svg id="talentTreeSvg" width="100%" height="100%" style="position:absolute;inset:0;pointer-events:none;"></svg>
-							<div id="talentTreeNodes" style="position:absolute;inset:0;"></div>
-						</div>
-
-						<div class="talent-panel">
-							<div style="color:#ddd; margin-bottom:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-								<label>Perso:</label>
-								<select id="talentMemberSelect">
-									${party2.map((m2, idx) => `<option value="${idx}" ${idx === selectedIdx ? "selected" : ""}>${escapeHtml(m2.name)}</option>`).join("")}
-								</select>
-							</div>
-							<div class="talent-actions">
-								<button class="btn" id="talentResetBtn">R\xE9initialiser</button>
-								<button class="btn" id="talentBackBtn">Retour</button>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-		`;
-    const wrap = document.getElementById("talentTreeWrap");
-    const svg = document.getElementById("talentTreeSvg");
-    const nodesHost = document.getElementById("talentTreeNodes");
-    if (!wrap || !svg || !nodesHost)
-      return;
-    const rect = wrap.getBoundingClientRect();
-    const layout = buildLayout(classId, rect.width, rect.height, unlockLevelBySkillId);
-    svg.innerHTML = layout.edges.map((e2) => {
-      const a2 = layout.nodes.find((n2) => n2.id === e2.from);
-      const b2 = layout.nodes.find((n2) => n2.id === e2.to);
-      if (!a2 || !b2)
-        return "";
-      return `<line x1="${a2.x}" y1="${a2.y}" x2="${b2.x}" y2="${b2.y}" stroke="rgba(255,255,255,0.14)" stroke-width="2" />`;
-    }).join("");
-    const specNames = new Map(def.specs.map((s2) => [s2.id, s2.name]));
-    const playerLevel = Math.floor(Number(p2.level ?? 0));
-    const havePts = getSkillPoints(p2) >= 1;
-    const PASSIVE_ICON_SRC = "ImagesRPG/imagesobjets/passif3.png";
-    const SKILL_ICON_SIZE = 44;
-    const PASSIVE_ICON_SIZE = Math.max(12, Math.floor(SKILL_ICON_SIZE * 0.5));
-    const nodeHtml = layout.nodes.map((n2) => {
-      if (n2.kind === "core") {
-        const requiredLevel = Math.max(1, Math.floor(Number(n2.requiredLevel ?? 1)));
-        const unlocked = playerLevel >= requiredLevel;
-        const skillId2 = String(n2.skillId ?? "").trim();
-        const learned2 = skillId2 ? hasLearnedSkillId(p2, skillId2, n2.label) : hasLearnedSkillId(p2, "", n2.label);
-        const canLearn2 = Boolean(skillId2) && unlocked && !learned2 && havePts;
-        const disabled2 = !canLearn2;
-        const label2 = escapeHtml(n2.label);
-        const iconSrc2 = escapeHtml(n2.iconSrc ?? GENERIC_NODE_ICON_SRC);
-        const imgFilter2 = learned2 ? "filter:drop-shadow(0 2px 6px rgba(0,0,0,0.35));" : canLearn2 ? "filter:grayscale(1) brightness(0.70) contrast(0.95) drop-shadow(0 0 10px rgba(255,215,0,0.90)) drop-shadow(0 0 18px rgba(255,215,0,0.55)) drop-shadow(0 2px 6px rgba(0,0,0,0.35));" : "filter:grayscale(1) brightness(0.55) contrast(0.95) drop-shadow(0 2px 6px rgba(0,0,0,0.35));";
-        const statusText = learned2 ? "Apprise" : unlocked ? havePts ? "D\xE9bloqu\xE9e (cliquer pour apprendre)" : "D\xE9bloqu\xE9e (pas assez de points)" : `Verrouill\xE9e (niveau ${requiredLevel} requis)`;
-        let tooltip2 = `${decodeURIComponent(encodeURIComponent(n2.label))}
-${statusText}`;
-        if (!learned2)
-          tooltip2 += `
-Co\xFBt: 1 point`;
-        tooltip2 += `
-Niveau requis: ${requiredLevel}`;
-        if (skillId2) {
-          try {
-            const s2 = createSkill(skillId2);
-            const desc = String(s2?.description ?? "");
-            if (desc)
-              tooltip2 += `
-
-${desc}`;
-          } catch {
-          }
-        }
-        const encodedTooltip2 = escapeHtml(encodeURIComponent(tooltip2));
-        const btnStyle2 = `all:unset;display:block;width:${SKILL_ICON_SIZE}px;height:${SKILL_ICON_SIZE}px;cursor:${disabled2 ? "not-allowed" : "pointer"};pointer-events:auto;`;
-        return `
-					<div style="position:absolute;left:${n2.x}px;top:${n2.y}px;transform:translate(-50%,-50%);">
-						<button type="button" ${disabled2 ? "disabled" : ""} data-core-skill-id="${escapeHtml(skillId2)}" data-skill-desc="${encodedTooltip2}"
-							style="${btnStyle2}">
-								<img src="${iconSrc2}" alt="${label2}" style="width:${SKILL_ICON_SIZE}px;height:${SKILL_ICON_SIZE}px;object-fit:contain;${imgFilter2}" />
-							</button>
-						</div>
-					`;
-      }
-      if (n2.kind === "passive") {
-        const specId2 = String(n2.specId ?? "");
-        const tier2 = Math.max(1, Math.floor(Number(n2.tier ?? 1)));
-        const slot2 = Math.max(0, Math.floor(Number(n2.slot ?? 0)));
-        const isCorePassive = n2.id.includes(".core.p");
-        const unlockedTier2 = isCorePassive || isTierUnlocked(p2, state2, classId, specId2, tier2, def.specUnlockLevel);
-        const learned2 = isPassiveNodeLearned(state2, n2.id);
-        const canLearn2 = unlockedTier2 && !learned2 && havePts;
-        const disabled2 = !canLearn2;
-        const passiveDef = getTalentPassiveNodeDef(n2.id);
-        const specName2 = escapeHtml(specNames.get(specId2) ?? (isCorePassive ? "Central" : "Sp\xE9"));
-        const title2 = isCorePassive ? learned2 ? "D\xE9j\xE0 appris" : havePts ? "Cliquer pour apprendre (1 point)" : "Pas assez de points" : canUseSpecTree(p2, def.specUnlockLevel) ? unlockedTier2 ? learned2 ? "D\xE9j\xE0 appris" : havePts ? "Cliquer pour apprendre (1 point)" : "Pas assez de points" : `\xC9tage verrouill\xE9 (d\xE9penser ${REQUIRED_POINTS_IN_TIER_TO_UNLOCK_NEXT} points dans l'\xE9tage pr\xE9c\xE9dent)` : `Sp\xE9cialisations verrouill\xE9es (niv ${def.specUnlockLevel})`;
-        const iconSrc2 = escapeHtml(PASSIVE_ICON_SRC);
-        const imgFilter2 = learned2 ? "filter:drop-shadow(0 2px 6px rgba(0,0,0,0.35));" : canLearn2 ? "filter:grayscale(1) brightness(0.70) contrast(0.95) drop-shadow(0 0 10px rgba(255,215,0,0.90)) drop-shadow(0 0 18px rgba(255,215,0,0.55)) drop-shadow(0 2px 6px rgba(0,0,0,0.35));" : "filter:grayscale(1) brightness(0.55) contrast(0.95) drop-shadow(0 2px 6px rgba(0,0,0,0.35));";
-        const label2 = passiveDef?.name ? passiveDef.name : isCorePassive ? `Passif central ${n2.label || ""}` : `Passif ${specName2} : \xE9tage ${tier2}`;
-        let tooltipText = `${label2}
-${title2}
-Co\xFBt: 1 point`;
-        if (passiveDef?.description)
-          tooltipText += `
-
-${passiveDef.description}`;
-        const tooltip2 = encodeURIComponent(tooltipText);
-        const btnStyle2 = `all:unset;display:block;width:${PASSIVE_ICON_SIZE}px;height:${PASSIVE_ICON_SIZE}px;cursor:${disabled2 ? "not-allowed" : "pointer"};pointer-events:auto;`;
-        return `
-						<div style="position:absolute;left:${n2.x}px;top:${n2.y}px;transform:translate(-50%,-50%);">
-							<button type="button" data-passive-id="${escapeHtml(n2.id)}" ${disabled2 ? "disabled" : ""} data-skill-desc="${escapeHtml(tooltip2)}"
-								style="${btnStyle2}">
-								<img src="${iconSrc2}" alt="${escapeHtml(label2)}" style="width:${PASSIVE_ICON_SIZE}px;height:${PASSIVE_ICON_SIZE}px;object-fit:contain;${imgFilter2}" />
-							</button>
-						</div>
-					`;
-      }
-      const specId = String(n2.specId ?? "");
-      const tier = Math.max(1, Math.floor(Number(n2.tier ?? 1)));
-      const slot = Math.max(0, Math.floor(Number(n2.slot ?? 0)));
-      const unlockedTier = isTierUnlocked(p2, state2, classId, specId, tier, def.specUnlockLevel);
-      const skillId = String(n2.skillId ?? "").trim();
-      let learned = isSpecNodeLearned(state2, n2.id);
-      let label = `Sp\xE9cialisation ${escapeHtml(specNames.get(specId) ?? "Sp\xE9")} : \xE9tage ${tier}`;
-      let iconSrc = escapeHtml(GENERIC_NODE_ICON_SRC);
-      if (skillId) {
-        try {
-          const s2 = createSkill(skillId);
-          if (s2?.name)
-            label = s2.name;
-          iconSrc = getSkillIconSrc(s2);
-        } catch {
-        }
-        if (hasLearnedSkillId(p2, skillId, n2.label))
-          learned = true;
-      }
-      const canLearn = unlockedTier && !learned && havePts;
-      const disabled = !canLearn;
-      const specName = escapeHtml(specNames.get(specId) ?? "Sp\xE9");
-      const title = canUseSpecTree(p2, def.specUnlockLevel) ? unlockedTier ? learned ? "D\xE9j\xE0 appris" : havePts ? "Cliquer pour apprendre (1 point)" : "Pas assez de points" : `\xC9tage verrouill\xE9 (d\xE9penser ${REQUIRED_POINTS_IN_TIER_TO_UNLOCK_NEXT} points dans l'\xE9tage pr\xE9c\xE9dent)` : `Sp\xE9cialisations verrouill\xE9es (niv ${def.specUnlockLevel})`;
-      let tooltip = `${label}
-${title}
-Co\xFBt: 1 point`;
-      if (skillId) {
-        try {
-          const s2 = createSkill(skillId);
-          const desc = String(s2?.description ?? "");
-          if (desc)
-            tooltip += `
-
-${desc}`;
-        } catch {
-        }
-      }
-      const encodedTooltip = encodeURIComponent(tooltip);
-      const imgFilter = learned ? "filter:drop-shadow(0 2px 6px rgba(0,0,0,0.35));" : canLearn ? "filter:grayscale(1) brightness(0.70) contrast(0.95) drop-shadow(0 0 10px rgba(255,215,0,0.90)) drop-shadow(0 0 18px rgba(255,215,0,0.55)) drop-shadow(0 2px 6px rgba(0,0,0,0.35));" : "filter:grayscale(1) brightness(0.55) contrast(0.95) drop-shadow(0 2px 6px rgba(0,0,0,0.35));";
-      const btnStyle = `all:unset;display:block;width:${SKILL_ICON_SIZE}px;height:${SKILL_ICON_SIZE}px;cursor:${disabled ? "not-allowed" : "pointer"};pointer-events:auto;`;
-      return `
-				<div style="position:absolute;left:${n2.x}px;top:${n2.y}px;transform:translate(-50%,-50%);">
-					<button type="button" data-talent-id="${escapeHtml(n2.id)}" ${disabled ? "disabled" : ""} data-spec-skill-id="${escapeHtml(skillId)}" data-skill-desc="${escapeHtml(encodedTooltip)}"
-						style="${btnStyle}">
-						<img src="${iconSrc}" alt="${escapeHtml(label)}" style="width:${SKILL_ICON_SIZE}px;height:${SKILL_ICON_SIZE}px;object-fit:contain;${imgFilter}" />
-						</button>
-					</div>
-				`;
-    }).join("");
-    nodesHost.innerHTML = nodeHtml;
-    installHoverTooltip(nodesHost, { selector: "[data-skill-desc]" });
-    document.getElementById("talentMemberSelect")?.addEventListener("change", (e2) => {
-      selectedIdx = Number(e2.target.value);
-      render();
-    });
-    document.getElementById("talentBackBtn")?.addEventListener("click", () => {
-      options.onBack?.(selectedIdx);
-    });
-    document.getElementById("talentResetBtn")?.addEventListener("click", () => {
-      const ok = window.confirm("R\xE9initialiser l'arbre de talents ? Les points d\xE9pens\xE9s seront rembours\xE9s.");
-      if (!ok)
-        return;
-      const refund = (state2.learnedSpecNodeIds ?? []).length + (state2.learnedCoreSkillIds ?? []).length + (state2.learnedPassiveNodeIds ?? []).length;
-      state2.learnedSpecNodeIds = [];
-      const learnedPassiveNodes = (state2.learnedPassiveNodeIds ?? []).slice();
-      removeGrantedPassivesForTalentNodes(p2, learnedPassiveNodes);
-      state2.learnedPassiveNodeIds = [];
-      const coreIds = Array.isArray(state2.learnedCoreSkillIds) ? state2.learnedCoreSkillIds : [];
-      removeLearnedSkillsById(p2, coreIds);
-      state2.learnedCoreSkillIds = [];
-      setSkillPoints(p2, getSkillPoints(p2) + refund);
-      render();
-    });
-    nodesHost.querySelectorAll("[data-talent-id]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const id = String(btn.getAttribute("data-talent-id") ?? "");
-        if (!id)
-          return;
-        if (isSpecNodeLearned(state2, id))
-          return;
-        if (getSkillPoints(p2) < 1)
-          return;
-        state2.learnedSpecNodeIds = [...state2.learnedSpecNodeIds ?? [], id];
-        const skillId = String(btn.getAttribute("data-spec-skill-id") ?? "").trim();
-        if (skillId) {
-          const res = learnSkill(p2, skillId);
-          if (res.ok) {
-            state2.learnedCoreSkillIds = Array.isArray(state2.learnedCoreSkillIds) ? [...state2.learnedCoreSkillIds, skillId] : [skillId];
-          }
-        }
-        setSkillPoints(p2, getSkillPoints(p2) - 1);
-        render();
-      });
-    });
-    nodesHost.querySelectorAll("[data-passive-id]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const id = String(btn.getAttribute("data-passive-id") ?? "");
-        if (!id)
-          return;
-        if (isPassiveNodeLearned(state2, id))
-          return;
-        if (getSkillPoints(p2) < 1)
-          return;
-        const can = canLearnPassiveNodeForPlayer(p2, state2, id);
-        if (!can.ok) {
-          window.alert(can.message);
-          return;
-        }
-        const applied = applyGrantedPassiveFromTalentNode(p2, id);
-        if (!applied.ok) {
-          window.alert(applied.message);
-          return;
-        }
-        state2.learnedPassiveNodeIds = Array.isArray(state2.learnedPassiveNodeIds) ? [...state2.learnedPassiveNodeIds, id] : [id];
-        setSkillPoints(p2, getSkillPoints(p2) - 1);
-        render();
-      });
-    });
-    nodesHost.querySelectorAll("[data-core-skill-id]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const skillId = String(btn.getAttribute("data-core-skill-id") ?? "").trim();
-        if (!skillId)
-          return;
-        if (getSkillPoints(p2) < 1)
-          return;
-        const res = learnSkill(p2, skillId);
-        if (!res.ok)
-          return;
-        state2.learnedCoreSkillIds = Array.isArray(state2.learnedCoreSkillIds) ? [.../* @__PURE__ */ new Set([...state2.learnedCoreSkillIds, skillId])] : [skillId];
-        setSkillPoints(p2, getSkillPoints(p2) - 1);
-        render();
-      });
-    });
-  };
-  render();
-}
-var GENERIC_NODE_ICON_SRC, REQUIRED_POINTS_IN_TIER_TO_UNLOCK_NEXT;
-var init_talentTree_web = __esm({
-  "dist/talents/talentTree.web.js"() {
-    "use strict";
-    init_utils_web();
-    init_party_web();
-    init_talentTree();
-    init_skillLibrary();
-    init_skillUi_web();
-    init_talentPassives();
-    init_passives();
-    GENERIC_NODE_ICON_SRC = "./ImagesRPG/imagesobjets/journal_quete.png";
-    REQUIRED_POINTS_IN_TIER_TO_UNLOCK_NEXT = 3;
-  }
-});
-
 // dist/pixi/worldMapPixi.web.js
 function enemyImageSrc(enemyId) {
   const id = String(enemyId ?? "");
@@ -76641,7 +77619,7 @@ function setSpriteSourceAsync2(PIXI, sprite, url, onReady) {
   }).catch(() => {
   });
 }
-function clamp3(n2, a2, b2) {
+function clamp4(n2, a2, b2) {
   return Math.max(a2, Math.min(b2, n2));
 }
 function getCanvasRect(app2) {
@@ -76688,8 +77666,8 @@ function toPx(v2, total) {
 }
 function computeIsoLayout(containerW, containerH, cols, rows, map) {
   const meta = map?.meta ?? {};
-  const SCALE = clamp3(Number(meta?.isoScale ?? 0.85), 0.6, 2.2);
-  const ASPECT = clamp3(Number(meta?.tileAspect ?? 0.68), 0.35, 0.9);
+  const SCALE = clamp4(Number(meta?.isoScale ?? 0.85), 0.6, 2.2);
+  const ASPECT = clamp4(Number(meta?.tileAspect ?? 0.68), 0.35, 0.9);
   const pad = 10;
   const gap = Math.max(0, Math.floor(Number(meta?.tileGap ?? 2)));
   const baseTileW = Math.max(26, (containerW - pad * 2 - gap * (cols - 1)) / Math.max(4, cols));
@@ -76842,7 +77820,7 @@ function drawBoard(PIXI, s2) {
       setSpriteSourceAsync2(PIXI, s2.bg, bgSrc);
       s2.bgFull.alpha = 0;
       const BG_SCALE_BASE = Number(map?.meta?.bgScale ?? 1.5);
-      const BG_SCALE = clamp3(BG_SCALE_BASE * 1.2, 0.5, 3);
+      const BG_SCALE = clamp4(BG_SCALE_BASE * 1.2, 0.5, 3);
       const txPx = toPx(map?.meta?.bgTranslateX, rectW);
       const tyPx = toPx(map?.meta?.bgTranslateY, rectH);
       const tex = s2.bg.texture;
@@ -79113,8 +80091,8 @@ async function runForgeMinigame(options) {
       const minRate = 15;
       const accel = 5;
       const maxRate = 260;
-      const velocity = clamp4(minRate * Math.exp(accel * currentHoldSeconds), 0, maxRate);
-      heatPercent = clamp4(heatPercent + velocity * dt, 0, 100);
+      const velocity = clamp5(minRate * Math.exp(accel * currentHoldSeconds), 0, maxRate);
+      heatPercent = clamp5(heatPercent + velocity * dt, 0, 100);
       bar.fill.style.width = percentToWidth(heatPercent);
       updateHeatInfo();
       requestAnimationFrame(heatRAF);
@@ -79240,7 +80218,7 @@ async function runForgeMinigame(options) {
         return;
       }
       const elapsed = t2 - startTime;
-      const pct2 = clamp4(elapsed / HAMMER_RUN_MS * 100, 0, 100);
+      const pct2 = clamp5(elapsed / HAMMER_RUN_MS * 100, 0, 100);
       moving.style.left = `${pct2}%`;
       moving.style.opacity = "1";
       if (elapsed >= HAMMER_RUN_MS) {
@@ -79287,7 +80265,7 @@ async function runForgeMinigame(options) {
       }
       running = false;
       const elapsed = performance.now() - startTime;
-      const pct2 = clamp4(elapsed / HAMMER_RUN_MS * 100, 0, 100);
+      const pct2 = clamp5(elapsed / HAMMER_RUN_MS * 100, 0, 100);
       moving.style.left = `${pct2}%`;
       const { precisionPercent, bonus } = computeHammerBonus(pct2);
       const res = { finalPercent: pct2, precisionPercent, bonus };
@@ -79364,7 +80342,7 @@ Bonus: ${bonusText}`;
       }
       const elapsed = t2 - sharpenStart;
       const totalMs = SHARP_TO_100_MS + SHARP_EXTRA_MS;
-      const pct2 = clamp4(elapsed / totalMs * SHARP_MAX_PCT, 0, SHARP_MAX_PCT);
+      const pct2 = clamp5(elapsed / totalMs * SHARP_MAX_PCT, 0, SHARP_MAX_PCT);
       sharpenTick.style.left = `${pct2}%`;
       renderSharpenInfo(pct2);
       if (elapsed >= totalMs) {
@@ -79398,7 +80376,7 @@ Bonus: ${bonusText}`;
         sharpenRunning = false;
         const elapsed = performance.now() - sharpenStart;
         const totalMs = SHARP_TO_100_MS + SHARP_EXTRA_MS;
-        sharpenFinal = clamp4(elapsed / totalMs * SHARP_MAX_PCT, 0, SHARP_MAX_PCT);
+        sharpenFinal = clamp5(elapsed / totalMs * SHARP_MAX_PCT, 0, SHARP_MAX_PCT);
         sharpenTick.style.left = `${sharpenFinal}%`;
         sharpenDone = true;
       }
@@ -79528,12 +80506,12 @@ Bonus: ${bonusText}`;
     }
   }
 }
-var clamp4, percentToWidth, createOverlayRoot, createCraftBar, computeHeatBonus, computeHammerBonus, computeSharpenBonus;
+var clamp5, percentToWidth, createOverlayRoot, createCraftBar, computeHeatBonus, computeHammerBonus, computeSharpenBonus;
 var init_forgeMinigame_web = __esm({
   "dist/crafting/forgeMinigame.web.js"() {
     "use strict";
-    clamp4 = (n2, min, max) => Math.max(min, Math.min(max, n2));
-    percentToWidth = (p2) => `${clamp4(p2, 0, 100).toFixed(2)}%`;
+    clamp5 = (n2, min, max) => Math.max(min, Math.min(max, n2));
+    percentToWidth = (p2) => `${clamp5(p2, 0, 100).toFixed(2)}%`;
     createOverlayRoot = () => {
       const root = document.createElement("div");
       root.id = "forgeMinigameOverlay";
@@ -79592,7 +80570,7 @@ var init_forgeMinigame_web = __esm({
           "position:absolute",
           "top:-6px",
           "bottom:-6px",
-          `left:${clamp4(opts.targetPercent, 0, 100)}%`,
+          `left:${clamp5(opts.targetPercent, 0, 100)}%`,
           "width:2px",
           "background:#6ee7ff",
           "box-shadow:0 0 0 3px rgba(110,231,255,0.15)"
@@ -79620,7 +80598,7 @@ var init_forgeMinigame_web = __esm({
       const target = 80;
       if (percent < target)
         return 0;
-      return clamp4(10 - (percent - target) * 0.1, 0, 10);
+      return clamp5(10 - (percent - target) * 0.1, 0, 10);
     };
     computeHammerBonus = (percent) => {
       const target = 50;
@@ -79631,7 +80609,7 @@ var init_forgeMinigame_web = __esm({
       if (dist <= deadzoneHalf) {
         precisionPercent = 100;
       } else {
-        precisionPercent = clamp4(100 * (1 - (dist - deadzoneHalf) / (halfRange - deadzoneHalf)), 0, 100);
+        precisionPercent = clamp5(100 * (1 - (dist - deadzoneHalf) / (halfRange - deadzoneHalf)), 0, 100);
       }
       const PENALTY_MIN = 0.15;
       const BOOST_LOW = 90;
@@ -79649,13 +80627,13 @@ var init_forgeMinigame_web = __esm({
         effectivePrecision = Math.min(100, effectivePrecision);
       }
       const maxPerHit = 1.3;
-      return { precisionPercent, bonus: clamp4(effectivePrecision / 100 * maxPerHit, 0, maxPerHit) };
+      return { precisionPercent, bonus: clamp5(effectivePrecision / 100 * maxPerHit, 0, maxPerHit) };
     };
     computeSharpenBonus = (percent, currentScore) => {
       const overshot = percent > 100;
       if (overshot)
         return { finalPercent: percent, bonus: 0, overshot: true };
-      const pct2 = clamp4(percent, 0, 100);
+      const pct2 = clamp5(percent, 0, 100);
       const mult = pct2 / 100 * 0.1;
       return { finalPercent: percent, bonus: Math.max(0, currentScore) * mult, overshot: false };
     };
@@ -79921,7 +80899,7 @@ async function runSewingMinigame(options) {
       const apx = x2 - a2.x;
       const apy = y2 - a2.y;
       let t2 = (apx * abx + apy * aby) / (abLen * abLen);
-      t2 = clamp5(t2, 0, 1);
+      t2 = clamp6(t2, 0, 1);
       const cx = a2.x + abx * t2;
       const cy = a2.y + aby * t2;
       const dist = Math.hypot(x2 - cx, y2 - cy);
@@ -79932,7 +80910,7 @@ async function runSewingMinigame(options) {
       }
       cum += abLen;
     }
-    return clamp5(bestS, 0, 1);
+    return clamp6(bestS, 0, 1);
   };
   const computeCutPhase = () => {
     const size = getStageSize();
@@ -79956,12 +80934,12 @@ async function runSewingMinigame(options) {
         outside++;
     }
     const { mean, std } = computeMeanAndStd(distances);
-    const devNorm = clamp5(mean / maxAllowedDistance, 0, 1);
+    const devNorm = clamp6(mean / maxAllowedDistance, 0, 1);
     const maxSigma = 14;
-    const instabNorm = clamp5(std / maxSigma, 0, 1);
+    const instabNorm = clamp6(std / maxSigma, 0, 1);
     const outPct = samples.length ? outside / samples.length : 1;
     const w1 = 0.45, w2 = 0.45, w3 = 0.1;
-    const score = 100 * clamp5(1 - (w1 * devNorm + w2 * instabNorm + w3 * outPct), 0, 1);
+    const score = 100 * clamp6(1 - (w1 * devNorm + w2 * instabNorm + w3 * outPct), 0, 1);
     const partialFailThreshold = 0.35;
     const partialFail = outPct > partialFailThreshold;
     return {
@@ -80007,9 +80985,9 @@ async function runSewingMinigame(options) {
     }
     ctx.restore();
     const r2 = computeCutPhase();
-    const devNorm = clamp5(r2.meanDistancePx / 18, 0, 1);
-    const instabNorm = clamp5(r2.stdDistancePx / 14, 0, 1);
-    const meter = clamp5(1 - (0.5 * devNorm + 0.5 * instabNorm), 0, 1);
+    const devNorm = clamp6(r2.meanDistancePx / 18, 0, 1);
+    const instabNorm = clamp6(r2.stdDistancePx / 14, 0, 1);
+    const meter = clamp6(1 - (0.5 * devNorm + 0.5 * instabNorm), 0, 1);
     stabilityBarInner.style.transform = `scaleX(${meter.toFixed(3)})`;
     const last = samples.length ? samples[samples.length - 1] : null;
     let canFinish = false;
@@ -80097,7 +81075,7 @@ async function runSewingMinigame(options) {
       const dt = Math.max(1, now - lastRawPoint.t);
       const dist = Math.hypot(raw.x - lastRawPoint.x, raw.y - lastRawPoint.y);
       const speed = dist / dt * 1e3;
-      speed01 = clamp5(speed / 1400, 0, 1);
+      speed01 = clamp6(speed / 1400, 0, 1);
     }
     lastRawPoint = { x: raw.x, y: raw.y, t: now };
     const amp = 2 + speed01 * 4;
@@ -80157,7 +81135,7 @@ async function runSewingMinigame(options) {
     if (score100 <= 50)
       return 0;
     const t2 = (score100 - 50) / 50;
-    return ALIGN_ROUND_MAX * clamp5(t2, 0, 1);
+    return ALIGN_ROUND_MAX * clamp6(t2, 0, 1);
   };
   let totalScore = 14;
   if (!cutResult.partialFail) {
@@ -80281,12 +81259,12 @@ async function runSewingMinigame(options) {
         const motifRect = { x: rect.width / 2 + effX - motifW / 2, y: rect.height / 2 + effY - motifH / 2, w: motifW, h: motifH };
         const fabricRect = { x: 0, y: 0, w: rect.width, h: rect.height };
         const overlapArea = rectIntersectionArea(motifRect, fabricRect);
-        const overlapPercent = clamp5(overlapArea / (motifW * motifH), 0, 1);
-        const tNorm = clamp5(translationErrorPx / maxTransl, 0, 1);
-        const rNorm = clamp5(rotForScore / maxRot, 0, 1);
+        const overlapPercent = clamp6(overlapArea / (motifW * motifH), 0, 1);
+        const tNorm = clamp6(translationErrorPx / maxTransl, 0, 1);
+        const rNorm = clamp6(rotForScore / maxRot, 0, 1);
         const a2 = 0.5, b2 = 0.4, c2 = 0.1;
-        const rawScore = 100 * clamp5(1 - (a2 * tNorm + b2 * rNorm + c2 * (1 - overlapPercent)), 0, 1);
-        const score = rawScore <= 50 ? 0 : clamp5((rawScore - 50) * 2, 0, 100);
+        const rawScore = 100 * clamp6(1 - (a2 * tNorm + b2 * rNorm + c2 * (1 - overlapPercent)), 0, 1);
+        const score = rawScore <= 50 ? 0 : clamp6((rawScore - 50) * 2, 0, 100);
         return {
           finalTranslatePx: { x: effX, y: effY },
           finalRotationDeg: rotationDeg,
@@ -80471,11 +81449,11 @@ async function runSewingMinigame(options) {
   });
   return result;
 }
-var clamp5, createOverlayRoot2, computeQualityFromScore14_20, fmtPct, qualityBadgeHtml, distancePointToSegment, computeMeanAndStd, rectIntersectionArea;
+var clamp6, createOverlayRoot2, computeQualityFromScore14_20, fmtPct, qualityBadgeHtml, distancePointToSegment, computeMeanAndStd, rectIntersectionArea;
 var init_sewingMinigame_web = __esm({
   "dist/crafting/sewingMinigame.web.js"() {
     "use strict";
-    clamp5 = (n2, min, max) => Math.max(min, Math.min(max, n2));
+    clamp6 = (n2, min, max) => Math.max(min, Math.min(max, n2));
     createOverlayRoot2 = () => {
       const root = document.createElement("div");
       root.id = "sewingMinigameOverlay";
@@ -80538,7 +81516,7 @@ var init_sewingMinigame_web = __esm({
       }
       return { probs, chosenQuality };
     };
-    fmtPct = (n01) => `${(clamp5(n01, 0, 1) * 100).toFixed(2)}%`;
+    fmtPct = (n01) => `${(clamp6(n01, 0, 1) * 100).toFixed(2)}%`;
     qualityBadgeHtml = (q) => {
       const colors2 = ["#ffffff", "#4caf50", "#2196f3", "#9c27b0", "#ffb300"];
       const color = colors2[q - 1 | 0] ?? "#ffffff";
@@ -80556,7 +81534,7 @@ var init_sewingMinigame_web = __esm({
       if (abLen2 <= 1e-9)
         return Math.hypot(px - ax, py - ay);
       let t2 = (apx * abx + apy * aby) / abLen2;
-      t2 = clamp5(t2, 0, 1);
+      t2 = clamp6(t2, 0, 1);
       const cx = ax + abx * t2;
       const cy = ay + aby * t2;
       return Math.hypot(px - cx, py - cy);
@@ -80820,7 +81798,7 @@ Objet: ${itemName}</div>
       if (pickB == null) {
         pickB = i2;
         locked = true;
-        stepsUsed = clamp6(stepsUsed + 1, 0, stepsMax);
+        stepsUsed = clamp7(stepsUsed + 1, 0, stepsMax);
         rerenderAll();
         const a2 = pickA;
         const b2 = pickB;
@@ -80829,7 +81807,7 @@ Objet: ${itemName}</div>
         if (aKey && bKey && aKey === bKey) {
           matched.add(a2);
           matched.add(b2);
-          pairsFound = clamp6(pairsFound + 1, 0, pairsMax);
+          pairsFound = clamp7(pairsFound + 1, 0, pairsMax);
           points = pairsFound;
           setHint('<span style="color:#22c55e;font-weight:900;">Paire trouv\xE9e !</span> Elle reste visible et tu gagnes 1 point.');
           pickA = null;
@@ -80872,11 +81850,11 @@ Objet: ${itemName}</div>
       cleanup();
   }
 }
-var clamp6, shuffleInPlace, createOverlayRoot3, waitMs;
+var clamp7, shuffleInPlace, createOverlayRoot3, waitMs;
 var init_otherMinigame_web = __esm({
   "dist/crafting/otherMinigame.web.js"() {
     "use strict";
-    clamp6 = (n2, min, max) => Math.max(min, Math.min(max, n2));
+    clamp7 = (n2, min, max) => Math.max(min, Math.min(max, n2));
     shuffleInPlace = (arr) => {
       for (let i2 = arr.length - 1; i2 > 0; i2--) {
         const j2 = Math.floor(Math.random() * (i2 + 1));
@@ -81186,598 +82164,6 @@ var init_fabricationModal_web = __esm({
   }
 });
 
-// dist/personnages.web.js
-var personnages_web_exports = {};
-__export(personnages_web_exports, {
-  openPersonnageModalFromMap: () => openPersonnageModalFromMap,
-  showPersonnage1: () => showPersonnage1,
-  showPersonnage2: () => showPersonnage2,
-  showPersonnage3: () => showPersonnage3,
-  showSelectionPersonnages: () => showSelectionPersonnages
-});
-function goVillage() {
-  void Promise.resolve().then(() => (init_villageMain_web(), villageMain_web_exports)).then((m2) => m2.showVillage());
-}
-function showSelectionPersonnages(options = {}) {
-  const app2 = document.getElementById("app");
-  if (!app2)
-    return;
-  const party2 = getPartyMembers();
-  app2.innerHTML = `
-        <img src="https://wallpaperaccess.com/full/3486837.jpg" class="background" alt="S\xE9lection personnages">
-        <div class="centered-content">
-            <h1>S\xE9lection des personnages</h1>
-            <div style="display:flex;flex-direction:column;gap:14px;align-items:center;margin-top:18px;">
-                ${party2.map((p2, idx) => {
-    const label = `${p2.name} \u2014 ${getPartyClassLabel(p2)} (Niv ${p2.level})`;
-    return `
-                            <div style="display:flex;gap:10px;align-items:center;">
-                                <button class="btn" data-pidx-full="${idx}" style="min-width:320px;">${label}</button>
-                                <button class="btn" data-pidx-modal="${idx}" style="min-width:120px;padding:6px 10px;font-size:0.9em;">Fiche</button>
-                            </div>
-                        `;
-  }).join("")}
-                <button class="btn" id="backBtn" style="min-width:220px;">Retour</button>
-            </div>
-        </div>
-    `;
-  document.querySelectorAll("[data-pidx-full]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const idx = Number(btn.getAttribute("data-pidx-full"));
-      if (idx === 0)
-        return showPersonnage1(options);
-      if (idx === 1)
-        return showPersonnage2(options);
-      return showPersonnage3(options);
-    });
-  });
-  document.querySelectorAll("[data-pidx-modal]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const idx = Number(btn.getAttribute("data-pidx-modal"));
-      openPersonnageModal({ startIndex: idx });
-    });
-  });
-  document.getElementById("backBtn")?.addEventListener("click", options.onBack ?? goVillage);
-}
-function openPersonnageModalFromMap(opts = {}) {
-  openPersonnageModal(opts);
-}
-function openPersonnageModal(opts = {}) {
-  if (personnageModalEl)
-    return;
-  const party2 = getPartyMembers();
-  let selected = opts.startIndex ?? 0;
-  const close = () => {
-    closeTitlesModal();
-    personnageModalEl?.remove();
-    personnageModalEl = null;
-    document.removeEventListener("keydown", onKeyDown);
-  };
-  const onKeyDown = (e2) => {
-    if (e2.key === "Escape")
-      close();
-  };
-  document.addEventListener("keydown", onKeyDown);
-  const overlay = document.createElement("div");
-  overlay.id = "personnageModal";
-  overlay.style.cssText = [
-    "position:fixed",
-    "inset:0",
-    "background:rgba(0,0,0,0.72)",
-    "z-index:9999",
-    "display:flex",
-    "align-items:center",
-    "justify-content:center",
-    "padding:18px"
-  ].join(";");
-  const panel = document.createElement("div");
-  panel.style.cssText = [
-    "width:min(920px, 96vw)",
-    "max-height:92vh",
-    "overflow:auto",
-    "background:rgba(20,20,24,0.96)",
-    "border:1px solid rgba(255,255,255,0.10)",
-    "border-radius:14px",
-    "box-shadow:0 10px 40px rgba(0,0,0,0.65)",
-    "padding:16px",
-    "color:#fff"
-  ].join(";");
-  const getAvatarUrl = (actor) => {
-    const cls = String(actor?.characterClass ?? "").toLowerCase();
-    if (cls === "mage")
-      return "ImagesRPG/imagespersonnage/mage.jpg";
-    if (cls === "voleur")
-      return "ImagesRPG/imagespersonnage/voleur.png";
-    return "https://img.freepik.com/vecteurs-premium/illustration-personnage_961307-22519.jpg";
-  };
-  const bar = (label, current, max, color) => {
-    const safeMax = Math.max(1, Math.floor(max));
-    const pct2 = Math.max(0, Math.min(100, Math.round(Math.max(0, current) / safeMax * 100)));
-    return `
-            <div style="margin:6px 0 10px 0;">
-                <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.92em;color:#ddd;">
-                    <div>${label}</div>
-                    <div>${Math.floor(current)}/${safeMax}</div>
-                </div>
-                <div style="height:10px;background:rgba(255,255,255,0.10);border-radius:999px;overflow:hidden;">
-                    <div style="height:100%;width:${pct2}%;background:${color};"></div>
-                </div>
-            </div>
-        `;
-  };
-  const xpBar = (p2) => {
-    const next = Math.max(1, Math.floor(p2.getXPForLevel(p2.level + 1) ?? 1));
-    const cur = Math.max(0, Math.floor(p2.currentXP ?? 0));
-    const pct2 = Math.max(0, Math.min(100, Math.round(cur / next * 100)));
-    return `
-            <div style="margin-top:6px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.92em;color:#ddd;">
-                    <div>XP</div>
-                    <div>${cur} / ${next} (${pct2}%)</div>
-                </div>
-                <div style="height:10px;background:rgba(255,255,255,0.10);border-radius:999px;overflow:hidden;">
-                    <div style="height:100%;width:${pct2}%;background:linear-gradient(90deg,#ffd36a,#ff9f4a);"></div>
-                </div>
-            </div>
-        `;
-  };
-  let titlesModalEl = null;
-  const closeTitlesModal = () => {
-    titlesModalEl?.remove();
-    titlesModalEl = null;
-  };
-  const openTitlesModal = () => {
-    if (!personnageModalEl)
-      return;
-    if (titlesModalEl)
-      return;
-    const titles = ensureTitles(hero);
-    const wrap = document.createElement("div");
-    wrap.style.cssText = [
-      "position:fixed",
-      "inset:0",
-      "background:rgba(0,0,0,0.55)",
-      "z-index:10020",
-      "display:flex",
-      "align-items:center",
-      "justify-content:center",
-      "padding:18px"
-    ].join(";");
-    const box = document.createElement("div");
-    box.style.cssText = [
-      "width:min(520px, 92vw)",
-      "background:rgba(20,20,24,0.98)",
-      "border:1px solid rgba(255,255,255,0.12)",
-      "border-radius:14px",
-      "box-shadow:0 10px 40px rgba(0,0,0,0.65)",
-      "padding:14px 14px 12px 14px",
-      "color:#fff"
-    ].join(";");
-    box.innerHTML = `
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-                <div style="font-size:1.05em;font-weight:800;">Titres obtenus</div>
-                <button class="btn" id="titlesModalCloseBtn" style="min-width:90px;">Fermer</button>
-            </div>
-            <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
-                ${titles.map((t2) => {
-      const label = escapeHtml(String(t2 ?? "").trim());
-      return `<div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);border-radius:12px;padding:8px 10px;">${label}</div>`;
-    }).join("")}
-            </div>
-        `;
-    wrap.appendChild(box);
-    wrap.addEventListener("click", (e2) => {
-      if (e2.target === wrap)
-        closeTitlesModal();
-    });
-    box.querySelector("#titlesModalCloseBtn")?.addEventListener("click", () => closeTitlesModal());
-    document.body.appendChild(wrap);
-    titlesModalEl = wrap;
-  };
-  const clamp01002 = (n2) => {
-    const v2 = Math.floor(Number(n2 ?? 0));
-    if (!Number.isFinite(v2))
-      return 0;
-    return Math.max(0, Math.min(100, v2));
-  };
-  const virtueBar = (label, value, color) => {
-    const pct2 = clamp01002(value);
-    return `
-            <div style="display:flex;align-items:flex-end;gap:8px;min-width:160px;">
-                <div style="position:relative;width:18px;height:56px;background:rgba(255,255,255,0.10);border-radius:0;overflow:hidden;">
-                    <div style="position:absolute;left:0;right:0;bottom:0;height:${pct2}%;background:${color};border-radius:0;"></div>
-                </div>
-                <div style="display:flex;flex-direction:column;gap:2px;">
-                    <div style="font-size:0.92em;color:#ddd;">${label}</div>
-                    <div style="font-size:0.82em;color:#999;">${pct2}/100</div>
-                </div>
-            </div>
-        `;
-  };
-  const render = () => {
-    const p2 = getPartyMember(selected);
-    const clsLabel = getPartyClassLabel(p2);
-    const portrait = getAvatarUrl(p2);
-    const pvMax = Math.max(1, Math.floor(p2.effectiveMaxPv ?? p2.maxPv ?? 1));
-    const manaMax = Math.max(1, Math.floor(p2.effectiveMaxMana ?? p2.maxMana ?? 1));
-    const points = Math.max(0, Math.floor(p2.characteristicPoints ?? 0));
-    const honneur = clamp01002(hero.honneur ?? p2.honneur ?? 0);
-    const liberte = clamp01002(hero.liberte ?? p2.liberte ?? 0);
-    const humanite = clamp01002(hero.humanite ?? p2.humanite ?? 0);
-    const chars = [
-      { key: "force", label: "Force", help: "+1 attaque / point" },
-      { key: "sante", label: "Sant\xE9", help: "+10 PV max / point" },
-      { key: "magie", label: "Magie", help: "+10 mana max / point" },
-      { key: "energie", label: "\xC9nergie", help: "+1 mana/tour / point" },
-      { key: "vitesse", label: "Vitesse", help: `initiative (total VIT: ${getBaseSpeedForActor(p2, "allies")})` },
-      { key: "critique", label: "Critique", help: "chance = (critique/force)\xD7100, d\xE9g\xE2ts x2" },
-      { key: "defense", label: "D\xE9fense", help: "r\xE9duction = (d\xE9fense/attaque ennemi)\xD7100" },
-      { key: "connaissance", label: "Connaissance", help: "+1 point de comp\xE9tence / point" }
-    ];
-    panel.innerHTML = `
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-                <div style="display:flex;flex-direction:column;gap:4px;">
-                    <div style="font-size:1.25em;font-weight:700;">${escapeHtml(p2.name)} \u2014 ${escapeHtml(clsLabel)}</div>
-                    <div style="color:#bbb;">Niveau <b>${p2.level}</b> \u2022 Points caract\xE9ristique: <b>${points}</b></div>
-                </div>
-                <div style="display:flex;gap:10px;align-items:center;">
-                    <label style="color:#ccc;font-size:0.92em;">Personnage</label>
-                    <select id="personnageModalSelect" style="background:rgba(255,255,255,0.06);color:#fff;border:1px solid rgba(255,255,255,0.14);border-radius:10px;padding:6px 10px;">
-                        ${party2.map((m2, idx) => {
-      const sel = idx === selected ? "selected" : "";
-      return `<option value="${idx}" ${sel}>${escapeHtml(m2.name)} (${escapeHtml(getPartyClassLabel(m2))})</option>`;
-    }).join("")}
-                    </select>
-                    <button class="btn" id="personnageModalCloseBtn" style="min-width:90px;">Fermer</button>
-                </div>
-            </div>
-
-            ${xpBar(p2)}
-
-            <div style="display:flex;gap:16px;align-items:flex-start;margin-top:14px;flex-wrap:wrap;">
-                <div style="flex:0 0 180px;">
-                    <img src="${portrait}" alt="Portrait" style="width:180px;height:180px;border-radius:14px;object-fit:cover;box-shadow:0 6px 18px rgba(0,0,0,0.6);" />
-                </div>
-                <div style="flex:1 1 320px;min-width:280px;">
-                    ${bar("PV", p2.pv ?? 0, pvMax, "linear-gradient(90deg,#ff4b4b,#a81818)")}
-                    ${bar("Mana", p2.currentMana ?? 0, manaMax, "linear-gradient(90deg,#4ea7ff,#2b58ff)")}
-                    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;color:#ddd;">
-                        <div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:12px;">ATK: <b>${Math.floor(p2.effectiveAttack ?? p2.baseAttack ?? 0)}</b></div>
-                        <div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:12px;">Regen mana: <b>${Math.floor((p2.manaRegenPerTurn ?? 0) + (p2.getPassiveManaRegenPerTurnBonus?.() ?? 0))}</b>/tour</div>
-                        <div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:12px;">PA: <b>${Math.floor(p2.actionPoints ?? 0)}/${Math.floor(p2.actionPointsMax ?? 0)}</b></div>
-                    </div>
-                </div>
-            </div>
-
-            <div style="margin-top:14px;border-top:1px solid rgba(255,255,255,0.10);padding-top:12px;">
-                <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:10px;flex-wrap:wrap;">
-                    <button class="btn" id="virtueTitlesBtn" style="min-width:110px;padding:6px 10px;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);">Titres</button>
-                    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;justify-content:center;">
-                        ${virtueBar("Honneur", honneur, "#ff4b4b")}
-                        ${virtueBar("Libert\xE9", liberte, "#ffd36a")}
-                        ${virtueBar("Humanit\xE9", humanite, "#4ea7ff")}
-                    </div>
-                </div>
-                <div style="font-size:1.05em;font-weight:700;margin-bottom:10px;">Caract\xE9ristiques</div>
-                <div style="display:grid;grid-template-columns: 1fr;gap:8px;">
-                    ${chars.map((c2) => {
-      const val = Math.max(0, Math.floor(Number(p2.characteristics?.[c2.key] ?? 0)));
-      const disabled = points > 0 ? "" : "disabled";
-      return `
-                                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:8px 10px;">
-                                    <div style="display:flex;flex-direction:column;gap:2px;">
-                                        <div style="font-weight:600;">${c2.label} : <b>${val}</b></div>
-                                        <div style="color:#999;font-size:0.85em;">${c2.help}</div>
-                                    </div>
-                                    <button class="btn" data-stat="${c2.key}" ${disabled} style="padding:2px 6px;min-width:34px;min-height:22px;font-size:0.8em;line-height:1;">+1</button>
-                                </div>
-                            `;
-    }).join("")}
-                </div>
-            </div>
-        `;
-    panel.querySelector("#personnageModalCloseBtn")?.addEventListener("click", () => close());
-    panel.querySelector("#virtueTitlesBtn")?.addEventListener("click", () => openTitlesModal());
-    panel.querySelector("#personnageModalSelect")?.addEventListener("change", (e2) => {
-      const v2 = Number(e2.target.value);
-      selected = Number.isFinite(v2) ? v2 : selected;
-      render();
-    });
-    panel.querySelectorAll("[data-stat]").forEach((b2) => {
-      b2.addEventListener("click", () => {
-        const stat = b2.getAttribute("data-stat");
-        try {
-          p2.spendCharacteristicPoint?.(stat);
-        } catch {
-        }
-        render();
-      });
-    });
-  };
-  render();
-  overlay.appendChild(panel);
-  overlay.addEventListener("click", (e2) => {
-    if (e2.target === overlay)
-      close();
-  });
-  document.body.appendChild(overlay);
-  personnageModalEl = overlay;
-}
-function renderFiche(idx, options) {
-  setSelectedPartyIndex(idx);
-  const p2 = getPartyMember(idx);
-  const app2 = document.getElementById("app");
-  if (!app2)
-    return;
-  const cls = String(p2.characterClass ?? "").toLowerCase();
-  const avatarUrl = cls === "mage" ? "ImagesRPG/imagespersonnage/mage.jpg" : cls === "voleur" ? "ImagesRPG/imagespersonnage/voleur.png" : "https://img.freepik.com/vecteurs-premium/illustration-personnage_961307-22519.jpg";
-  const backgroundUrl = "https://thumbs.dreamstime.com/z/cozy-fantasy-medieval-tavern-inn-interior-food-drink-tables-burning-open-fireplace-candles-stone-ground-middle-277116558.jpg";
-  app2.innerHTML = `
-        <img src="${backgroundUrl}" class="background" alt="Personnage">
-        <div class="centered-content" style="max-width:1200px;margin:0 auto;">
-            <h1>Fiche du personnage</h1>
-            <div style="margin-top:6px;color:#ddd;">S\xE9lection : <b>${p2.name}</b> \u2014 Classe <b>${getPartyClassLabel(p2)}</b></div>
-
-            <div style="display:flex;gap:32px;justify-content:space-between;align-items:flex-start;margin-top:18px;flex-wrap:nowrap;width:100%;">
-                <!-- Colonne 1 : Stats (comme avant) -->
-                <div style="background:rgba(255,255,255,0.04);border-radius:12px;padding:18px;min-width:220px;max-width:260px;box-shadow:0 2px 12px rgba(0,0,0,0.15);flex:1 1 220px;align-self:stretch;">
-                    <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:12px;">
-                        <img id="character-img" src="${avatarUrl}" alt="Avatar" style="width:120px;height:120px;border-radius:10px;object-fit:cover;box-shadow:0 2px 12px rgba(0,0,0,0.6);margin-bottom:8px;" data-fixed="true">
-                        <div style="font-size:1.1em;font-weight:600;">${p2.name}</div>
-                    </div>
-                    <p><b>Niveau :</b> ${p2.level}</p>
-                    <p><b>XP :</b> ${p2.currentXP} / ${p2.getXPForLevel(p2.level + 1)}</p>
-                    <p><b>PV :</b> ${p2.pv} / ${p2.effectiveMaxPv}</p>
-                    <p><b>Mana :</b> ${p2.currentMana} / ${p2.effectiveMaxMana}</p>
-                    <p><b>R\xE9g\xE9n\xE9ration mana :</b> ${p2.manaRegenPerTurn + p2.getPassiveManaRegenPerTurnBonus()} /tour <small style="color:#777;">(base ${p2.manaRegenPerTurn}${p2.getPassiveManaRegenPerTurnBonus() ? " + " + p2.getPassiveManaRegenPerTurnBonus() : ""})</small></p>
-                    <p><b>Attaque :</b> ${p2.effectiveAttack} <small style="color:#777;">(base ${p2.baseAttack} + eq ${Object.values(p2.equipment).reduce((s2, eq) => s2 + (eq?.attackBonus || 0), 0)})</small></p>
-                    <p><b>Argent :</b> ${p2.gold}</p>
-                    <p><b>Points de comp\xE9tence :</b> ${p2.skillPoints}</p>
-                    <p><b>Points de caract\xE9ristique :</b> ${p2.characteristicPoints ?? 0}</p>
-                </div>
-
-                <!-- Colonne 2 : Caract\xE9ristiques (comme avant) -->
-                <div style="background:rgba(255,255,255,0.04);border-radius:12px;padding:18px;min-width:220px;max-width:260px;box-shadow:0 2px 12px rgba(0,0,0,0.15);flex:1 1 220px;align-self:stretch;">
-                    <h2 style="margin-top:0;">Caract\xE9ristiques</h2>
-                    <div style="font-size:0.95em; color:#ddd;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
-                            <div>Force : <b>${p2.characteristics?.force ?? 0}</b><br><small style="color:#999;">+1 attaque / point</small></div>
-                            <button class="btn" data-stat="force" ${p2.characteristicPoints > 0 ? "" : "disabled"} style="padding:4px 8px;min-width:44px;font-size:0.85em;">+1</button>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
-                            <div>Sant\xE9 : <b>${p2.characteristics?.sante ?? 0}</b><br><small style="color:#999;">+10 PV max / point</small></div>
-                            <button class="btn" data-stat="sante" ${p2.characteristicPoints > 0 ? "" : "disabled"} style="padding:4px 8px;min-width:44px;font-size:0.85em;">+1</button>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
-                            <div>\xC9nergie : <b>${p2.characteristics?.energie ?? 0}</b><br><small style="color:#999;">+1 mana/tour / point</small></div>
-                            <button class="btn" data-stat="energie" ${p2.characteristicPoints > 0 ? "" : "disabled"} style="padding:4px 8px;min-width:44px;font-size:0.85em;">+1</button>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
-                            <div>Magie : <b>${p2.characteristics?.magie ?? 0}</b><br><small style="color:#999;">+1 mana / tour / point</small></div>
-                            <button class="btn" data-stat="magie" ${p2.characteristicPoints > 0 ? "" : "disabled"} style="padding:4px 8px;min-width:44px;font-size:0.85em;">+1</button>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
-                            <div>Vitesse : <b>${p2.characteristics?.vitesse ?? 0}</b><br><small style="color:#999;"><span title="Total VIT = base de classe (guerrier/mage/voleur) + bonus de la caract\xE9ristique Vitesse">total VIT: ${getBaseSpeedForActor(p2, "allies")}</span></small></div>
-                            <button class="btn" data-stat="vitesse" ${p2.characteristicPoints > 0 ? "" : "disabled"} style="padding:4px 8px;min-width:44px;font-size:0.85em;">+1</button>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
-                            <div>Critique : <b>${p2.characteristics?.critique ?? 0}</b><br><small style="color:#999;">chance crit = (critique/force)\xD7100, d\xE9g\xE2ts x2</small></div>
-                            <button class="btn" data-stat="critique" ${p2.characteristicPoints > 0 ? "" : "disabled"} style="padding:4px 8px;min-width:44px;font-size:0.85em;">+1</button>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
-                            <div>D\xE9fense : <b>${p2.characteristics?.defense ?? 0}</b><br><small style="color:#999;">r\xE9duction = (d\xE9fense/attaque ennemi)\xD7100</small></div>
-                            <button class="btn" data-stat="defense" ${p2.characteristicPoints > 0 ? "" : "disabled"} style="padding:4px 8px;min-width:44px;font-size:0.85em;">+1</button>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-                            <div>Connaissance : <b>${p2.characteristics?.connaissance ?? 0}</b><br><small style="color:#999;">+1 point de comp\xE9tence / point</small></div>
-                            <button class="btn" data-stat="connaissance" ${p2.characteristicPoints > 0 ? "" : "disabled"} style="padding:4px 8px;min-width:44px;font-size:0.85em;">+1</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Colonne 3 : Comp\xE9tences (comme avant, mais celles du perso s\xE9lectionn\xE9) -->
-                <div style="background:rgba(255,255,255,0.04);border-radius:12px;padding:18px;min-width:220px;max-width:260px;box-shadow:0 2px 12px rgba(0,0,0,0.15);flex:1 1 220px;align-self:stretch;">
-                    <h2 style="margin-top:0;">Comp\xE9tences</h2>
-                    <ul style="list-style:none;padding:0;">
-                        ${p2.skills.map((skill) => `<li><b>${skill.key}</b> : ${escapeHtml(skill.name)}</li>`).join("")}
-                    </ul>
-                </div>
-            </div>
-
-            <div style="margin-top:24px;text-align:center;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-                <button class="btn" id="backSelectBtn" style="min-width:220px;">Retour s\xE9lection</button>
-                <button class="btn" id="backVillageBtn" style="min-width:220px;">Retour village</button>
-            </div>
-        </div>
-    `;
-  document.getElementById("backSelectBtn")?.addEventListener("click", () => showSelectionPersonnages(options));
-  document.getElementById("backVillageBtn")?.addEventListener("click", options.onBack ?? goVillage);
-  const charImg = document.getElementById("character-img");
-  if (charImg) {
-    const clone = charImg.cloneNode(true);
-    charImg.parentElement?.replaceChild(clone, charImg);
-  }
-  app2.querySelectorAll("[data-stat]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const stat = btn.getAttribute("data-stat");
-      const msg = p2.spendCharacteristicPoint?.(stat);
-      renderFiche(idx, options);
-    });
-  });
-}
-function showPersonnage1(options = {}) {
-  renderFiche(0, options);
-}
-function showPersonnage2(options = {}) {
-  renderFiche(1, options);
-}
-function showPersonnage3(options = {}) {
-  renderFiche(2, options);
-}
-var personnageModalEl;
-var init_personnages_web = __esm({
-  "dist/personnages.web.js"() {
-    "use strict";
-    init_index_web();
-    init_utils_web();
-    init_party_web();
-    init_tacticalBoard();
-    init_titles();
-    personnageModalEl = null;
-  }
-});
-
-// dist/questJournalModal.web.js
-var questJournalModal_web_exports = {};
-__export(questJournalModal_web_exports, {
-  closeQuestJournalModal: () => closeQuestJournalModal,
-  openQuestJournalModal: () => openQuestJournalModal
-});
-var questJournalModalEl, closeQuestJournalModal, openQuestJournalModal;
-var init_questJournalModal_web = __esm({
-  "dist/questJournalModal.web.js"() {
-    "use strict";
-    init_utils_web();
-    questJournalModalEl = null;
-    closeQuestJournalModal = () => {
-      questJournalModalEl?.remove();
-      questJournalModalEl = null;
-    };
-    openQuestJournalModal = () => {
-      if (questJournalModalEl)
-        return;
-      questJournalModalEl = document.createElement("div");
-      questJournalModalEl.id = "questJournalModal";
-      questJournalModalEl.style.cssText = [
-        "position:fixed",
-        "inset:0",
-        "display:flex",
-        "align-items:center",
-        "justify-content:center",
-        "background:rgba(0,0,0,0.65)",
-        "z-index:10000",
-        "padding:18px"
-      ].join(";");
-      const panel = document.createElement("div");
-      panel.style.cssText = [
-        "width:min(860px, 96vw)",
-        "max-height:min(84vh, 820px)",
-        "overflow:auto",
-        "background:#111",
-        "border:1px solid rgba(255,255,255,0.10)",
-        "border-radius:12px",
-        "padding:14px",
-        "color:#fff"
-      ].join(";");
-      let tab = "active";
-      const renderStatus = (p2) => {
-        const s2 = String(p2?.status ?? "");
-        if (s2 === "claimed")
-          return "Termin\xE9e";
-        if (s2 === "completed")
-          return "\xC0 valider";
-        if (s2 === "active")
-          return "En cours";
-        return "Non d\xE9marr\xE9e";
-      };
-      const renderProgress = (def, p2) => {
-        if (!p2 || p2.status === void 0)
-          return '<div style="color:#bbb;">Non d\xE9marr\xE9e.</div>';
-        const stepIndex = Math.max(0, Math.floor(Number(p2.stepIndex ?? 0)));
-        const step = Array.isArray(def?.steps) ? def.steps[stepIndex] : null;
-        if (!step) {
-          if (p2?.status === "claimed" || p2?.status === "completed") {
-            return '<div style="margin-top:10px;color:#c8e6c9;font-weight:700;">Objectifs termin\xE9s.</div>';
-          }
-          return '<div style="color:#bbb;">Aucune \xE9tape.</div>';
-        }
-        const objectives = Array.isArray(step.objectives) ? step.objectives : [];
-        const objState = p2.objectives ?? {};
-        return `
-			<div style="margin-top:10px;">
-				<div style="font-weight:700;">\xC9tape: ${escapeHtml(String(step.title ?? step.id ?? ""))}</div>
-				<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-					${objectives.map((o2) => {
-          const cur = Math.max(0, Math.floor(Number(objState?.[String(o2.id)] ?? 0)));
-          const t2 = String(o2.type ?? "");
-          if (t2 === "counter") {
-            const target = Math.max(1, Math.floor(Number(o2.target ?? 1)));
-            const done2 = cur >= target;
-            return `<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
-									<div style="color:${done2 ? "#c8e6c9" : "#ddd"};">${done2 ? "\u2714" : "\u2022"} ${escapeHtml(String(o2.description ?? o2.id ?? ""))}</div>
-									<div style="color:#bbb;white-space:nowrap;">${cur}/${target}</div>
-								</div>`;
-          }
-          const done = cur >= 1;
-          return `<div style="color:${done ? "#c8e6c9" : "#ddd"};">${done ? "\u2714" : "\u2022"} ${escapeHtml(String(o2.description ?? o2.id ?? ""))}</div>`;
-        }).join("")}
-				</div>
-			</div>
-		`;
-      };
-      const renderModal = () => {
-        const qm = window.game?.questManager;
-        const items = typeof qm?.getAll === "function" ? qm.getAll() : [];
-        const list = items.filter(({ progress }) => {
-          const status = String(progress?.status ?? "");
-          if (tab === "completed")
-            return status === "claimed";
-          return status === "active" || status === "completed";
-        });
-        panel.innerHTML = `
-			<div style="display:flex;gap:12px;align-items:center;justify-content:space-between;">
-				<div style="font-weight:900;font-size:18px;">Qu\xEAtes</div>
-				<button class="btn" id="questJournalModalCloseBtn">Fermer</button>
-			</div>
-			<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:10px;">
-				<button class="btn" id="questJournalTabActiveBtn" style="min-width:220px;${tab === "active" ? "border:2px solid #ffd700;" : ""}">Qu\xEAtes en cours</button>
-				<button class="btn" id="questJournalTabCompletedBtn" style="min-width:220px;${tab === "completed" ? "border:2px solid #ffd700;" : ""}">Qu\xEAtes termin\xE9es</button>
-			</div>
-			${!qm ? '<div style="margin-top:12px;background:rgba(0,0,0,0.55);padding:14px;border-radius:10px;">Qu\xEAtes indisponibles (questManager manquant).</div>' : ""}
-			<div style="display:flex;flex-direction:column;gap:14px;margin-top:14px;text-align:left;">
-				${list.map(({ def, progress }) => {
-          const status = renderStatus(progress);
-          return `
-							<div style="background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.08);padding:14px;border-radius:12px;">
-								<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
-									<div>
-										<div style="font-size:1.1em;font-weight:800;">${escapeHtml(String(def?.name ?? def?.id ?? "Qu\xEAte"))}</div>
-										<div style="color:#ddd;margin-top:4px;">${escapeHtml(String(def?.description ?? ""))}</div>
-									</div>
-									<div style="text-align:right;min-width:120px;">
-										<div style="font-weight:800;color:#ffd700;">${escapeHtml(status)}</div>
-									</div>
-								</div>
-								${renderProgress(def, progress)}
-							</div>
-						`;
-        }).join("")}
-				${list.length === 0 ? '<div style="background:rgba(0,0,0,0.55);padding:14px;border-radius:10px;">Aucune qu\xEAte.</div>' : ""}
-			</div>
-		`;
-        panel.querySelector("#questJournalModalCloseBtn")?.addEventListener("click", () => {
-          closeQuestJournalModal();
-        });
-        panel.querySelector("#questJournalTabActiveBtn")?.addEventListener("click", () => {
-          tab = "active";
-          renderModal();
-        });
-        panel.querySelector("#questJournalTabCompletedBtn")?.addEventListener("click", () => {
-          tab = "completed";
-          renderModal();
-        });
-      };
-      renderModal();
-      questJournalModalEl.appendChild(panel);
-      questJournalModalEl.addEventListener("click", (e2) => {
-        if (e2.target === questJournalModalEl)
-          closeQuestJournalModal();
-      });
-      document.body.appendChild(questJournalModalEl);
-    };
-  }
-});
-
 // dist/world/mapRenderer.web.js
 function ensureRendererStyles() {
   const id = "map-renderer-styles";
@@ -81878,6 +82264,8 @@ function ensureRendererStyles() {
 		.tactical-wrap.pixi-world-ui .tactical-hud *,
 		.tactical-wrap.pixi-world-ui .tactical-side,
 		.tactical-wrap.pixi-world-ui .tactical-side *,
+		.tactical-wrap.pixi-world-ui #worldQuickToolbar,
+		.tactical-wrap.pixi-world-ui #worldQuickToolbar *,
 		.tactical-wrap.pixi-world-ui #worldFabricationBtn,
 		.tactical-wrap.pixi-world-ui #worldFabricationBtn * {
 			pointer-events: auto;
@@ -82184,20 +82572,7 @@ function scheduleIsoLayout(app2, gridEl, cols, rows, layout, map) {
 function leaderSpriteSrc() {
   const party2 = getPartyMembers().slice(0, 1);
   const leader = party2[0];
-  const cls = String(leader?.characterClass ?? "").toLowerCase();
-  const stun = Math.max(0, Math.floor(Number(leader?.stunTurns ?? 0)));
-  const temp = String(leader?.__tempSprite ?? "");
-  if (temp)
-    return temp;
-  if (cls === "guerrier" && stun > 0)
-    return "./ImagesRPG/imagespersonnage/perso_guerrier_mort.png";
-  if (cls === "mage")
-    return "./ImagesRPG/imagespersonnage/mage.png";
-  if (cls === "voleur")
-    return "./ImagesRPG/imagespersonnage/voleur.png";
-  if (cls === "guerrier")
-    return getIdleSpriteSrc(cls) ?? "./ImagesRPG/imagespersonnage/true_perso_guerrier.png";
-  return "./ImagesRPG/imagespersonnage/trueplayer.png";
+  return getActorSpriteSrc(leader, "./ImagesRPG/imagespersonnage/trueplayer.png");
 }
 function renderLeader() {
   const src = leaderSpriteSrc();
@@ -83520,6 +83895,12 @@ function showPlateauMapRenderer(opts) {
     app2.innerHTML = `
 			<div class="tactical-wrap">
 				${hasFabricationAccess ? `<button id="worldFabricationBtn" aria-label="Ouvrir la fabrication" style="position:fixed;left:24px;bottom:24px;z-index:9500;width:72px;height:72px;padding:0;border:none;background:transparent;box-shadow:none;cursor:pointer;"><img src="ImagesRPG/imagesobjets/enclume.png" alt="Fabrication" style="width:100%;height:100%;object-fit:contain;display:block;filter:drop-shadow(0 10px 18px rgba(0,0,0,0.35));opacity:0.96;"></button>` : ""}
+				<div id="worldQuickToolbar" class="tactical-log-toolbar tactical-toolbar-fixed" aria-label="Raccourcis" style="bottom:${hasFabricationAccess ? "112px" : "24px"};">
+					<button class="btn tactical-tool-btn" id="worldToolbarInventoryBtn" title="Inventaire" aria-label="Inventaire"><span aria-hidden="true">\u{1F4E6}</span></button>
+					<button class="btn tactical-tool-btn" id="worldToolbarQuestsBtn" title="Journal de qu\xEAtes" aria-label="Journal de qu\xEAtes"><span aria-hidden="true">\u{1F4DC}</span></button>
+					<button class="btn tactical-tool-btn" id="worldToolbarTalentsBtn" title="Arbre de talents" aria-label="Arbre de talents"><span aria-hidden="true">\u{1F333}</span></button>
+					<button class="btn tactical-tool-btn" id="worldToolbarCharacterBtn" title="Personnage" aria-label="Personnage"><span aria-hidden="true">\u{1F464}</span></button>
+				</div>
 				<div class="tactical-hud">
 					<div class="tactical-panel" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
 						<div style="display:flex;flex-direction:column;gap:2px;">
@@ -83642,6 +84023,38 @@ function showPlateauMapRenderer(opts) {
       stopMovement();
       teardownWorldPixiOverlay();
       showFabricationModal({ onClose: () => render() });
+    });
+    document.getElementById("worldToolbarInventoryBtn")?.addEventListener("click", () => {
+      stopMovement();
+      openInventoryModal();
+    });
+    document.getElementById("worldToolbarQuestsBtn")?.addEventListener("click", () => {
+      stopMovement();
+      void Promise.resolve().then(() => (init_questJournalModal_web(), questJournalModal_web_exports)).then((m2) => {
+        try {
+          m2.openQuestJournalModal?.();
+        } catch {
+          showTemporaryMessage("Impossible d'ouvrir les qu\xEAtes.", 1600);
+        }
+      });
+    });
+    document.getElementById("worldToolbarTalentsBtn")?.addEventListener("click", () => {
+      stopMovement();
+      teardownWorldPixiOverlay();
+      showTalentTree({
+        selectedIdx: 0,
+        onBack: () => render()
+      });
+    });
+    document.getElementById("worldToolbarCharacterBtn")?.addEventListener("click", () => {
+      stopMovement();
+      void Promise.resolve().then(() => (init_personnages_web(), personnages_web_exports)).then((m2) => {
+        try {
+          m2.openPersonnageModalFromMap?.({ startIndex: 0 });
+        } catch {
+          showTemporaryMessage("Impossible d'ouvrir la fiche.", 1600);
+        }
+      });
     });
     bindGameTimeListener();
     updateHudTime();
@@ -86566,6 +86979,23 @@ function showCombat(enemyLevel = hero.level, options = {}) {
   let isPlayerTurn = true;
   let isResolvingPlayerAction = false;
   const app2 = document.getElementById("app");
+  {
+    const prevListener = window.__simpleCombatTempSpriteListener;
+    if (prevListener) {
+      try {
+        window.removeEventListener("tempSpriteChanged", prevListener);
+      } catch {
+      }
+    }
+    const onTempSpriteChanged = () => {
+      try {
+        render();
+      } catch {
+      }
+    };
+    window.__simpleCombatTempSpriteListener = onTempSpriteChanged;
+    window.addEventListener("tempSpriteChanged", onTempSpriteChanged);
+  }
   function startEnemyTurnAfterDelay() {
     setTimeout(() => {
       if (enemy.pv <= 0 || player.pv <= 0)
@@ -86767,7 +87197,7 @@ function showCombat(enemyLevel = hero.level, options = {}) {
     const enemyDefensePct = Math.round(enemyDefenseArr.reduce((s2, e2) => s2 + (e2.amount || 0), 0) * 100);
     const enemyDefenseTurn = enemyDefenseArr.some((e2) => e2.remainingTurns === -1) ? -1 : enemyDefenseArr.filter((e2) => e2.remainingTurns > 0).map((e2) => e2.remainingTurns)[0] || 0;
     const playerCls = String(player.characterClass ?? "").toLowerCase();
-    const playerSpriteSrc = playerCls === "mage" ? "ImagesRPG/imagespersonnage/mage.png" : playerCls === "voleur" ? "ImagesRPG/imagespersonnage/voleur.png" : "ImagesRPG/imagespersonnage/trueplayer.png";
+    const playerSpriteSrc = getActorSpriteSrc(player, "./ImagesRPG/imagespersonnage/trueplayer.png");
     let playerImgStyle = "max-width:260px;width:38vw;max-height:240px;height:auto;object-fit:contain;";
     if (playerCls === "mage")
       playerImgStyle += " transform:scale(0.9);";
@@ -87054,6 +87484,7 @@ var init_combat_web = __esm({
     init_config_web();
     init_village_web();
     init_battleTurn_web();
+    init_characterSprites_web();
     init_history_web();
     init_skillUi_web();
     init_ui();
@@ -87461,7 +87892,9 @@ function buildSaveData(hero2) {
         type: e2.type,
         amount: Number(e2.amount ?? 0),
         remainingTurns: e2.remainingTurns,
-        remainingHits: e2.remainingHits
+        remainingHits: e2.remainingHits,
+        reflectDamage: Boolean(e2.reflectDamage),
+        reflectDamageMultiplier: Number(e2.reflectDamageMultiplier ?? 0)
       })),
       quests: hero2.quests ?? hero2.quests ?? {},
       // Persist solved puzzles (énigmes)
@@ -87560,7 +87993,9 @@ function applySaveData(hero2, save) {
     type: e2.type,
     amount: Number(e2.amount ?? 0),
     remainingTurns: e2.remainingTurns,
-    remainingHits: e2.remainingHits
+    remainingHits: e2.remainingHits,
+    reflectDamage: Boolean(e2.reflectDamage),
+    reflectDamageMultiplier: Number(e2.reflectDamageMultiplier ?? 0)
   }));
   hero2.quests = save.hero.quests ?? hero2.quests ?? {};
   hero2.enigmes = save.hero.enigmes ?? hero2.enigmes ?? {};

@@ -511,6 +511,24 @@ var init_passives = __esm({
         requiredCategoryPoints: 2,
         bonuses: { manaRegenPerTurnFlat: 5 }
       },
+      barbare_soif_de_sang: {
+        id: "barbare_soif_de_sang",
+        name: "Soif de sang",
+        description: "Le h\xE9ros gagne +10% vol de vie sur tous les d\xE9g\xE2ts inflig\xE9s, y compris les saignements.",
+        unlockLevel: 10,
+        costSkillPoints: 1,
+        category: "guerrier",
+        bonuses: {}
+      },
+      guerrier_hache_lourde_saignement: {
+        id: "guerrier_hache_lourde_saignement",
+        name: "Hache cruelle",
+        description: "Hache lourde inflige 3 effets de saignement pendant 3 tours.",
+        unlockLevel: 10,
+        costSkillPoints: 1,
+        category: "guerrier",
+        bonuses: {}
+      },
       assassin_poison_crit: {
         id: "assassin_poison_crit",
         name: "Lames empoisonn\xE9es",
@@ -526,6 +544,15 @@ var init_passives = __esm({
         name: "Combo",
         description: "Chaque attaque sur un ennemi augmente de +10% votre chance de coup critique contre cet ennemi jusqu'\xE0 la fin de votre tour.",
         // Principalement appris via l’arbre de talents (Assassin T1).
+        unlockLevel: 10,
+        costSkillPoints: 1,
+        category: "voleur",
+        bonuses: {}
+      },
+      assassin_elan_meurtrier: {
+        id: "assassin_elan_meurtrier",
+        name: "\xC9lan meurtrier",
+        description: "Si le voleur tue un ennemi, sa prochaine attaque inflige +20% de d\xE9g\xE2ts.",
         unlockLevel: 10,
         costSkillPoints: 1,
         category: "voleur",
@@ -592,6 +619,18 @@ function createSkill(id, overrides = {}) {
   skill.cooldownTurns = Math.max(0, Math.floor(Number(skill.cooldownTurns ?? 0)));
   return skill;
 }
+function createClassAdjustedSkill(id, ownerClass, overrides = {}) {
+  const cls = String(ownerClass ?? "").toLowerCase();
+  if (id === "basic_attack" && (cls === "guerrier" || cls === "voleur")) {
+    return createSkill(id, {
+      description: "Fait une attaque de base (80% de l'attaque)",
+      damage: 0.8,
+      manaCost: 0,
+      ...overrides
+    });
+  }
+  return createSkill(id, overrides);
+}
 function findCanonicalSkillByNameOrKey(nameOrKey) {
   const raw = String(nameOrKey ?? "").trim();
   if (!raw)
@@ -640,13 +679,14 @@ var init_skillLibrary = __esm({
       // Base
       basic_attack: { category: "guerrier" },
       block: { category: "guerrier" },
-      mana_gain: { category: "mage" },
+      mana_gain: { category: "mage", cooldownTurns: 1 },
       tir_a_l_arc: { category: "voleur", cooldownTurns: 1 },
       shuriken: { category: "voleur", cooldownTurns: 1 },
       master_attack: { category: "guerrier" },
       // Mage
       missile_magique: { category: "mage" },
       boule_de_feu: { category: "mage" },
+      lame_de_givre: { category: "mage", cooldownTurns: 1 },
       brulure: { category: "mage", cooldownTurns: 1 },
       malediction: { category: "mage" },
       buff_regen_mana: { category: "mage", cooldownTurns: 1 },
@@ -684,6 +724,7 @@ var init_skillLibrary = __esm({
       charge: { category: "guerrier", cooldownTurns: 1 },
       mouvement_de_fou: { category: "voleur", cooldownTurns: 1 },
       repouser: { category: "guerrier", cooldownTurns: 1 },
+      provocation: { category: "guerrier", cooldownTurns: 1 },
       bombe_fumigene: { category: "voleur", cooldownTurns: 1 },
       immobiliser: { category: "voleur", cooldownTurns: 1 },
       harpon_chaine: { category: "guerrier", cooldownTurns: 2 },
@@ -692,7 +733,7 @@ var init_skillLibrary = __esm({
     };
     SKILL_FACTORIES = {
       missile_magique: () => {
-        const s2 = new Damageskill("MM", "Lance un missile magique rapide (port\xE9e 6, cercle).", "Missile magique", 0.8, 20, 0);
+        const s2 = new Damageskill("MM", "Lance un missile magique rapide (port\xE9e 6, cercle).", "Missile magique", 0.6, 10, 1);
         s2.tactical = { kind: "single", range: 6, aim: "circle" };
         return s2;
       },
@@ -720,9 +761,14 @@ var init_skillLibrary = __esm({
       soin: () => new Healskill("C", "Soigne une partie de vos PV", "Soin", 2, 50, 2),
       malediction: () => new Damageskill("E", "Utilise la magie noire pour infliger de lourds d\xE9g\xE2ts et fait perdre 5 mana \xE0 l'adversaire", "Mal\xE9diction", 1.5, 30, 1),
       boule_de_feu: () => new Damageskill("B", "Envoie une boule de feu", "Boule de feu", 5, 80, 2),
+      lame_de_givre: () => {
+        const s2 = new Damageskill("LG", "Frappe une cible dans un rayon de 4 autour du mage et lui fait perdre 1 PA au d\xE9but de son prochain tour.", "Lame de givre", 1, 20, 1);
+        s2.tactical = { kind: "single", range: 4, aim: "circle" };
+        return s2;
+      },
       brulure: () => new DoTSkill("B+", "Br\xFBlure de la boule de feu", "Br\xFBlure", 0.8, 3, 40, 1),
-      hache_lourde: () => new Damageskill("D", "Frappe tr\xE8s fort avec une hache", "Hache lourde", 4, 60, 2),
-      poison: () => new DoTSkill("L", "Inflige des d\xE9g\xE2ts de poison sur la dur\xE9e", "Poison", 0.5, 4, 30, 1),
+      hache_lourde: () => new Damageskill("D", "Frappe tr\xE8s fort avec une hache", "Hache lourde", 3, 40, 2),
+      poison: () => new DoTSkill("L", "Applique 1 poison pendant 4 tours (20% de l'attaque par tour, cumulable)", "Poison", 0.2, 4, 30, 1),
       buff_regen_mana: () => new ManaRegenBuffSkill("R", "Augmente regen mana de 10 pendant 3 tours", "Buff de regen mana", 10, 3, 0, 2),
       boule_de_givre: () => new ManaRegenDebuffSkill("G", "R\xE9duit la r\xE9g\xE9n\xE9ration de mana ennemie", "Boule de Givre", 5, 4, 30, 1),
       buff_permanent: () => new BuffSkill("J", "Augmente d\xE9finitivement votre attaque", "Buff permanent", 0.1, -1, 40, 1),
@@ -795,17 +841,17 @@ var init_skillLibrary = __esm({
         return s2;
       },
       eclair: () => {
-        const s2 = new Damageskill("EL", "Frappe une cible \xE0 distance autour du lanceur (port\xE9e 5, cercle).", "\xC9clair", 2.5, 30, 2);
+        const s2 = new Damageskill("EL", "Frappe une cible \xE0 distance autour du lanceur (port\xE9e 5, cercle).", "\xC9clair", 2, 30, 2);
         s2.tactical = { kind: "single", range: 5, aim: "circle" };
         return s2;
       },
       teleportation: () => {
-        const s2 = new MovementSkill("TP", "T\xE9l\xE9porte le mage sur une case dans les 4 directions (haut/bas/gauche/droite).", "T\xE9l\xE9portation", 30, 2);
+        const s2 = new MovementSkill("TP", "T\xE9l\xE9porte le mage sur une case dans les 4 directions (haut/bas/gauche/droite).", "T\xE9l\xE9portation", 30, 1);
         s2.tactical = { kind: "teleport", range: 7, aim: "orthogonal" };
         return s2;
       },
       assassinat: () => {
-        const s2 = new Damageskill("AS", "Frappe l'ennemi et se t\xE9l\xE9porte derri\xE8re lui (diagonales). Si la cible meurt, le lanceur r\xE9cup\xE8re 50 mana. (CD 0)", "Assassinat", 3, 50, 1);
+        const s2 = new Damageskill("AS", "Frappe l'ennemi et se t\xE9l\xE9porte derri\xE8re lui (diagonales). Si la cible meurt, le lanceur gagne 1 PA. (CD 0)", "Assassinat", 2.5, 40, 1);
         s2.tactical = { kind: "assassinate", range: 3, aim: "diagonal" };
         return s2;
       },
@@ -842,6 +888,11 @@ var init_skillLibrary = __esm({
       repouser: () => {
         const s2 = new Skill("RP", "Pousse l'adversaire d'une case en arri\xE8re (si la case derri\xE8re est libre). Aucun d\xE9g\xE2t, la cible perd 1 PA. Co\xFBt : 20 mana, 1 PA. (Niveau 2)", "Repouser", "damage", 20, 1);
         s2.tactical = { kind: "single", range: 1, aim: "manhattan" };
+        return s2;
+      },
+      provocation: () => {
+        const s2 = new DebuffSkill("PV", "Provoque un ennemi : \xE0 son prochain tour, il essaiera d'attaquer le h\xE9ros qui l'a provoqu\xE9.", "Provocation", 0, 1, 20, 1);
+        s2.tactical = { kind: "single", range: 3, aim: "circle" };
         return s2;
       },
       bombe_fumigene: () => {
@@ -923,7 +974,7 @@ function ensureParty() {
     p2.characterClass = d2.cls;
     const cls = String(p2.characterClass ?? "").toLowerCase();
     const base = {
-      force: 10,
+      force: 0,
       sante: cls === "guerrier" ? 10 : cls === "voleur" ? 8 : 6,
       vitesse: 2,
       magie: cls === "mage" ? 5 : 4,
@@ -1007,7 +1058,7 @@ function computePartySkillIdsFromMemberLearned(member, cls) {
       return ["missile_magique", "couteau_magique", "mana_gain", "eclair", "teleportation"];
     if (cls === "voleur")
       return ["basic_attack", "shuriken", "mana_gain", "mouvement_de_fou"];
-    return ["basic_attack", "block", "charge", "lancer_ennemi"];
+    return ["basic_attack", "block", "charge", "repouser"];
   })();
   for (const sid of classBaseSkills)
     ids.push(sid);
@@ -1070,7 +1121,7 @@ function syncPartySkillsFromProgress() {
     const cls = member.characterClass ?? PARTY_DEFS[i2]?.cls ?? "guerrier";
     const ids = computePartySkillIdsFromMemberLearned(member, cls);
     member.skills = ids.map((id) => {
-      return createSkill(id);
+      return createClassAdjustedSkill(id, cls);
     });
   }
 }
@@ -1314,6 +1365,58 @@ var init_player = __esm({
         }
         this.skillCooldowns = cds;
       }
+      computeAlterationAmountPerStack(alterationName, sourceAttack) {
+        const normalizedAttack = Math.max(0, Math.round(Number(sourceAttack ?? 0)));
+        if (alterationName === "poison")
+          return Math.max(0, Math.round(normalizedAttack * 0.2));
+        if (alterationName === "saignement")
+          return Math.max(0, Math.round(normalizedAttack * 0.1));
+        return 0;
+      }
+      getPassiveLifeStealRatio() {
+        let ratio = 0;
+        if (this.hasPassive("barbare_soif_de_sang"))
+          ratio += 0.1;
+        return ratio;
+      }
+      restoreLifeFromDamageDealt(damageDealt, ratio, sourceLabel) {
+        const baseDamage = Math.max(0, Math.floor(Number(damageDealt ?? 0)));
+        const lifeStealRatio = Math.max(0, Number(ratio ?? 0));
+        if (baseDamage <= 0 || lifeStealRatio <= 0)
+          return { healed: 0, message: null };
+        const attemptedHeal = Math.max(0, Math.round(baseDamage * lifeStealRatio));
+        if (attemptedHeal <= 0)
+          return { healed: 0, message: null };
+        const beforePv = this.pv;
+        this.pv = Math.min(this.effectiveMaxPv, this.pv + attemptedHeal);
+        const healed = Math.max(0, this.pv - beforePv);
+        if (healed <= 0)
+          return { healed: 0, message: null };
+        const reason = String(sourceLabel ?? "").trim();
+        const message = reason ? `${this.name} r\xE9cup\xE8re ${healed} PV gr\xE2ce \xE0 ${reason}.` : `${this.name} r\xE9cup\xE8re ${healed} PV gr\xE2ce \xE0 son vol de vie.`;
+        return { healed, message };
+      }
+      applyAlteration(params) {
+        const duration = Math.max(0, Math.floor(Number(params.duration ?? 0)));
+        if (duration <= 0)
+          return null;
+        const stacks = Math.max(1, Math.floor(Number(params.stacks ?? 1)));
+        const sourceAttack = Math.max(0, Math.round(Number(params.source?.effectiveAttack ?? params.source?.baseAttack ?? 0)));
+        const amountPerStack = Math.max(0, Math.round(Number(params.amountPerStackOverride ?? this.computeAlterationAmountPerStack(params.alterationName, sourceAttack))));
+        const effect = {
+          type: "alteration",
+          alterationName: params.alterationName,
+          amount: amountPerStack,
+          remainingTurns: duration,
+          stacks,
+          sourceAttack,
+          sourcePlayer: params.source,
+          ...params.sourceSkill ? { sourceSkill: params.sourceSkill } : {},
+          ...params.sourceSkillId ? { sourceSkillId: params.sourceSkillId } : {}
+        };
+        this.activeEffects.push(effect);
+        return effect;
+      }
       canSpendCharacteristicPoint(key2) {
         if (this.characteristicPoints <= 0)
           return { ok: false, message: `Aucun point de caract\xE9ristique disponible.` };
@@ -1431,9 +1534,17 @@ var init_player = __esm({
           }
           this.throwDamage(adversaire, selectedSkill.damage * this.effectiveAttack);
           if (selectedSkill.name === "Boule de feu") {
-            const burnDot = { type: "dot", amount: Math.round(0.5 * this.effectiveAttack), remainingTurns: 4, sourceAttack: this.effectiveAttack };
-            adversaire.activeEffects.push(burnDot);
-            console.log(this.name + " applique une br\xFBlure \xE0 " + adversaire.name + " : " + burnDot.amount + " d\xE9g\xE2ts par tour pendant " + burnDot.remainingTurns + " tours");
+            const burnEffect = adversaire.applyAlteration({
+              alterationName: "brulure",
+              duration: 4,
+              source: this,
+              sourceSkill: "Boule de feu",
+              sourceSkillId: "boule_de_feu",
+              amountPerStackOverride: Math.round(0.5 * this.effectiveAttack)
+            });
+            if (burnEffect) {
+              console.log(this.name + " applique une br\xFBlure \xE0 " + adversaire.name + " : " + burnEffect.amount + " d\xE9g\xE2ts par tour pendant " + burnEffect.remainingTurns + " tours");
+            }
           }
         } else if (selectedSkill instanceof Healskill) {
           const healAmount = Math.round(selectedSkill.heal * this.baseAttack);
@@ -1476,8 +1587,22 @@ var init_player = __esm({
           console.log(this.name + " utilise " + selectedSkill.name + " et rend " + adversaire.name + " plus vuln\xE9rable (+" + Math.round(selectedSkill.vulnerabilityAmount * 100) + "% d\xE9g\xE2ts re\xE7us) " + label);
         } else if (selectedSkill instanceof DoTSkill) {
           const damagePerTurn = Math.round(selectedSkill.damagePerTurn * this.effectiveAttack);
-          adversaire.activeEffects.push({ type: "dot", amount: damagePerTurn, remainingTurns: selectedSkill.duration, sourceAttack: this.effectiveAttack });
-          console.log(this.name + " utilise " + selectedSkill.name + " et inflige " + damagePerTurn + " d\xE9g\xE2ts par tour \xE0 " + adversaire.name + " pour " + selectedSkill.duration + " tours");
+          const skillId = String(selectedSkill.skillId ?? "");
+          const alterationName = skillId === "poison" ? "poison" : skillId === "brulure" ? "brulure" : null;
+          if (alterationName) {
+            adversaire.applyAlteration({
+              alterationName,
+              duration: selectedSkill.duration,
+              source: this,
+              sourceSkill: selectedSkill.name,
+              ...skillId ? { sourceSkillId: skillId } : {},
+              amountPerStackOverride: damagePerTurn
+            });
+            console.log(this.name + " utilise " + selectedSkill.name + " et applique " + alterationName + " \xE0 " + adversaire.name + " : " + damagePerTurn + " d\xE9g\xE2ts par tour pendant " + selectedSkill.duration + " tours");
+          } else {
+            adversaire.activeEffects.push({ type: "dot", amount: damagePerTurn, remainingTurns: selectedSkill.duration, sourceAttack: this.effectiveAttack });
+            console.log(this.name + " utilise " + selectedSkill.name + " et inflige " + damagePerTurn + " d\xE9g\xE2ts par tour \xE0 " + adversaire.name + " pour " + selectedSkill.duration + " tours");
+          }
         } else if (selectedSkill instanceof HoTSkill) {
           const healPerTurn = Math.round(selectedSkill.healPerTurn * this.baseAttack);
           this.activeEffects.push({ type: "hot", amount: healPerTurn, remainingTurns: selectedSkill.duration });
@@ -1540,6 +1665,32 @@ var init_player = __esm({
               if (effect.remainingTurns === 0) {
                 expiredEffects.push("de d\xE9g\xE2ts sur la dur\xE9e");
                 expiredMessages.push("L'effet de d\xE9g\xE2ts sur la dur\xE9e sur " + this.name + " prend fin.");
+              }
+            }
+          } else if (effect.type === "alteration") {
+            const alterationName = String(effect.alterationName ?? "alt\xE9ration");
+            const stacks = Math.max(1, Math.floor(Number(effect.stacks ?? 1)));
+            const damagePerStack = Math.max(0, Math.round(Number(effect.amount ?? 0)));
+            const totalDamage = Math.max(0, damagePerStack * stacks);
+            const beforePv = this.pv;
+            console.log(this.name + " subit " + totalDamage + " d\xE9g\xE2ts de " + alterationName);
+            const res = this.takeDamage(totalDamage, effect.sourcePlayer, {
+              attackerAttackOverride: effect.sourceAttack,
+              isAlterationTick: true
+            });
+            if (res.actualDamage > 0) {
+              expiredMessages.push(`${this.name} subit ${res.actualDamage} d\xE9g\xE2ts de ${alterationName} (x${stacks}) (PV ${beforePv} \u2192 ${this.pv})`);
+            } else {
+              expiredMessages.push(`${this.name} ne subit aucun d\xE9g\xE2t de ${alterationName}.`);
+            }
+            if (res.expiredMessages && res.expiredMessages.length) {
+              expiredMessages.push(...res.expiredMessages);
+            }
+            if (effect.remainingTurns > 0) {
+              effect.remainingTurns--;
+              if (effect.remainingTurns === 0) {
+                expiredEffects.push(`d'alt\xE9ration ${alterationName}`);
+                expiredMessages.push(`L'alt\xE9ration ${alterationName} sur ${this.name} prend fin.`);
               }
             }
           } else if (effect.type === "hot") {
@@ -1627,7 +1778,7 @@ var init_player = __esm({
         const expiredMessages = [];
         this.activeEffects = this.activeEffects.map((effect) => {
           const isTurnBasedVulnerability = effect.type === "vulnerability" && (effect.remainingHits === void 0 || effect.remainingHits <= 0);
-          if (effect.remainingTurns > 0 && (effect.type === "buff" || effect.type === "debuff" || effect.type === "mana_regen" || isTurnBasedVulnerability || effect.type === "ap_max" || effect.type === "root")) {
+          if (effect.remainingTurns > 0 && (effect.type === "buff" || effect.type === "debuff" || effect.type === "mana_regen" || isTurnBasedVulnerability || effect.type === "ap_max" || effect.type === "root" || effect.type === "taunt")) {
             effect.remainingTurns--;
             if (effect.remainingTurns === 0) {
               let typeLabel = "";
@@ -1643,6 +1794,8 @@ var init_player = __esm({
                 typeLabel = "d'augmentation des PA maximum";
               else if (effect.type === "root")
                 typeLabel = "d'immobilisation";
+              else if (effect.type === "taunt")
+                typeLabel = "de provocation";
               const msg = `L'effet ${typeLabel} sur ${this.name} prend fin.`;
               expiredMessages.push(msg);
               console.log(msg);
@@ -1673,7 +1826,7 @@ var init_player = __esm({
         const vulnerabilityIncrease = this.activeEffects.filter((e2) => e2.type === "vulnerability" && e2.remainingTurns !== 0 && (e2.remainingHits === void 0 || e2.remainingHits > 0)).reduce((sum, e2) => sum + e2.amount, 0);
         let incoming = Math.round(damage * (1 + vulnerabilityIncrease));
         let critical = false;
-        if (attacker) {
+        if (attacker && !opts?.isAlterationTick) {
           const atkForce = Math.max(0, Math.floor(Number(attacker.characteristics?.force ?? attacker.baseAttack ?? 0)));
           const equipmentCrit = Object.values(attacker.equipment).reduce((s2, eq) => s2 + Math.max(0, Math.floor(Number(eq?.critBonus ?? 0))), 0);
           const atkCrit = Math.max(0, Math.floor(Number(attacker.characteristics?.critique ?? 0))) + equipmentCrit;
@@ -1728,11 +1881,32 @@ var init_player = __esm({
         } catch {
         }
         console.log("Il reste " + this.pv + "/" + this.maxPv + " PV \xE0 " + this.name + (vulnerabilityIncrease > 0 ? " (vuln\xE9rabilit\xE9 +" + Math.round(vulnerabilityIncrease * 100) + "% d\xE9g\xE2ts re\xE7us)" : "") + (critical ? " (coup critique x2)" : "") + (defenseStatReduction > 0 ? " (d\xE9fense: -" + Math.round(defenseStatReduction * 100) + "% d\xE9g\xE2ts)" : "") + (defenseReduction > 0 ? " (r\xE9duction de " + Math.round(defenseReduction * 100) + "% des d\xE9g\xE2ts)" : ""));
+        if (attacker && actualDamage > 0) {
+          const lifeSteal = attacker.getPassiveLifeStealRatio();
+          if (lifeSteal > 0) {
+            const sourceLabel = opts?.isAlterationTick ? `son ${String(this.activeEffects.find((e2) => e2.type === "alteration" && e2.sourcePlayer === attacker)?.alterationName ?? "saignement")}` : "son vol de vie";
+            const lifeStealRes = attacker.restoreLifeFromDamageDealt(actualDamage, lifeSteal, sourceLabel);
+            if (lifeStealRes.message)
+              expiredMessages.push(lifeStealRes.message);
+          }
+        }
         try {
           if (this.pv <= 0 && attacker) {
             const attackerIsWarrior = String(attacker.characterClass ?? "").toLowerCase() === "guerrier";
             if (attackerIsWarrior) {
               window.game?.audioManager.play("destinscelle");
+            }
+            if (typeof attacker?.hasPassive === "function" && attacker.hasPassive("assassin_elan_meurtrier")) {
+              const currentEffects = Array.isArray(attacker.activeEffects) ? attacker.activeEffects : [];
+              attacker.activeEffects = currentEffects.filter((effect) => String(effect.sourceSkillId ?? "") !== "assassin_elan_meurtrier");
+              attacker.activeEffects.push({
+                type: "buff",
+                amount: 0.2,
+                remainingTurns: -1,
+                sourceSkill: "\xC9lan meurtrier",
+                sourceSkillId: "assassin_elan_meurtrier"
+              });
+              expiredMessages.push(`${attacker.name} entre en \xC9lan meurtrier : sa prochaine attaque infligera +20% de d\xE9g\xE2ts.`);
             }
           }
         } catch (e2) {
@@ -1754,17 +1928,17 @@ var init_player = __esm({
         if (attacker && critical && actualDamage > 0 && attacker.hasPassive("assassin_poison_crit")) {
           try {
             const s2 = createSkill("poison");
-            const dur = Math.max(0, Math.floor(Number(s2?.duration ?? 0)));
+            const dur = 2;
             const dpt = Number(s2?.damagePerTurn ?? 0);
             if (dur > 0 && dpt > 0) {
               const amount = Math.round(dpt * attacker.effectiveAttack);
-              this.activeEffects.push({
-                type: "dot",
-                amount,
-                remainingTurns: dur,
+              this.applyAlteration({
+                alterationName: "poison",
+                duration: dur,
+                source: attacker,
                 sourceSkill: String(s2?.name ?? "Poison"),
                 sourceSkillId: "poison",
-                sourceAttack: attacker.effectiveAttack
+                amountPerStackOverride: amount
               });
               expiredMessages.push(`${this.name} est empoisonn\xE9 ! (-${amount} PV/t pendant ${dur} tours)`);
             }
@@ -3642,7 +3816,7 @@ var init_game = __esm({
           { skill: createSkill("mana_gain"), unlockLevel: 1 },
           { skill: createSkill("couteau_magique"), unlockLevel: 1 },
           { skill: createSkill("eclair"), unlockLevel: 1 },
-          { skill: createSkill("boule_de_feu"), unlockLevel: 1 },
+          { skill: createSkill("lame_de_givre"), unlockLevel: 1 },
           { skill: createSkill("mana_groupe"), unlockLevel: 1 },
           { skill: createSkill("teleportation"), unlockLevel: 1 },
           { skill: createSkill("rayon_de_feu"), unlockLevel: 1 },
@@ -3653,7 +3827,7 @@ var init_game = __esm({
           { skill: createSkill("lancer_allie"), unlockLevel: 1 },
           { skill: createSkill("lancer_ennemi"), unlockLevel: 1 },
           { skill: createSkill("repouser"), unlockLevel: 1 },
-          { skill: createSkill("harpon_chaine"), unlockLevel: 1 },
+          { skill: createSkill("provocation"), unlockLevel: 1 },
           { skill: createSkill("fureur"), unlockLevel: 1 },
           { skill: createSkill("mouvement_de_fou"), unlockLevel: 1 },
           { skill: createSkill("shuriken"), unlockLevel: 1 },
@@ -3684,13 +3858,10 @@ var init_game = __esm({
           { skill: createSkill("malediction"), unlockLevel: 2 },
           // Malédiction facteur atk 1
           // Level 3
-          { skill: createSkill("boule_de_feu"), unlockLevel: 2 },
-          // Boule de feu attaque 150%
           { skill: createSkill("brulure"), unlockLevel: 8 },
           // DoT 4 tours 50% attaque, mana 30
           { skill: createSkill("hache_lourde"), unlockLevel: 3 },
           { skill: createSkill("double_crochet"), unlockLevel: 3 },
-          { skill: createSkill("harpon_chaine"), unlockLevel: 3 },
           { skill: createSkill("poison"), unlockLevel: 3 },
           // Poison mana cost 20
           // Level 4
@@ -3714,6 +3885,10 @@ var init_game = __esm({
         this.audioManager.loadSound("background", "sounds/musique.mp3", true, 0.1);
         this.audioManager.loadSound("mozart_piano_concerto_23_adagio", "sounds/musique/Helene_Grimaud_-_Mozart_Piano_Concerto_No (mp3cut.net).mp3", true, 0.42);
         this.audioManager.loadSound("voix_tuto_map", "sounds/VOIX PNJ/voix_tuto_map.mp3", false, 0.9);
+        this.audioManager.loadSound("voix_tuto_maison", "sounds/VOIX PNJ/voix_tuto_maison.mp3", false, 0.9);
+        this.audioManager.loadSound("voix_tuto_arbretalents", "sounds/VOIX PNJ/voix_tuto_arbretalents.mp3", false, 0.9);
+        this.audioManager.loadSound("voix_tuto_equipement", "sounds/VOIX PNJ/voix_tuto_equipement.mp3", false, 0.9);
+        this.audioManager.loadSound("voix_tuto_boaraven", "sounds/VOIX PNJ/Voix_tuto_Boaraven.mp3", false, 0.9);
         this.audioManager.loadSound("boaraven_baby_crying", "sounds/VOIX PNJ/child-whines.mp3", true, 0.85);
         this.audioManager.loadSound("boaraven_baby_naughty", "sounds/VOIX PNJ/sound-the-child-is-naughty.mp3", false, 0.9);
         this.audioManager.loadSound("pnjintro", "sounds/Pnjintroaudio.mp3", false, 0.9);
@@ -4427,6 +4602,7 @@ function applyPlayerSkillTurn(params) {
   let damageFlashOnTarget = null;
   let reflectFlashOnCaster = null;
   if (skill instanceof Damageskill) {
+    const hadNextAttackBuff = caster.activeEffects.some((effect) => effect?.type === "buff" && String(effect?.sourceSkillId ?? "") === "assassin_elan_meurtrier");
     const typeMult = caster.getPassiveSkillTypeMultiplier?.("damage") ?? 1;
     const dmg = Math.round(skill.damage * caster.effectiveAttack * typeMult);
     const critBonus = typeof params.critChanceBonus === "number" ? params.critChanceBonus : void 0;
@@ -4456,12 +4632,39 @@ function applyPlayerSkillTurn(params) {
         healFlashOnCaster = true;
       }
     }
+    const nextAttackBuffIndex = hadNextAttackBuff ? caster.activeEffects.findIndex((effect) => effect?.type === "buff" && String(effect?.sourceSkillId ?? "") === "assassin_elan_meurtrier") : -1;
+    if (nextAttackBuffIndex >= 0) {
+      caster.activeEffects.splice(nextAttackBuffIndex, 1);
+      extraHistory.push(`L'effet \xC9lan meurtrier de ${caster.name} est consomm\xE9.`);
+    }
     if (baseSkillId === "assassinat" && target.pv <= 0) {
-      const beforeManaCaster = caster.currentMana;
-      caster.currentMana = Math.min(caster.effectiveMaxMana, caster.currentMana + 50);
-      if (caster.currentMana > beforeManaCaster) {
-        extraHistory.push(`${caster.name} r\xE9cup\xE8re ${caster.currentMana - beforeManaCaster} mana gr\xE2ce \xE0 ${skill.name} !`);
+      const beforePaCaster = Math.max(0, Math.floor(Number(caster.actionPoints ?? 0)));
+      const maxPaCaster = Math.max(1, Math.floor(Number(caster.actionPointsMax ?? 1)));
+      caster.actionPoints = Math.min(maxPaCaster, beforePaCaster + 1);
+      if (caster.actionPoints > beforePaCaster) {
+        extraHistory.push(`${caster.name} gagne ${caster.actionPoints - beforePaCaster} PA gr\xE2ce \xE0 ${skill.name} !`);
       }
+    }
+    if (baseSkillId === "hache_lourde" && res.actualDamage > 0 && caster.hasPassive("guerrier_hache_lourde_saignement")) {
+      target.applyAlteration({
+        alterationName: "saignement",
+        duration: 3,
+        source: caster,
+        stacks: 3,
+        sourceSkill: skill.name,
+        sourceSkillId: baseSkillId
+      });
+      extraHistory.push(`${target.name} subit 3 effets de saignement pendant 3 tours.`);
+    }
+    if (baseSkillId === "lame_de_givre" && res.actualDamage > 0) {
+      target.activeEffects.push({
+        type: "pa_loss",
+        amount: 1,
+        remainingTurns: 1,
+        sourceSkill: skill.name,
+        sourceSkillId: baseSkillId
+      });
+      extraHistory.push(`${target.name} perdra 1 PA au d\xE9but de son prochain tour.`);
     }
     damageFlashOnTarget = { actualDamage: res.actualDamage, reduced: res.reduced };
     if (res.reflectedDamageToAttacker > 0) {
@@ -4471,29 +4674,42 @@ function applyPlayerSkillTurn(params) {
     const typeMult = caster.getPassiveSkillTypeMultiplier?.("dot") ?? 1;
     const dmgPerTurn = Math.round(skill.damagePerTurn * caster.effectiveAttack * typeMult);
     const dur = skill.duration;
-    target.activeEffects.push({
-      type: "dot",
-      amount: dmgPerTurn,
-      remainingTurns: dur,
-      sourceSkill: skill.name,
-      sourceSkillId: baseSkillId,
-      sourceAttack: caster.effectiveAttack
-    });
-    message = `${caster.name} utilise ${skill.name}${manaSpentMsg} et inflige ${dmgPerTurn} d\xE9g\xE2ts par tour \xE0 ${target.name} pendant ${dur} tours`;
+    const alterationName = baseSkillId === "poison" ? "poison" : baseSkillId === "brulure" ? "brulure" : null;
+    if (alterationName) {
+      target.applyAlteration({
+        alterationName,
+        duration: dur,
+        source: caster,
+        sourceSkill: skill.name,
+        ...baseSkillId ? { sourceSkillId: baseSkillId } : {},
+        amountPerStackOverride: dmgPerTurn
+      });
+      message = `${caster.name} utilise ${skill.name}${manaSpentMsg} et applique ${alterationName} \xE0 ${target.name} (${dmgPerTurn} d\xE9g\xE2ts par tour pendant ${dur} tours)`;
+    } else {
+      target.activeEffects.push({
+        type: "dot",
+        amount: dmgPerTurn,
+        remainingTurns: dur,
+        sourceSkill: skill.name,
+        sourceSkillId: baseSkillId,
+        sourceAttack: caster.effectiveAttack
+      });
+      message = `${caster.name} utilise ${skill.name}${manaSpentMsg} et inflige ${dmgPerTurn} d\xE9g\xE2ts par tour \xE0 ${target.name} pendant ${dur} tours`;
+    }
   } else if (skill instanceof HoTSkill) {
     const typeMult = caster.getPassiveSkillTypeMultiplier?.("hot") ?? 1;
     const healPerTurn = Math.round(skill.healPerTurn * caster.baseAttack * typeMult);
     const dur = skill.duration;
-    const beforePvCaster = caster.pv;
-    caster.pv = Math.min(caster.maxPv, caster.pv + healPerTurn);
-    const actualHeal = caster.pv - beforePvCaster;
+    const beforePvTarget = target.pv;
+    target.pv = Math.min(target.maxPv, target.pv + healPerTurn);
+    const actualHeal = target.pv - beforePvTarget;
     if (actualHeal > 0) {
-      extraHistory.push(`${caster.name} r\xE9cup\xE8re ${actualHeal} PV gr\xE2ce \xE0 ${skill.name}`);
-      healFlashOnCaster = true;
+      extraHistory.push(`${target.name} r\xE9cup\xE8re ${actualHeal} PV gr\xE2ce \xE0 ${skill.name}`);
+      healFlashOnCaster = target === caster;
     }
     const remaining = dur > 0 ? dur - 1 : dur;
     if (remaining !== 0) {
-      caster.activeEffects.push({
+      target.activeEffects.push({
         type: "hot",
         amount: healPerTurn,
         remainingTurns: remaining,
@@ -4501,15 +4717,16 @@ function applyPlayerSkillTurn(params) {
         sourceSkillId: baseSkillId
       });
     }
-    message = `${caster.name} utilise ${skill.name}${manaSpentMsg} et soigne ${healPerTurn} PV par tour pendant ${dur} tours`;
+    message = `${caster.name} utilise ${skill.name}${manaSpentMsg} et soigne ${target.name} de ${healPerTurn} PV par tour pendant ${dur} tours`;
     if (caster.isPlayer) {
       window.game?.audioManager.play("healaudio");
     }
   } else if (skill instanceof Healskill) {
     const typeMult = caster.getPassiveSkillTypeMultiplier?.("heal") ?? 1;
     const heal = Math.round(skill.heal * caster.baseAttack * typeMult);
-    caster.pv = Math.min(caster.pv + heal, caster.maxPv);
-    message = `${caster.name} utilise ${skill.name}${manaSpentMsg} et soigne ${heal} PV (PV ${beforeCasterPv} \u2192 ${caster.pv})`;
+    target.pv = Math.min(target.pv + heal, target.maxPv);
+    message = `${caster.name} utilise ${skill.name}${manaSpentMsg} et soigne ${target.name} de ${heal} PV (PV ${beforeTargetPv} \u2192 ${target.pv})`;
+    healFlashOnCaster = target === caster;
     if (caster.isPlayer) {
       window.game?.audioManager.play("healaudio");
     }
@@ -4547,6 +4764,17 @@ function applyPlayerSkillTurn(params) {
         message = `${caster.name} utilise ${skill.name} et immobilise ${target.name} (ne peut pas se d\xE9placer) pendant ${dur} tour${dur > 1 ? "s" : ""}`;
         if (caster.isPlayer)
           window.game?.audioManager.play("givre");
+      } else if (baseSkillId === "provocation") {
+        target.activeEffects = (target.activeEffects ?? []).filter((e2) => String(e2?.type ?? "") !== "taunt");
+        target.activeEffects.push({
+          type: "taunt",
+          amount: 0,
+          remainingTurns: dur,
+          sourceSkill: skill.name,
+          sourceSkillId: baseSkillId,
+          tauntTargetName: caster.name
+        });
+        message = `${caster.name} utilise ${skill.name} et provoque ${target.name} : \xE0 son prochain tour, il essaiera d'attaquer ${caster.name}.`;
       } else {
         target.activeEffects.push({
           type: "debuff",
@@ -4720,6 +4948,7 @@ function applyAutoTurn(params) {
 var init_battleTurn_web = __esm({
   "dist/battleTurn.web.js"() {
     "use strict";
+    init_player();
     init_party_web();
     init_characterSprites_web();
     init_skill();
@@ -6424,7 +6653,7 @@ function renderUnitHtml(u2) {
   const stunTurns = Math.max(0, Math.floor(Number(actor?.stunTurns ?? 0)));
   const stunBadge = stunTurns > 0 ? `<div class="unit-sprite-stun" title="\xC9tourdi: ${stunTurns} tour(s)">\u{1F4AB} \xC9tourdi</div>` : "";
   const activeEffects = getActiveEffects(actor);
-  const hpAffecting = activeEffects.filter((e2) => e2.type === "dot" || e2.type === "hot" || e2.type === "defense" || e2.type === "vulnerability");
+  const hpAffecting = activeEffects.filter((e2) => e2.type === "dot" || e2.type === "alteration" || e2.type === "hot" || e2.type === "defense" || e2.type === "vulnerability");
   const manaAffecting = activeEffects.filter((e2) => e2.type === "mana_regen");
   const statAffecting = activeEffects.filter((e2) => e2.type === "buff" || e2.type === "debuff" || e2.type === "defense" || e2.type === "vulnerability");
   const hpDots = renderEffectBadges(hpAffecting, 4, "sprite");
@@ -6482,7 +6711,7 @@ function renderBarsRow(u2, isActive) {
       return 31;
     if (e2.type === "mana_regen" && (e2.amount ?? 0) < 0)
       return 32;
-    if (e2.type === "dot")
+    if (e2.type === "dot" || e2.type === "alteration")
       return 40;
     return 50;
   };
@@ -6523,6 +6752,11 @@ var init_render_web = __esm({
       const base = e2.sourceSkill ? `${e2.sourceSkill} \u2014 ` : "";
       if (e2.type === "dot")
         return `${base}DoT: -${Math.abs(Math.round(e2.amount))} PV/t (${turnsText(e2.remainingTurns)}t)`;
+      if (e2.type === "alteration") {
+        const alterationName = String(e2.alterationName ?? "alt\xE9ration");
+        const stacks = Math.max(1, Math.floor(Number(e2.stacks ?? 1)));
+        return `${base}${alterationName}: -${Math.abs(Math.round(e2.amount * stacks))} PV/t (${turnsText(e2.remainingTurns)}t, x${stacks})`;
+      }
       if (e2.type === "hot")
         return `${base}HoT: +${Math.abs(Math.round(e2.amount))} PV/t (${turnsText(e2.remainingTurns)}t)`;
       if (e2.type === "mana_regen") {
@@ -6541,18 +6775,30 @@ var init_render_web = __esm({
           return `${base}Vuln\xE9rable: +${pct(e2.amount)} dmg re\xE7us (${hits} hit(s))`;
         return `${base}Vuln\xE9rable: +${pct(e2.amount)} dmg re\xE7us (${turnsText(e2.remainingTurns)}t)`;
       }
+      if (e2.type === "taunt")
+        return `${base}Provoqu\xE9: cible ${e2.tauntTargetName ?? "le provocateur"} (${turnsText(e2.remainingTurns)}t)`;
       return `${base}${e2.type}`;
     };
     norm = (s2) => String(s2 || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
     effectBadge = (e2) => {
       const id = norm(String(e2.sourceSkillId ?? ""));
       const name = norm(String(e2.sourceSkill ?? ""));
+      const alterationName = norm(String(e2.alterationName ?? ""));
       if (e2.type === "dot") {
         if (id.includes("poison") || name.includes("poison"))
           return { className: "dot poison", label: "\u2620" };
         if (id.includes("brulure") || name.includes("brulure") || name.includes("brul"))
           return { className: "dot burn", label: "\u{1F525}" };
         return { className: "dot", label: "DoT" };
+      }
+      if (e2.type === "alteration") {
+        if (alterationName.includes("poison"))
+          return { className: "dot poison", label: "\u2620" };
+        if (alterationName.includes("brulure") || alterationName.includes("brul"))
+          return { className: "dot burn", label: "\u{1F525}" };
+        if (alterationName.includes("saignement"))
+          return { className: "dot", label: "\u{1FA78}" };
+        return { className: "dot", label: "ALT" };
       }
       if (e2.type === "hot")
         return { className: "hot", label: "\u271A" };
@@ -6564,6 +6810,8 @@ var init_render_web = __esm({
         return { className: "defense", label: "\u{1F6E1}" };
       if (e2.type === "vulnerability")
         return { className: "vulnerability", label: "!" };
+      if (e2.type === "taunt")
+        return { className: "debuff", label: "!!" };
       if (e2.type === "mana_regen") {
         const isNeg = (e2.amount ?? 0) < 0;
         return { className: `mana_regen ${isNeg ? "neg" : "pos"}`, label: isNeg ? "M-" : "M+" };
@@ -7387,14 +7635,17 @@ function hasLearnedTalentPassiveNode(actor, nodeId) {
 function getTalentPassiveNodeDef(nodeId) {
   return TALENT_PASSIVE_NODE_DEFS[nodeId] ?? null;
 }
-var PASSIVE_CHARGE_DAMAGE_BOOST_NODE_ID, PASSIVE_CHARGE_STUN_TRAVERSED_NODE_ID, PASSIVE_WARRIOR_BLOCK_CORE_NODE_ID, PASSIVE_WARRIOR_BLOCK_REFLECT_CORE_NODE_ID, PASSIVE_ASSASSIN_POISON_ON_CRIT_NODE_ID, PASSIVE_ASSASSIN_COMBO_NODE_ID, TALENT_PASSIVE_NODE_DEFS;
+var PASSIVE_CHARGE_DAMAGE_BOOST_NODE_ID, PASSIVE_CHARGE_STUN_TRAVERSED_NODE_ID, PASSIVE_BARBARIAN_LIFESTEAL_NODE_ID, PASSIVE_WARRIOR_BLOCK_CORE_NODE_ID, PASSIVE_WARRIOR_BLOCK_REFLECT_CORE_NODE_ID, PASSIVE_WARRIOR_HEAVY_AXE_BLEED_CORE_NODE_ID, PASSIVE_THIEF_KILL_DAMAGE_CORE_NODE_ID, PASSIVE_ASSASSIN_POISON_ON_CRIT_NODE_ID, PASSIVE_ASSASSIN_COMBO_NODE_ID, TALENT_PASSIVE_NODE_DEFS;
 var init_talentPassives = __esm({
   "dist/talents/talentPassives.js"() {
     "use strict";
     PASSIVE_CHARGE_DAMAGE_BOOST_NODE_ID = "passive.guerrier.barbare.t1.p0";
     PASSIVE_CHARGE_STUN_TRAVERSED_NODE_ID = "passive.guerrier.gladiateur.t1.p0";
+    PASSIVE_BARBARIAN_LIFESTEAL_NODE_ID = "passive.guerrier.barbare.t1.p1";
     PASSIVE_WARRIOR_BLOCK_CORE_NODE_ID = "passive.guerrier.core.p0";
     PASSIVE_WARRIOR_BLOCK_REFLECT_CORE_NODE_ID = "passive.guerrier.core.p1";
+    PASSIVE_WARRIOR_HEAVY_AXE_BLEED_CORE_NODE_ID = "passive.guerrier.core.p7";
+    PASSIVE_THIEF_KILL_DAMAGE_CORE_NODE_ID = "passive.voleur.core.p2";
     PASSIVE_ASSASSIN_POISON_ON_CRIT_NODE_ID = "passive.voleur.assassin.t1.p0";
     PASSIVE_ASSASSIN_COMBO_NODE_ID = "passive.voleur.assassin.t1.p1";
     TALENT_PASSIVE_NODE_DEFS = {
@@ -7410,10 +7661,28 @@ var init_talentPassives = __esm({
         description: "Modifie Blocage: les attaques bloqu\xE9es renvoient 50% des d\xE9g\xE2ts re\xE7us \xE0 l attaquant.",
         grantsPassiveId: "blocage_epines"
       },
+      [PASSIVE_WARRIOR_HEAVY_AXE_BLEED_CORE_NODE_ID]: {
+        id: PASSIVE_WARRIOR_HEAVY_AXE_BLEED_CORE_NODE_ID,
+        name: "Hache cruelle",
+        description: "Hache lourde inflige 3 effets de saignement pendant 3 tours.",
+        grantsPassiveId: "guerrier_hache_lourde_saignement"
+      },
+      [PASSIVE_THIEF_KILL_DAMAGE_CORE_NODE_ID]: {
+        id: PASSIVE_THIEF_KILL_DAMAGE_CORE_NODE_ID,
+        name: "\xC9lan meurtrier",
+        description: "Si le voleur tue un ennemi, sa prochaine attaque inflige +20% de d\xE9g\xE2ts.",
+        grantsPassiveId: "assassin_elan_meurtrier"
+      },
       [PASSIVE_CHARGE_DAMAGE_BOOST_NODE_ID]: {
         id: PASSIVE_CHARGE_DAMAGE_BOOST_NODE_ID,
         name: "Charge brutale",
         description: "Modifie Charge: apr\xE8s le d\xE9placement, +50% d\xE9g\xE2ts jusqu'\xE0 la fin du tour."
+      },
+      [PASSIVE_BARBARIAN_LIFESTEAL_NODE_ID]: {
+        id: PASSIVE_BARBARIAN_LIFESTEAL_NODE_ID,
+        name: "Soif de sang",
+        description: "Le h\xE9ros gagne +10% vol de vie sur tous les d\xE9g\xE2ts inflig\xE9s, y compris les saignements.",
+        grantsPassiveId: "barbare_soif_de_sang"
       },
       [PASSIVE_CHARGE_STUN_TRAVERSED_NODE_ID]: {
         id: PASSIVE_CHARGE_STUN_TRAVERSED_NODE_ID,
@@ -7535,6 +7804,7 @@ function applySelfSkillOnce(state2, params) {
     for (const l2 of res.extraHistory.slice(0, 2))
       state2.log.unshift(l2);
   }
+  unit.actionPoints = Math.max(0, Math.floor(actor.actionPoints ?? unit.actionPoints));
   unit.pv = Math.max(0, Math.floor(actor.pv));
   unit.maxPv = Math.max(1, Math.floor(actor.maxPv ?? unit.maxPv ?? 1));
   return true;
@@ -7710,6 +7980,7 @@ function applySkillOnce(state2, params) {
     for (const l2 of res.extraHistory.slice(0, 3))
       state2.log.unshift(l2);
   }
+  unit.actionPoints = Math.max(0, Math.floor(actor.actionPoints ?? unit.actionPoints));
   if (res.damageFlashOnTarget && res.damageFlashOnTarget.actualDamage > 0) {
     applyAdventureWoundIfNeeded(state2, targetActor, res.damageFlashOnTarget.actualDamage);
   }
@@ -7751,6 +8022,13 @@ function applyAdventureWoundIfNeeded(state2, targetActor, actualDamage) {
   targetActor.pv = Math.min(Math.max(0, Math.floor(Number(targetActor?.pv ?? 0))), targetActor.maxPv);
 }
 function pickNearestTarget(state2, from, targetTeam) {
+  const tauntEffect = Array.isArray(from.actor?.activeEffects) ? from.actor.activeEffects.find((e2) => String(e2?.type ?? "") === "taunt" && Number(e2?.remainingTurns ?? 0) !== 0) : void 0;
+  if (tauntEffect && targetTeam === "allies") {
+    const tauntTargetName = String(tauntEffect.tauntTargetName ?? "").trim();
+    const tauntTarget = state2.units.find((u2) => u2.team === "allies" && u2.pv > 0 && String(u2.actor?.name ?? u2.name ?? "") === tauntTargetName);
+    if (tauntTarget)
+      return tauntTarget;
+  }
   const targets = state2.units.filter((u2) => u2.team === targetTeam && u2.pv > 0);
   let best;
   for (const t2 of targets) {
@@ -74039,12 +74317,161 @@ var init_tacticalOverlay_web = __esm({
 // dist/personnages.web.js
 var personnages_web_exports = {};
 __export(personnages_web_exports, {
+  configureCharacterCreationStats: () => configureCharacterCreationStats,
+  openCharacterCreationModals: () => openCharacterCreationModals,
   openPersonnageModalFromMap: () => openPersonnageModalFromMap,
+  showCharacterCreationDistributionScreen: () => showCharacterCreationDistributionScreen,
   showPersonnage1: () => showPersonnage1,
   showPersonnage2: () => showPersonnage2,
   showPersonnage3: () => showPersonnage3,
   showSelectionPersonnages: () => showSelectionPersonnages
 });
+function getCharacterPortraitUrl(actor) {
+  const cls = String(actor?.characterClass ?? "").toLowerCase();
+  if (cls === "mage")
+    return "ImagesRPG/imagespersonnage/mage.jpg";
+  if (cls === "voleur")
+    return "ImagesRPG/imagespersonnage/voleur.png";
+  return "https://img.freepik.com/vecteurs-premium/illustration-personnage_961307-22519.jpg";
+}
+function renderCharacterCreationStatRows(player) {
+  const points = Math.max(0, Math.floor(player.characteristicPoints ?? 0));
+  const chars = [
+    { key: "force", label: "Force", help: "+1 attaque / point" },
+    { key: "sante", label: "Sant\xE9", help: "+10 PV max / point" },
+    { key: "magie", label: "Magie", help: "+10 mana max / point" },
+    { key: "energie", label: "\xC9nergie", help: "+1 mana/tour / point" },
+    { key: "vitesse", label: "Vitesse", help: `initiative (total VIT: ${getBaseSpeedForActor(player, "allies")})` },
+    { key: "critique", label: "Critique", help: "chance = (critique/force)\xD7100, d\xE9g\xE2ts x2" },
+    { key: "defense", label: "D\xE9fense", help: "r\xE9duction = (d\xE9fense/attaque ennemi)\xD7100" },
+    { key: "connaissance", label: "Connaissance", help: "+1 point de comp\xE9tence / point" }
+  ];
+  return chars.map((c2) => {
+    const val = Math.max(0, Math.floor(Number(player.characteristics?.[c2.key] ?? 0)));
+    const disabled = points > 0 ? "" : "disabled";
+    return `
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.10);border-radius:12px;padding:8px 10px;">
+                    <div style="display:flex;flex-direction:column;gap:2px;">
+                        <div style="font-weight:600;">${c2.label} : <b>${val}</b></div>
+                        <div style="color:#b7b7b7;font-size:0.82em;">${c2.help}</div>
+                    </div>
+                    <button class="btn" data-creation-stat="${c2.key}" data-creation-actor="${escapeHtml(String(player.name))}" ${disabled} style="padding:2px 6px;min-width:34px;min-height:22px;font-size:0.8em;line-height:1;">+1</button>
+                </div>
+            `;
+  }).join("");
+}
+function configureCharacterCreationStats(player) {
+  const baseSkillPoints = Math.max(0, Math.floor(Number(player.skillPoints ?? 0)));
+  player.__creationBaseCharacteristics = { ...CHARACTER_CREATION_BASELINE };
+  player.__creationBaseCharacteristicPoints = CHARACTER_CREATION_POINTS;
+  player.__creationBaseSkillPoints = baseSkillPoints;
+  player.characteristics = { ...player.characteristics, ...CHARACTER_CREATION_BASELINE };
+  player.characteristicPoints = CHARACTER_CREATION_POINTS;
+  player.skillPoints = baseSkillPoints + Math.max(0, Math.floor(Number(CHARACTER_CREATION_BASELINE.connaissance ?? 0)));
+  player.syncDerivedStatsFromCharacteristics({ fillResources: true });
+}
+function resetCharacterCreationStats(player) {
+  const baseChars = player.__creationBaseCharacteristics ?? CHARACTER_CREATION_BASELINE;
+  const basePoints = Math.max(0, Math.floor(Number(player.__creationBaseCharacteristicPoints ?? CHARACTER_CREATION_POINTS)));
+  const baseSkillPoints = Math.max(0, Math.floor(Number(player.__creationBaseSkillPoints ?? player.skillPoints ?? 0)));
+  player.characteristics = { ...player.characteristics, ...baseChars };
+  player.characteristicPoints = basePoints;
+  player.skillPoints = baseSkillPoints + Math.max(0, Math.floor(Number(baseChars.connaissance ?? 0)));
+  player.syncDerivedStatsFromCharacteristics({ fillResources: true });
+}
+function openCharacterCreationModals(opts = {}) {
+  const order = Array.isArray(opts.order) && opts.order.length ? opts.order : [0, 1, 2];
+  openPersonnageModal({
+    startIndex: order[0],
+    guidedSequence: order,
+    allowStatReset: true,
+    onComplete: opts.onComplete
+  });
+}
+function showCharacterCreationDistributionScreen(opts = {}) {
+  const app2 = document.getElementById("app");
+  if (!app2)
+    return;
+  const orderedIndices = [0, 2, 1];
+  const render = () => {
+    const orderedMembers = orderedIndices.map((idx) => ({ idx, player: getPartyMember(idx) }));
+    app2.innerHTML = `
+            <img src="ImagesRPG/imagesfond/creation_personnage.png" class="background" alt="Distribution des caract\xE9ristiques">
+            <div class="centered-content" style="max-width:min(1440px, 96vw);padding:20px 0;">
+                <div style="background:rgba(8,10,18,0.74);border:1px solid rgba(255,255,255,0.14);border-radius:24px;padding:24px 22px;box-shadow:0 24px 70px rgba(0,0,0,0.45);backdrop-filter:blur(5px);color:#fff;">
+                    <div style="text-align:center;max-width:900px;margin:0 auto 20px auto;">
+                        <div style="font-size:0.95em;letter-spacing:0.28em;text-transform:uppercase;color:rgba(255,230,170,0.86);margin-bottom:10px;">Cr\xE9ation de personnage</div>
+                        <h1 style="margin:0 0 10px 0;font-family:'Cinzel','Georgia',serif;">R\xE9partition des caract\xE9ristiques</h1>
+                        <p style="margin:0;color:#e8e1d1;line-height:1.6;">Attribuez les points de d\xE9part de votre groupe. Base impos\xE9e : force 5, sant\xE9 5, magie 3, \xE9nergie 3. Les autres caract\xE9ristiques commencent \xE0 0, avec 15 points \xE0 r\xE9partir.</p>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:start;">
+                        ${orderedMembers.map(({ idx, player }) => {
+      const clsLabel = getPartyClassLabel(player);
+      const portrait = getCharacterPortraitUrl(player);
+      const points = Math.max(0, Math.floor(player.characteristicPoints ?? 0));
+      const pvMax = Math.max(1, Math.floor(player.effectiveMaxPv ?? player.maxPv ?? 1));
+      const manaMax = Math.max(1, Math.floor(player.effectiveMaxMana ?? player.maxMana ?? 1));
+      return `
+                                    <section style="background:rgba(15,18,30,0.82);border:1px solid rgba(255,255,255,0.12);border-radius:18px;padding:16px;box-shadow:0 10px 28px rgba(0,0,0,0.35);">
+                                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                                            <img src="${portrait}" alt="${escapeHtml(player.name)}" style="width:72px;height:72px;border-radius:14px;object-fit:cover;box-shadow:0 6px 18px rgba(0,0,0,0.45);">
+                                            <div style="display:flex;flex-direction:column;gap:4px;min-width:0;">
+                                                <div style="font-size:1.05em;font-weight:800;">${escapeHtml(player.name)}</div>
+                                                <div style="color:#d8c58b;font-size:0.92em;">${escapeHtml(clsLabel)}</div>
+                                                <div style="color:#bdbdbd;font-size:0.88em;">ATK <b>${Math.floor(player.effectiveAttack ?? player.baseAttack ?? 0)}</b> \u2022 PV <b>${pvMax}</b> \u2022 Mana <b>${manaMax}</b></div>
+                                            </div>
+                                        </div>
+
+                                        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+                                            <div style="font-size:1.02em;font-weight:700;">Caract\xE9ristiques</div>
+                                            <div style="color:#d7d7d7;font-size:0.94em;">Points : <b>${points}</b></div>
+                                        </div>
+
+                                        <div style="display:grid;grid-template-columns:1fr;gap:8px;">
+                                            ${renderCharacterCreationStatRows(player)}
+                                        </div>
+
+                                        <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+                                            <button class="btn" data-creation-reset="${idx}" style="min-width:110px;">Reset</button>
+                                        </div>
+                                    </section>
+                                `;
+    }).join("")}
+                    </div>
+
+                    <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:22px;">
+                        <button class="btn" id="backCharacterCreationDistributionBtn" style="min-width:220px;">Retour</button>
+                        <button class="btn" id="finishCharacterCreationDistributionBtn" style="min-width:260px;">Continuer vers Boaraven</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    orderedMembers.forEach(({ idx, player }) => {
+      app2.querySelectorAll(`[data-creation-actor="${CSS.escape(String(player.name))}"]`).forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const stat = btn.getAttribute("data-creation-stat");
+          try {
+            player.spendCharacteristicPoint?.(stat);
+          } catch {
+          }
+          render();
+        });
+      });
+      app2.querySelector(`[data-creation-reset="${idx}"]`)?.addEventListener("click", () => {
+        resetCharacterCreationStats(player);
+        render();
+      });
+    });
+    document.getElementById("backCharacterCreationDistributionBtn")?.addEventListener("click", () => {
+      opts.onBack?.();
+    });
+    document.getElementById("finishCharacterCreationDistributionBtn")?.addEventListener("click", () => {
+      opts.onComplete?.();
+    });
+  };
+  render();
+}
 function goVillage() {
   void Promise.resolve().then(() => (init_villageMain_web(), villageMain_web_exports)).then((m2) => m2.showVillage());
 }
@@ -74090,21 +74517,41 @@ function showSelectionPersonnages(options = {}) {
   document.getElementById("backBtn")?.addEventListener("click", options.onBack ?? goVillage);
 }
 function openPersonnageModalFromMap(opts = {}) {
-  openPersonnageModal(opts);
+  if (opts.startIndex === void 0) {
+    openPersonnageModal();
+    return;
+  }
+  openPersonnageModal({ startIndex: opts.startIndex });
 }
 function openPersonnageModal(opts = {}) {
   if (personnageModalEl)
     return;
   const party2 = getPartyMembers();
-  let selected = opts.startIndex ?? 0;
+  const sequence = Array.isArray(opts.guidedSequence) && opts.guidedSequence.length ? opts.guidedSequence : null;
+  let sequenceIndex = sequence ? Math.max(0, sequence.indexOf(opts.startIndex ?? sequence[0])) : -1;
+  if (sequence && sequenceIndex < 0)
+    sequenceIndex = 0;
+  let selected = sequence ? sequence[sequenceIndex] : opts.startIndex ?? 0;
+  const isGuidedCreation = Boolean(sequence);
   const close = () => {
     closeTitlesModal();
     personnageModalEl?.remove();
     personnageModalEl = null;
     document.removeEventListener("keydown", onKeyDown);
   };
+  const advanceOrComplete = () => {
+    if (!sequence || sequenceIndex >= sequence.length - 1) {
+      const onComplete = opts.onComplete;
+      close();
+      onComplete?.();
+      return;
+    }
+    sequenceIndex += 1;
+    selected = sequence[sequenceIndex];
+    render();
+  };
   const onKeyDown = (e2) => {
-    if (e2.key === "Escape")
+    if (e2.key === "Escape" && !isGuidedCreation)
       close();
   };
   document.addEventListener("keydown", onKeyDown);
@@ -74113,7 +74560,10 @@ function openPersonnageModal(opts = {}) {
   overlay.style.cssText = [
     "position:fixed",
     "inset:0",
-    "background:rgba(0,0,0,0.72)",
+    isGuidedCreation ? 'background-image:linear-gradient(rgba(0,0,0,0.52), rgba(0,0,0,0.52)), url("ImagesRPG/imagesfond/creation_personnage.png")' : "background:rgba(0,0,0,0.72)",
+    "background-size:cover",
+    "background-position:center",
+    "background-repeat:no-repeat",
     "z-index:9999",
     "display:flex",
     "align-items:center",
@@ -74122,24 +74572,16 @@ function openPersonnageModal(opts = {}) {
   ].join(";");
   const panel = document.createElement("div");
   panel.style.cssText = [
-    "width:min(920px, 96vw)",
-    "max-height:92vh",
+    isGuidedCreation ? "width:min(920px, 96vw)" : "width:min(600px, 96vw)",
+    isGuidedCreation ? "max-height:92vh" : "max-height:96vh",
     "overflow:auto",
     "background:rgba(20,20,24,0.96)",
     "border:1px solid rgba(255,255,255,0.10)",
     "border-radius:14px",
     "box-shadow:0 10px 40px rgba(0,0,0,0.65)",
-    "padding:16px",
+    isGuidedCreation ? "padding:16px" : "padding:14px",
     "color:#fff"
   ].join(";");
-  const getAvatarUrl = (actor) => {
-    const cls = String(actor?.characterClass ?? "").toLowerCase();
-    if (cls === "mage")
-      return "ImagesRPG/imagespersonnage/mage.jpg";
-    if (cls === "voleur")
-      return "ImagesRPG/imagespersonnage/voleur.png";
-    return "https://img.freepik.com/vecteurs-premium/illustration-personnage_961307-22519.jpg";
-  };
   const bar = (label, current, max, color) => {
     const safeMax = Math.max(1, Math.floor(max));
     const pct2 = Math.max(0, Math.min(100, Math.round(Math.max(0, current) / safeMax * 100)));
@@ -74247,10 +74689,12 @@ function openPersonnageModal(opts = {}) {
   const render = () => {
     const p2 = getPartyMember(selected);
     const clsLabel = getPartyClassLabel(p2);
-    const portrait = getAvatarUrl(p2);
+    const portrait = getCharacterPortraitUrl(p2);
     const pvMax = Math.max(1, Math.floor(p2.effectiveMaxPv ?? p2.maxPv ?? 1));
     const manaMax = Math.max(1, Math.floor(p2.effectiveMaxMana ?? p2.maxMana ?? 1));
     const points = Math.max(0, Math.floor(p2.characteristicPoints ?? 0));
+    const sequenceLabel = isGuidedCreation && sequence ? `R\xE9partition ${sequenceIndex + 1}/${sequence.length}` : "";
+    const nextLabel = isGuidedCreation && sequenceIndex >= 0 && sequence && sequenceIndex < sequence.length - 1 ? "Personnage suivant" : "Terminer";
     const honneur = clamp01002(hero.honneur ?? p2.honneur ?? 0);
     const liberte = clamp01002(hero.liberte ?? p2.liberte ?? 0);
     const humanite = clamp01002(hero.humanite ?? p2.humanite ?? 0);
@@ -74268,9 +74712,11 @@ function openPersonnageModal(opts = {}) {
             <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
                 <div style="display:flex;flex-direction:column;gap:4px;">
                     <div style="font-size:1.25em;font-weight:700;">${escapeHtml(p2.name)} \u2014 ${escapeHtml(clsLabel)}</div>
-                    <div style="color:#bbb;">Niveau <b>${p2.level}</b> \u2022 Points caract\xE9ristique: <b>${points}</b></div>
+                        <div style="color:#bbb;">Niveau <b>${p2.level}</b></div>
+                    ${sequenceLabel ? `<div style="color:#d8c58b;font-size:0.92em;">${sequenceLabel}</div>` : ""}
                 </div>
                 <div style="display:flex;gap:10px;align-items:center;">
+                    ${isGuidedCreation ? "" : `
                     <label style="color:#ccc;font-size:0.92em;">Personnage</label>
                     <select id="personnageModalSelect" style="background:rgba(255,255,255,0.06);color:#fff;border:1px solid rgba(255,255,255,0.14);border-radius:10px;padding:6px 10px;">
                         ${party2.map((m2, idx) => {
@@ -74279,28 +74725,29 @@ function openPersonnageModal(opts = {}) {
     }).join("")}
                     </select>
                     <button class="btn" id="personnageModalCloseBtn" style="min-width:90px;">Fermer</button>
+                    `}
                 </div>
             </div>
 
             ${xpBar(p2)}
 
-            <div style="display:flex;gap:16px;align-items:flex-start;margin-top:14px;flex-wrap:wrap;">
+            <div style="display:flex;gap:${isGuidedCreation ? "16px" : "12px"};align-items:flex-start;margin-top:${isGuidedCreation ? "14px" : "10px"};flex-wrap:wrap;">
                 <div style="flex:0 0 180px;">
-                    <img src="${portrait}" alt="Portrait" style="width:180px;height:180px;border-radius:14px;object-fit:cover;box-shadow:0 6px 18px rgba(0,0,0,0.6);" />
+                    <img src="${portrait}" alt="Portrait" style="width:${isGuidedCreation ? "180px" : "156px"};height:${isGuidedCreation ? "180px" : "156px"};border-radius:14px;object-fit:cover;box-shadow:0 6px 18px rgba(0,0,0,0.6);" />
                 </div>
                 <div style="flex:1 1 320px;min-width:280px;">
                     ${bar("PV", p2.pv ?? 0, pvMax, "linear-gradient(90deg,#ff4b4b,#a81818)")}
                     ${bar("Mana", p2.currentMana ?? 0, manaMax, "linear-gradient(90deg,#4ea7ff,#2b58ff)")}
-                    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;color:#ddd;">
-                        <div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:12px;">ATK: <b>${Math.floor(p2.effectiveAttack ?? p2.baseAttack ?? 0)}</b></div>
-                        <div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:12px;">Regen mana: <b>${Math.floor((p2.manaRegenPerTurn ?? 0) + (p2.getPassiveManaRegenPerTurnBonus?.() ?? 0))}</b>/tour</div>
-                        <div style="background:rgba(255,255,255,0.06);padding:8px 10px;border-radius:12px;">PA: <b>${Math.floor(p2.actionPoints ?? 0)}/${Math.floor(p2.actionPointsMax ?? 0)}</b></div>
+                    <div style="display:flex;gap:${isGuidedCreation ? "12px" : "8px"};flex-wrap:wrap;margin-top:${isGuidedCreation ? "8px" : "6px"};color:#ddd;">
+                        <div style="background:rgba(255,255,255,0.06);padding:${isGuidedCreation ? "8px 10px" : "6px 8px"};border-radius:12px;">ATK: <b>${Math.floor(p2.effectiveAttack ?? p2.baseAttack ?? 0)}</b></div>
+                        <div style="background:rgba(255,255,255,0.06);padding:${isGuidedCreation ? "8px 10px" : "6px 8px"};border-radius:12px;">Regen mana: <b>${Math.floor((p2.manaRegenPerTurn ?? 0) + (p2.getPassiveManaRegenPerTurnBonus?.() ?? 0))}</b>/tour</div>
+                        <div style="background:rgba(255,255,255,0.06);padding:${isGuidedCreation ? "8px 10px" : "6px 8px"};border-radius:12px;">PA: <b>${Math.floor(p2.actionPoints ?? 0)}/${Math.floor(p2.actionPointsMax ?? 0)}</b></div>
                     </div>
                 </div>
             </div>
 
-            <div style="margin-top:14px;border-top:1px solid rgba(255,255,255,0.10);padding-top:12px;">
-                <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:10px;flex-wrap:wrap;">
+            <div style="margin-top:${isGuidedCreation ? "14px" : "10px"};border-top:1px solid rgba(255,255,255,0.10);padding-top:${isGuidedCreation ? "12px" : "10px"};">
+                <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:${isGuidedCreation ? "10px" : "8px"};flex-wrap:wrap;">
                     <button class="btn" id="virtueTitlesBtn" style="min-width:110px;padding:6px 10px;border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);">Titres</button>
                     <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;justify-content:center;">
                         ${virtueBar("Honneur", honneur, "#ff4b4b")}
@@ -74308,22 +74755,31 @@ function openPersonnageModal(opts = {}) {
                         ${virtueBar("Humanit\xE9", humanite, "#4ea7ff")}
                     </div>
                 </div>
-                <div style="font-size:1.05em;font-weight:700;margin-bottom:10px;">Caract\xE9ristiques</div>
-                <div style="display:grid;grid-template-columns: 1fr;gap:8px;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:${isGuidedCreation ? "10px" : "8px"};">
+                        <div style="font-size:1.05em;font-weight:700;">Caract\xE9ristiques</div>
+                        <div style="color:#bbb;font-size:0.95em;">Points de caract\xE9ristique : <b>${points}</b></div>
+                    </div>
+                <div style="display:grid;grid-template-columns:${isGuidedCreation ? "1fr" : "repeat(2, minmax(0, 1fr))"};gap:${isGuidedCreation ? "8px" : "6px 8px"};align-items:start;">
                     ${chars.map((c2) => {
       const val = Math.max(0, Math.floor(Number(p2.characteristics?.[c2.key] ?? 0)));
       const disabled = points > 0 ? "" : "disabled";
       return `
-                                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:8px 10px;">
-                                    <div style="display:flex;flex-direction:column;gap:2px;">
-                                        <div style="font-weight:600;">${c2.label} : <b>${val}</b></div>
-                                        <div style="color:#999;font-size:0.85em;">${c2.help}</div>
+                                <div style="display:grid;grid-template-columns:minmax(0, 1fr) auto;align-items:center;column-gap:${isGuidedCreation ? "12px" : "4px"};background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:${isGuidedCreation ? "8px 10px" : "5px 6px"};">
+                                    <div style="display:flex;flex-direction:column;gap:${isGuidedCreation ? "2px" : "1px"};min-width:0;padding-right:${isGuidedCreation ? "0" : "2px"};">
+                                        <div style="font-weight:600;font-size:${isGuidedCreation ? "1em" : "0.92em"};">${c2.label} : <b>${val}</b></div>
+                                        <div style="color:#999;font-size:${isGuidedCreation ? "0.85em" : "0.76em"};line-height:1.15;">${c2.help}</div>
                                     </div>
-                                    <button class="btn" data-stat="${c2.key}" ${disabled} style="padding:2px 6px;min-width:34px;min-height:22px;font-size:0.8em;line-height:1;">+1</button>
+                                    <button class="btn" data-stat="${c2.key}" ${disabled} style="padding:${isGuidedCreation ? "2px 6px" : "1px 4px"};min-width:${isGuidedCreation ? "34px" : "26px"};width:${isGuidedCreation ? "auto" : "26px"};min-height:${isGuidedCreation ? "22px" : "20px"};font-size:${isGuidedCreation ? "0.8em" : "0.74em"};line-height:1;justify-self:end;">+1</button>
                                 </div>
                             `;
     }).join("")}
                 </div>
+                ${opts.allowStatReset || isGuidedCreation ? `
+                <div style="display:flex;justify-content:${isGuidedCreation ? "space-between" : "flex-end"};align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;">
+                    ${opts.allowStatReset ? `<button class="btn" id="personnageModalResetBtn" style="min-width:120px;">Reset</button>` : ""}
+                    ${isGuidedCreation ? `<button class="btn" id="personnageModalNextBtn" style="min-width:180px;">${nextLabel}</button>` : ""}
+                </div>
+                ` : ""}
             </div>
         `;
     panel.querySelector("#personnageModalCloseBtn")?.addEventListener("click", () => close());
@@ -74332,6 +74788,13 @@ function openPersonnageModal(opts = {}) {
       const v2 = Number(e2.target.value);
       selected = Number.isFinite(v2) ? v2 : selected;
       render();
+    });
+    panel.querySelector("#personnageModalResetBtn")?.addEventListener("click", () => {
+      resetCharacterCreationStats(p2);
+      render();
+    });
+    panel.querySelector("#personnageModalNextBtn")?.addEventListener("click", () => {
+      advanceOrComplete();
     });
     panel.querySelectorAll("[data-stat]").forEach((b2) => {
       b2.addEventListener("click", () => {
@@ -74347,7 +74810,7 @@ function openPersonnageModal(opts = {}) {
   render();
   overlay.appendChild(panel);
   overlay.addEventListener("click", (e2) => {
-    if (e2.target === overlay)
+    if (!isGuidedCreation && e2.target === overlay)
       close();
   });
   document.body.appendChild(overlay);
@@ -74383,12 +74846,14 @@ function renderFiche(idx, options) {
                     <p><b>Attaque :</b> ${p2.effectiveAttack} <small style="color:#777;">(base ${p2.baseAttack} + eq ${Object.values(p2.equipment).reduce((s2, eq) => s2 + (eq?.attackBonus || 0), 0)})</small></p>
                     <p><b>Argent :</b> ${p2.gold}</p>
                     <p><b>Points de comp\xE9tence :</b> ${p2.skillPoints}</p>
-                    <p><b>Points de caract\xE9ristique :</b> ${p2.characteristicPoints ?? 0}</p>
                 </div>
 
                 <!-- Colonne 2 : Caract\xE9ristiques (comme avant) -->
                 <div style="background:rgba(255,255,255,0.04);border-radius:12px;padding:18px;min-width:220px;max-width:260px;box-shadow:0 2px 12px rgba(0,0,0,0.15);flex:1 1 220px;align-self:stretch;">
-                    <h2 style="margin-top:0;">Caract\xE9ristiques</h2>
+                    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;">
+                        <h2 style="margin:0;">Caract\xE9ristiques</h2>
+                        <div style="color:#bbb;font-size:0.95em;">Points de caract\xE9ristique : <b>${p2.characteristicPoints ?? 0}</b></div>
+                    </div>
                     <div style="font-size:0.95em; color:#ddd;">
                         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
                             <div>Force : <b>${p2.characteristics?.force ?? 0}</b><br><small style="color:#999;">+1 attaque / point</small></div>
@@ -74464,7 +74929,7 @@ function showPersonnage2(options = {}) {
 function showPersonnage3(options = {}) {
   renderFiche(2, options);
 }
-var personnageModalEl;
+var CHARACTER_CREATION_BASELINE, CHARACTER_CREATION_POINTS, personnageModalEl;
 var init_personnages_web = __esm({
   "dist/personnages.web.js"() {
     "use strict";
@@ -74473,6 +74938,17 @@ var init_personnages_web = __esm({
     init_party_web();
     init_tacticalBoard();
     init_titles();
+    CHARACTER_CREATION_BASELINE = {
+      force: 5,
+      sante: 5,
+      energie: 3,
+      magie: 3,
+      vitesse: 0,
+      critique: 0,
+      defense: 0,
+      connaissance: 0
+    };
+    CHARACTER_CREATION_POINTS = 15;
     personnageModalEl = null;
   }
 });
@@ -74683,8 +75159,12 @@ function getSpecNodeSkillId(classId, specId, tier, slot) {
     return "poison";
   if (classId === "voleur" && specId === "assassin" && tier === 1 && slot === 1)
     return "drain_de_vie";
+  if (classId === "mage" && specId === "magicien" && tier === 1 && slot === 1)
+    return "boule_de_feu";
   if (classId === "voleur" && specId === "chasseur" && tier === 1 && slot === 1)
     return "tir_a_l_arc";
+  if (classId === "guerrier" && specId === "gladiateur" && tier === 1 && slot === 1)
+    return "harpon_chaine";
   return void 0;
 }
 function getOrCreateTalentTreeState(p2) {
@@ -74727,8 +75207,8 @@ var init_talentTree = __esm({
     };
     norm2 = (s2) => s2.trim().toLowerCase();
     CORE_SKILLS = {
-      mage: ["missile_magique", "mana_gain", "couteau_magique", "eclair", "boule_de_feu", "mana_groupe", "teleportation", "rayon_de_feu", "soin"],
-      guerrier: ["basic_attack", "block", "charge", "hache_lourde", "lancer_allie", "lancer_ennemi", "repouser", "harpon_chaine", "fureur"],
+      mage: ["missile_magique", "mana_gain", "couteau_magique", "eclair", "lame_de_givre", "mana_groupe", "teleportation", "rayon_de_feu", "soin"],
+      guerrier: ["basic_attack", "block", "charge", "hache_lourde", "lancer_allie", "lancer_ennemi", "repouser", "provocation", "fureur"],
       voleur: ["basic_attack", "mouvement_de_fou", "shuriken", "bombe_fumigene", "buff_attaque", "fragiliser", "assassinat", "immobiliser", "gain_pa_groupe"]
     };
   }
@@ -74739,6 +75219,39 @@ var talentTree_web_exports = {};
 __export(talentTree_web_exports, {
   showTalentTree: () => showTalentTree
 });
+function getTutorialAudioFlagsStore(hero2) {
+  if (!hero2)
+    return {};
+  if (!hero2.__tutorialAudioFlags || typeof hero2.__tutorialAudioFlags !== "object") {
+    hero2.__tutorialAudioFlags = {};
+  }
+  return hero2.__tutorialAudioFlags;
+}
+function maybePlayTalentTreeTutorialOnce() {
+  const hero2 = window.game?.hero;
+  if (!hero2)
+    return false;
+  const flags = getTutorialAudioFlagsStore(hero2);
+  if (flags.talent_tree_opened)
+    return false;
+  flags.talent_tree_opened = true;
+  const audioManager = window.game?.audioManager;
+  if (!audioManager)
+    return false;
+  if (typeof audioManager.playOnceExclusive === "function") {
+    audioManager.playOnceExclusive("voix_tuto_arbretalents");
+    return true;
+  }
+  if (typeof audioManager.playOnce === "function") {
+    audioManager.playOnce("voix_tuto_arbretalents");
+    return true;
+  }
+  if (typeof audioManager.play === "function") {
+    audioManager.play("voix_tuto_arbretalents");
+    return true;
+  }
+  return false;
+}
 function clamp3(n2, min, max) {
   return Math.max(min, Math.min(max, n2));
 }
@@ -75062,6 +75575,7 @@ function showTalentTree(options = {}) {
   const app2 = document.getElementById("app");
   if (!app2)
     return;
+  maybePlayTalentTreeTutorialOnce();
   let selectedIdx = options.selectedIdx ?? 0;
   const render = () => {
     const party2 = getPartyMembers();
@@ -82196,12 +82710,13 @@ function ensureRendererStyles() {
 		.tactical-grid.plateau-grid.pixi-board .unit-sprite-wrap[data-open-hub="1"] { pointer-events: none; }
 
 		/* Keep the overflowing iso board above side panels so edge tiles stay clickable */
-		.plateau-board-wrap { position: relative; display: inline-block; overflow: visible; transform: translateY(10%); z-index: 500; }
+		.plateau-board-wrap { position: relative; display: inline-block; overflow: visible; transform: translateY(10%); z-index: 500; --boaravenNightOpacity: 0; }
 		/* IMPORTANT: a transformed ancestor breaks position:fixed sizing in some browsers.
 		   When Pixi board is enabled, we must remove the transform so the fullscreen canvas truly uses the viewport. */
 		.plateau-board-wrap.pixi-board-wrap { transform: none; margin-top: 2vh; }
 		.plateau-board-wrap.pixi-board-wrap::after { display: none; }
-		.plateau-board-wrap.pixi-board-wrap .plateau-bg { display: none; }
+		.plateau-board-wrap.pixi-board-wrap .plateau-bg,
+		.plateau-board-wrap.pixi-board-wrap .plateau-bg-night { display: none; }
 		/* Diamond overlay under the grid (gap darkening) */
 		.plateau-board-wrap::after {
 			content:'';
@@ -82232,12 +82747,39 @@ function ensureRendererStyles() {
 			width:100%;
 			height:100%;
 			object-fit:contain;
+			opacity: calc(1 - var(--boaravenNightOpacity, 0));
 			transform: translate(-50%, -50%) scale(var(--plateauBgScale, 1));
 			transform-origin: center;
 			z-index:0;
-			filter: brightness(0.75);
+			filter: brightness(var(--plateauBgBrightness, 0.75)) saturate(var(--plateauBgSaturation, 1));
 			background:#000;
 			pointer-events:none;
+			transition: opacity 1800ms ease, filter 900ms ease;
+		}
+		.plateau-board-wrap .plateau-bg-night {
+			position:absolute;
+			left:50%;
+			top:50%;
+			width:100%;
+			height:100%;
+			object-fit:contain;
+			transform: translate(-50%, -50%) scale(var(--plateauBgScale, 1));
+			transform-origin: center;
+			z-index:0;
+			opacity: var(--boaravenNightOpacity, 0);
+			filter: brightness(var(--plateauBgNightBrightness, 0.96)) saturate(var(--plateauBgNightSaturation, 1));
+			pointer-events:none;
+			transition: opacity 1800ms ease, filter 900ms ease;
+		}
+		.tactical-wrap .world-night-veil {
+			position:fixed;
+			inset:0;
+			z-index:1100;
+			pointer-events:none;
+			display:none;
+			background:
+				linear-gradient(180deg, rgba(2, 4, 12, calc(var(--worldNightOpacity, 0) * 0.98)) 0%, rgba(6, 10, 24, var(--worldNightOpacity, 0)) 100%),
+				radial-gradient(circle at 50% 16%, rgba(38, 66, 118, calc(var(--worldNightOpacity, 0) * 0.14)) 0%, rgba(4, 8, 18, 0) 38%);
 		}
 		.tactical-grid.plateau-grid {
 			/* Movement mode: keep full board size (old 0.9 made the board feel too small). */
@@ -82290,10 +82832,31 @@ function ensureRendererStyles() {
 			background-repeat: no-repeat;
 			z-index: 0;
 		}
-		.tactical-grid.plateau-grid .tile > :not(.tile-bg) { position: relative; z-index: 1; }
-		.tactical-grid.plateau-grid .tile:hover .tile-bg { filter: brightness(1.07) saturate(1.05); }
-		.tactical-grid.plateau-grid .tile.interactive .tile-bg { box-shadow: inset 0 0 0 1px rgba(255, 215, 0, 0.16); }
-		.tactical-grid.plateau-grid .tile.blocked .tile-bg { filter: saturate(0.92) brightness(0.98); }
+		.tactical-grid.plateau-grid .tile-bg-night {
+			position: absolute;
+			left: 50%;
+			top: 50%;
+			width: var(--isoTileW, 64px);
+			height: var(--isoTileH, 32px);
+			transform: translate(-50%, -50%);
+			pointer-events: none;
+			clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+			-webkit-clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+			background-image: var(--houseBgNightImage, none);
+			background-size: var(--houseBgNightSize, auto);
+			background-position: var(--houseBgNightPosX, 0px) var(--houseBgNightPosY, 0px);
+			background-repeat: no-repeat;
+			z-index: 0;
+			opacity: var(--boaravenNightOpacity, 0);
+			transition: opacity 1800ms ease, filter 180ms ease;
+		}
+		.tactical-grid.plateau-grid .tile > :not(.tile-bg):not(.tile-bg-night) { position: relative; z-index: 1; }
+		.tactical-grid.plateau-grid .tile:hover .tile-bg,
+		.tactical-grid.plateau-grid .tile:hover .tile-bg-night { filter: brightness(1.07) saturate(1.05); }
+		.tactical-grid.plateau-grid .tile.interactive .tile-bg,
+		.tactical-grid.plateau-grid .tile.interactive .tile-bg-night { box-shadow: inset 0 0 0 1px rgba(255, 215, 0, 0.16); }
+		.tactical-grid.plateau-grid .tile.blocked .tile-bg,
+		.tactical-grid.plateau-grid .tile.blocked .tile-bg-night { filter: saturate(0.92) brightness(0.98); }
 
 		/* Sprite sizing for exploration */
 		.tactical-grid.plateau-grid .unit-sprite { width: 129% !important; height: 145% !important; }
@@ -82376,7 +82939,8 @@ function ensureRendererStyles() {
 			transform: translateY(-10%);
 		}
 		/* NPC image tiles: hide the diamond tile-bg cutout so no dark overlay appears behind the sprite */
-		.tactical-grid.plateau-grid .tile:has(.plateau-marker.npc-img) .tile-bg { opacity: 0; }
+		.tactical-grid.plateau-grid .tile:has(.plateau-marker.npc-img) .tile-bg,
+		.tactical-grid.plateau-grid .tile:has(.plateau-marker.npc-img) .tile-bg-night { opacity: 0; }
 		/* World map hover tooltip */
 		#worldMapTooltip {
 			position: fixed;
@@ -82468,7 +83032,9 @@ function scheduleIsoLayout(app2, gridEl, cols, rows, layout, map) {
     const bgTy = toPct(bgTranslateY);
     const wrap2 = gridEl.closest(".plateau-board-wrap");
     const bgEl2 = wrap2?.querySelector("img.plateau-bg");
+    const bgNightEl2 = wrap2?.querySelector("img.plateau-bg-night");
     const bgSrc = bgEl2?.getAttribute("src") ?? "";
+    const bgNightSrc = bgNightEl2?.getAttribute("src") ?? "";
     if (wrap2)
       wrap2.style.setProperty("--plateauBgScale", String(BG_SCALE));
     let bgTranslatePxX = 0;
@@ -82480,27 +83046,32 @@ function scheduleIsoLayout(app2, gridEl, cols, rows, layout, map) {
     if (bgEl2) {
       bgEl2.style.transform = `translate(-50%, -50%) translate(${Math.round(bgTranslatePxX)}px, ${Math.round(bgTranslatePxY)}px) scale(${BG_SCALE})`;
     }
-    let bgDrawW = 0;
-    let bgDrawH = 0;
-    let bgOffsetX = 0;
-    let bgOffsetY = 0;
-    const natW = Number(bgEl2?.naturalWidth ?? 0);
-    const natH = Number(bgEl2?.naturalHeight ?? 0);
-    if (bgEl2 && natW > 0 && natH > 0 && gridW > 10 && gridH > 10) {
+    if (bgNightEl2) {
+      bgNightEl2.style.transform = `translate(-50%, -50%) translate(${Math.round(bgTranslatePxX)}px, ${Math.round(bgTranslatePxY)}px) scale(${BG_SCALE})`;
+    }
+    const resolveBgMetrics = (img) => {
+      const natW = Number(img?.naturalWidth ?? 0);
+      const natH = Number(img?.naturalHeight ?? 0);
+      if (!img || natW <= 0 || natH <= 0 || gridW <= 10 || gridH <= 10) {
+        return { drawW: 0, drawH: 0, offsetX: 0, offsetY: 0 };
+      }
       const fitScale = Math.min(gridW / natW, gridH / natH);
       const scale = fitScale * BG_SCALE;
-      bgDrawW = natW * scale;
-      bgDrawH = natH * scale;
-      bgOffsetX = (gridW - bgDrawW) / 2;
-      bgOffsetY = (gridH - bgDrawH) / 2;
-      bgOffsetX += bgTranslatePxX;
-      bgOffsetY += bgTranslatePxY;
-      gridEl.style.setProperty("--houseBgImage", bgSrc ? `url("${bgSrc}")` : "none");
-      gridEl.style.setProperty("--houseBgSize", `${Math.round(bgDrawW)}px ${Math.round(bgDrawH)}px`);
-    } else {
-      gridEl.style.setProperty("--houseBgImage", bgSrc ? `url("${bgSrc}")` : "none");
-      gridEl.style.setProperty("--houseBgSize", "auto");
-    }
+      const drawW = natW * scale;
+      const drawH = natH * scale;
+      return {
+        drawW,
+        drawH,
+        offsetX: (gridW - drawW) / 2 + bgTranslatePxX,
+        offsetY: (gridH - drawH) / 2 + bgTranslatePxY
+      };
+    };
+    const bgMetrics = resolveBgMetrics(bgEl2);
+    const bgNightMetrics = resolveBgMetrics(bgNightEl2);
+    gridEl.style.setProperty("--houseBgImage", bgSrc ? `url("${bgSrc}")` : "none");
+    gridEl.style.setProperty("--houseBgSize", bgMetrics.drawW > 10 && bgMetrics.drawH > 10 ? `${Math.round(bgMetrics.drawW)}px ${Math.round(bgMetrics.drawH)}px` : "auto");
+    gridEl.style.setProperty("--houseBgNightImage", bgNightSrc ? `url("${bgNightSrc}")` : "none");
+    gridEl.style.setProperty("--houseBgNightSize", bgNightMetrics.drawW > 10 && bgNightMetrics.drawH > 10 ? `${Math.round(bgNightMetrics.drawW)}px ${Math.round(bgNightMetrics.drawH)}px` : "auto");
     const minX = -(rows - 1) * stepW;
     const maxX = (cols - 1) * stepW;
     const minY = 0;
@@ -82536,14 +83107,23 @@ function scheduleIsoLayout(app2, gridEl, cols, rows, layout, map) {
       el.style.left = `${cx}px`;
       el.style.top = `${cy}px`;
       el.style.zIndex = String(Math.floor((x2 + y2) * 100 + x2));
-      if (bgDrawW > 10 && bgDrawH > 10) {
-        const desiredBgPosX = bgOffsetX - cx + tileW / 2;
-        const desiredBgPosY = bgOffsetY - cy + tileH / 2;
+      if (bgMetrics.drawW > 10 && bgMetrics.drawH > 10) {
+        const desiredBgPosX = bgMetrics.offsetX - cx + tileW / 2;
+        const desiredBgPosY = bgMetrics.offsetY - cy + tileH / 2;
         el.style.setProperty("--houseBgPosX", `${Math.round(desiredBgPosX)}px`);
         el.style.setProperty("--houseBgPosY", `${Math.round(desiredBgPosY)}px`);
       } else {
         el.style.setProperty("--houseBgPosX", "0px");
         el.style.setProperty("--houseBgPosY", "0px");
+      }
+      if (bgNightMetrics.drawW > 10 && bgNightMetrics.drawH > 10) {
+        const desiredBgNightPosX = bgNightMetrics.offsetX - cx + tileW / 2;
+        const desiredBgNightPosY = bgNightMetrics.offsetY - cy + tileH / 2;
+        el.style.setProperty("--houseBgNightPosX", `${Math.round(desiredBgNightPosX)}px`);
+        el.style.setProperty("--houseBgNightPosY", `${Math.round(desiredBgNightPosY)}px`);
+      } else {
+        el.style.setProperty("--houseBgNightPosX", "0px");
+        el.style.setProperty("--houseBgNightPosY", "0px");
       }
       polyParts.push(`<polygon class="iso-tile" points="${polygonFor(cx, cy)}"></polygon>`);
     }
@@ -82555,19 +83135,28 @@ function scheduleIsoLayout(app2, gridEl, cols, rows, layout, map) {
   });
   const wrap = gridEl.closest(".plateau-board-wrap");
   const bgEl = wrap?.querySelector("img.plateau-bg");
-  if (bgEl && !bgEl.complete) {
-    bgEl.addEventListener("load", () => {
-      requestAnimationFrame(() => {
-        layoutIsoGrid();
-        setTimeout(() => layoutIsoGrid(), 80);
-      });
-    }, { once: true });
-    bgEl.addEventListener("error", () => {
-      showTemporaryMessage(`Image de fond introuvable: ${bgEl.getAttribute("src") ?? ""}`, 3200);
-    }, { once: true });
-  } else if (bgEl && bgEl.complete && (bgEl.naturalWidth ?? 0) === 0) {
-    showTemporaryMessage(`Image de fond introuvable: ${bgEl.getAttribute("src") ?? ""}`, 3200);
-  }
+  const bgNightEl = wrap?.querySelector("img.plateau-bg-night");
+  const bindBgImageLayout = (img) => {
+    if (!img)
+      return;
+    if (!img.complete) {
+      img.addEventListener("load", () => {
+        requestAnimationFrame(() => {
+          layoutIsoGrid();
+          setTimeout(() => layoutIsoGrid(), 80);
+        });
+      }, { once: true });
+      img.addEventListener("error", () => {
+        showTemporaryMessage(`Image de fond introuvable: ${img.getAttribute("src") ?? ""}`, 3200);
+      }, { once: true });
+      return;
+    }
+    if ((img.naturalWidth ?? 0) === 0) {
+      showTemporaryMessage(`Image de fond introuvable: ${img.getAttribute("src") ?? ""}`, 3200);
+    }
+  };
+  bindBgImageLayout(bgEl);
+  bindBgImageLayout(bgNightEl);
 }
 function leaderSpriteSrc() {
   const party2 = getPartyMembers().slice(0, 1);
@@ -83328,6 +83917,7 @@ function showPlateauMapRenderer(opts) {
   const BOARAVEN_MAP_ID = "village_y0x1";
   const BOARAVEN_BABY_NPC_ID = "boaraven_villageoise_bebe";
   const BOARAVEN_BABY_STATE_KEY = `${BOARAVEN_MAP_ID}:${BOARAVEN_BABY_NPC_ID}`;
+  const BOARAVEN_NIGHT_BG_SRC = "ImagesRPG/imagesfond/boaraven_nuit.png";
   const BOARAVEN_BABY_DEFAULT_IMAGE = "ImagesRPG/imagespersonnage/villageoise_boaraven b\xE9b\xE9 pleure.png";
   const BOARAVEN_BABY_HAPPY_IMAGE = "ImagesRPG/imagespersonnage/villageoise_boaraven bebe happy.png";
   const BOARAVEN_BABY_CRYING_AUDIO = "boaraven_baby_crying";
@@ -83338,6 +83928,45 @@ function showPlateauMapRenderer(opts) {
   const FOREST_CLEARING_DUNGEON_BG_SRC = "ImagesRPG/imagesfond/donjon_foret_clairiere.jpeg";
   const FOREST_CLEARING_FIRST_VISIT_VOICE_STATE_KEY = `${FOREST_CLEARING_MAP_ID}:first_visit_voice`;
   const getHeroForWorld = () => getPartyMembers()[0] ?? window.game?.hero;
+  const getWorldHour = () => {
+    const hero2 = getHeroForWorld();
+    return Math.max(0, Math.min(23, Math.floor(Number(getGameTime(hero2).hour ?? 0))));
+  };
+  const isWorldNightHour = (hour) => hour >= 21 || hour < 8;
+  const getWorldNightPresentation = () => {
+    const hour = getWorldHour();
+    if (isWorldNightHour(hour))
+      return { brightness: 0.28, saturation: 0.7, veilOpacity: 0.66 };
+    return { brightness: 0.75, saturation: 1, veilOpacity: 0 };
+  };
+  const getBoaravenNightBlend = () => {
+    const hour = getWorldHour();
+    return isWorldNightHour(hour) ? 1 : 0;
+  };
+  const getWorldMapBackgroundSrc = (map) => {
+    const resolvedMap = map ?? opts.world.currentMap;
+    const defaultSrc = String(resolvedMap?.backgroundSrc ?? "");
+    if (!resolvedMap || String(resolvedMap.id) !== BOARAVEN_MAP_ID)
+      return defaultSrc;
+    return getBoaravenNightBlend() > 0 ? BOARAVEN_NIGHT_BG_SRC : defaultSrc;
+  };
+  const applyWorldNightPresentation = () => {
+    const tacticalWrap = document.querySelector(".tactical-wrap");
+    const veil = document.getElementById("worldNightVeil");
+    const wrap = document.querySelector(".plateau-board-wrap");
+    if (!wrap || !tacticalWrap || !veil)
+      return;
+    const presentation = getWorldNightPresentation();
+    const isBoaravenVillage = String(opts.world.currentMapId) === BOARAVEN_MAP_ID;
+    const boaravenNightOpacity = isBoaravenVillage ? getBoaravenNightBlend() : 0;
+    wrap.style.setProperty("--plateauBgBrightness", String(presentation.brightness));
+    wrap.style.setProperty("--plateauBgSaturation", String(presentation.saturation));
+    wrap.style.setProperty("--boaravenNightOpacity", String(boaravenNightOpacity));
+    wrap.style.setProperty("--plateauBgNightBrightness", String(isBoaravenVillage ? 0.96 : presentation.brightness));
+    wrap.style.setProperty("--plateauBgNightSaturation", String(isBoaravenVillage ? 1 : presentation.saturation));
+    tacticalWrap.style.setProperty("--worldNightOpacity", "0");
+    veil.style.opacity = "0";
+  };
   const getHeroDay = () => {
     const hero2 = getHeroForWorld();
     const raw = Number(hero2?.day ?? hero2?.marketDay ?? 1);
@@ -83358,6 +83987,39 @@ function showPlateauMapRenderer(opts) {
     if (!hero2.__worldEncounterDefeats)
       hero2.__worldEncounterDefeats = {};
     return hero2.__worldEncounterDefeats;
+  };
+  const getTutorialAudioFlagsStore2 = (hero2) => {
+    if (!hero2)
+      return {};
+    if (!hero2.__tutorialAudioFlags || typeof hero2.__tutorialAudioFlags !== "object") {
+      hero2.__tutorialAudioFlags = {};
+    }
+    return hero2.__tutorialAudioFlags;
+  };
+  const maybePlayTutorialAudioOnce = (flagKey, audioKey) => {
+    const hero2 = getHeroForWorld();
+    if (!hero2)
+      return false;
+    const flags = getTutorialAudioFlagsStore2(hero2);
+    if (flags[flagKey])
+      return false;
+    flags[flagKey] = true;
+    const audioManager = window.game?.audioManager;
+    if (!audioManager)
+      return false;
+    if (typeof audioManager.playOnceExclusive === "function") {
+      audioManager.playOnceExclusive(audioKey);
+      return true;
+    }
+    if (typeof audioManager.playOnce === "function") {
+      audioManager.playOnce(audioKey);
+      return true;
+    }
+    if (typeof audioManager.play === "function") {
+      audioManager.play(audioKey);
+      return true;
+    }
+    return false;
   };
   const getBoaravenBabyState = () => {
     const hero2 = getHeroForWorld();
@@ -83539,6 +84201,7 @@ function showPlateauMapRenderer(opts) {
   };
   const getVisibleMapForPixi = (map) => ({
     ...map,
+    backgroundSrc: getWorldMapBackgroundSrc(map),
     tiles: (map.tiles ?? []).filter((tile) => isTileVisible(map, tile) || Boolean(tile?.exit) || Boolean(tile?.npc))
   });
   const listHiddenEncounterTokensForMap = (mapId, map) => {
@@ -83614,8 +84277,13 @@ function showPlateauMapRenderer(opts) {
     }
     gameTimeHandler = () => {
       updateHudTime();
+      applyWorldNightPresentation();
       const sync = syncBoaravenBabyNpcPresentation();
-      if (sync.visualChanged && String(opts.world.currentMapId) === BOARAVEN_MAP_ID)
+      if (String(opts.world.currentMapId) === BOARAVEN_MAP_ID) {
+        render();
+        return;
+      }
+      if (sync.visualChanged)
         render();
     };
     try {
@@ -83789,6 +84457,7 @@ function showPlateauMapRenderer(opts) {
         return;
       }
       if (tile.eventId === "fabrication") {
+        maybePlayTutorialAudioOnce("boaraven_fabrication", "voix_tuto_equipement");
         showFabricationModal({ onClose: () => render() });
         return;
       }
@@ -83862,6 +84531,10 @@ function showPlateauMapRenderer(opts) {
   };
   const render = () => {
     const map = opts.world.currentMap;
+    if (String(opts.world.currentMapId) === BOARAVEN_MAP_ID)
+      maybePlayTutorialAudioOnce("boaraven_arrival", "voix_tuto_boaraven");
+    if (String(opts.world.currentMapId) === "boaraven_house")
+      maybePlayTutorialAudioOnce("boaraven_house_entry", "voix_tuto_maison");
     syncBoaravenBabyNpcPresentation();
     const pos = opts.world.playerPos;
     const randomEncounterChance = randomEncounterChanceForMap(map);
@@ -83892,8 +84565,10 @@ function showPlateauMapRenderer(opts) {
     const boardStyle = cssParts.length ? ` style="${cssParts.join("; ")};"` : "";
     const disableOverlay = map.meta?.disableOverlay ?? true;
     const noOverlayClass = disableOverlay ? " no-board-overlay" : "";
+    const boaravenNightBgHtml = String(map.id) === BOARAVEN_MAP_ID ? `<img src="${escapeHtml(BOARAVEN_NIGHT_BG_SRC)}" class="plateau-bg-night" alt="${escapeHtml(`${map.name} nuit`)}">` : "";
     app2.innerHTML = `
 			<div class="tactical-wrap">
+				<div id="worldNightVeil" class="world-night-veil" aria-hidden="true"></div>
 				${hasFabricationAccess ? `<button id="worldFabricationBtn" aria-label="Ouvrir la fabrication" style="position:fixed;left:24px;bottom:24px;z-index:9500;width:72px;height:72px;padding:0;border:none;background:transparent;box-shadow:none;cursor:pointer;"><img src="ImagesRPG/imagesobjets/enclume.png" alt="Fabrication" style="width:100%;height:100%;object-fit:contain;display:block;filter:drop-shadow(0 10px 18px rgba(0,0,0,0.35));opacity:0.96;"></button>` : ""}
 				<div id="worldQuickToolbar" class="tactical-log-toolbar tactical-toolbar-fixed" aria-label="Raccourcis" style="bottom:${hasFabricationAccess ? "112px" : "24px"};">
 					<button class="btn tactical-tool-btn" id="worldToolbarInventoryBtn" title="Inventaire" aria-label="Inventaire"><span aria-hidden="true">\u{1F4E6}</span></button>
@@ -83922,6 +84597,7 @@ function showPlateauMapRenderer(opts) {
 					<div class="tactical-center plateau-overflow">
 						<div class="plateau-board-wrap${noOverlayClass}"${boardStyle}>
 							<img src="${escapeHtml(String(map.backgroundSrc ?? ""))}" class="plateau-bg" alt="${escapeHtml(map.name)}">
+							${boaravenNightBgHtml}
 							<div class="tactical-grid plateau-grid iso" id="${GRID_ID}" aria-label="Carte">
 								${wantPixiBoard ? "" : Array.from({ length: map.w * map.h }).map((_, i2) => {
       const x2 = i2 % map.w;
@@ -83947,7 +84623,7 @@ function showPlateauMapRenderer(opts) {
         return _cnt > 1 ? `${_nm} \xD7${_cnt}` : _nm;
       })() : "";
       const _tileTip = _npcTip || _eneTip;
-      return `<div class="tile ${isBlocked ? "blocked" : ""} ${isInteractive ? "interactive" : ""}" data-x="${x2}" data-y="${y2}"${_tileTip ? ` data-tooltip="${_tileTip}"` : ""}><div class="tile-bg" aria-hidden="true"></div>${content}</div>`;
+      return `<div class="tile ${isBlocked ? "blocked" : ""} ${isInteractive ? "interactive" : ""}" data-x="${x2}" data-y="${y2}"${_tileTip ? ` data-tooltip="${_tileTip}"` : ""}><div class="tile-bg" aria-hidden="true"></div><div class="tile-bg-night" aria-hidden="true"></div>${content}</div>`;
     }).join("")}
 							</div>
 						</div>
@@ -84022,6 +84698,7 @@ function showPlateauMapRenderer(opts) {
     document.getElementById("worldFabricationBtn")?.addEventListener("click", () => {
       stopMovement();
       teardownWorldPixiOverlay();
+      maybePlayTutorialAudioOnce("boaraven_fabrication", "voix_tuto_equipement");
       showFabricationModal({ onClose: () => render() });
     });
     document.getElementById("worldToolbarInventoryBtn")?.addEventListener("click", () => {
@@ -84084,6 +84761,7 @@ function showPlateauMapRenderer(opts) {
       const top = Math.floor((vh - h2) / 2);
       return { left, top, width: w2, height: h2 };
     };
+    applyWorldNightPresentation();
     if (wantPixiBoard) {
       const tacticalWrap = grid.closest(".tactical-wrap");
       tacticalWrap?.classList.add("pixi-world-ui");
@@ -86793,11 +87471,13 @@ function showPersonnage() {
                     <p><b>Attaque :</b> ${hero.effectiveAttack} <small style="color:#777;">(base ${hero.baseAttack} + eq ${Object.values(hero.equipment).reduce((s2, eq) => s2 + (eq?.attackBonus || 0), 0)})</small></p>
                     <p><b>Argent :</b> ${hero.gold}</p>
                     <p><b>Points de comp\xE9tence :</b> ${hero.skillPoints}</p>
-                    <p><b>Points de caract\xE9ristique :</b> ${hero.characteristicPoints ?? 0}</p>
                 </div>
                 <!-- Colonne 2 : Caract\xE9ristiques -->
                 <div style="background:rgba(255,255,255,0.04);border-radius:12px;padding:18px;min-width:220px;max-width:260px;box-shadow:0 2px 12px rgba(0,0,0,0.15);flex:1 1 220px;align-self:stretch;">
-                    <h2 style="margin-top:0;">Caract\xE9ristiques</h2>
+                    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;">
+                        <h2 style="margin:0;">Caract\xE9ristiques</h2>
+                        <div style="color:#bbb;font-size:0.95em;">Points de caract\xE9ristique : <b>${hero.characteristicPoints ?? 0}</b></div>
+                    </div>
                     <div style="font-size:0.95em; color:#ddd;">
                         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
                             <div>Force : <b>${hero.characteristics?.force ?? 0}</b><br><small style="color:#999;">+1 attaque / point</small></div>
@@ -87894,7 +88574,13 @@ function buildSaveData(hero2) {
         remainingTurns: e2.remainingTurns,
         remainingHits: e2.remainingHits,
         reflectDamage: Boolean(e2.reflectDamage),
-        reflectDamageMultiplier: Number(e2.reflectDamageMultiplier ?? 0)
+        reflectDamageMultiplier: Number(e2.reflectDamageMultiplier ?? 0),
+        ...String(e2.sourceSkill ?? "").trim() ? { sourceSkill: String(e2.sourceSkill ?? "").trim() } : {},
+        ...String(e2.sourceSkillId ?? "").trim() ? { sourceSkillId: String(e2.sourceSkillId ?? "").trim() } : {},
+        ...Number.isFinite(Number(e2.sourceAttack)) ? { sourceAttack: Number(e2.sourceAttack) } : {},
+        ...String(e2.alterationName ?? "").trim() ? { alterationName: String(e2.alterationName ?? "").trim() } : {},
+        ...Number.isFinite(Number(e2.stacks)) ? { stacks: Math.max(1, Math.floor(Number(e2.stacks ?? 1))) } : {},
+        ...String(e2.tauntTargetName ?? "").trim() ? { tauntTargetName: String(e2.tauntTargetName ?? "").trim() } : {}
       })),
       quests: hero2.quests ?? hero2.quests ?? {},
       // Persist solved puzzles (énigmes)
@@ -87911,9 +88597,16 @@ function buildSaveData(hero2) {
       humanite: Math.max(0, Math.min(100, clampInt5(hero2.humanite ?? 0, 0))),
       // Party-shared titles
       ...titles.length ? { titles } : {},
+      ...String(hero2.__partyBond ?? "").trim() ? { partyBond: String(hero2.__partyBond ?? "").trim() } : {},
+      ...String(hero2.__partyLeader ?? "").trim() ? { partyLeader: String(hero2.__partyLeader ?? "").trim() } : {},
+      ...String(hero2.__partyMotive ?? "").trim() ? { partyMotive: String(hero2.__partyMotive ?? "").trim() } : {},
+      ...String(hero2.__partyCompanyName ?? "").trim() ? { partyCompanyName: String(hero2.__partyCompanyName ?? "").trim() } : {},
+      ...String(hero2.__villagePerception ?? "").trim() ? { villagePerception: String(hero2.__villagePerception ?? "").trim() } : {},
+      ...String(hero2.__startingGift ?? "").trim() ? { startingGift: String(hero2.__startingGift ?? "").trim() } : {},
       // World map: encounters defeated today should remain hidden after reload
       worldEncounterDefeats: hero2.__worldEncounterDefeats ?? void 0,
       worldMapStates: hero2.__worldMapStates ?? void 0,
+      tutorialAudioFlags: hero2.__tutorialAudioFlags ?? void 0,
       ...Array.isArray(hero2.__jukeboxOwnedTrackIds) ? {
         jukeboxOwnedTrackIds: hero2.__jukeboxOwnedTrackIds.map((trackId) => String(trackId ?? "").trim()).filter(Boolean)
       } : {},
@@ -87939,6 +88632,12 @@ function applySaveData(hero2, save) {
   hero2.cuir = save.hero.cuir ?? hero2.cuir ?? 0;
   hero2.fer = save.hero.fer ?? hero2.fer ?? 0;
   hero2.skillPoints = save.hero.skillPoints;
+  hero2.__partyBond = save.hero.partyBond ?? hero2.__partyBond;
+  hero2.__partyLeader = save.hero.partyLeader ?? hero2.__partyLeader;
+  hero2.__partyMotive = save.hero.partyMotive ?? hero2.__partyMotive;
+  hero2.__partyCompanyName = save.hero.partyCompanyName ?? hero2.__partyCompanyName;
+  hero2.__villagePerception = save.hero.villagePerception ?? hero2.__villagePerception;
+  hero2.__startingGift = save.hero.startingGift ?? hero2.__startingGift;
   hero2.learnedSkillIds = save.hero.learnedSkillIds ?? hero2.learnedSkillIds ?? [];
   hero2.specializationPoints = save.hero.specializationPoints ?? hero2.specializationPoints ?? { guerrier: 0, mage: 0, voleur: 0 };
   hero2.passiveSkills = (save.hero.passiveSkills ?? hero2.passiveSkills ?? []).filter(Boolean);
@@ -87995,11 +88694,23 @@ function applySaveData(hero2, save) {
     remainingTurns: e2.remainingTurns,
     remainingHits: e2.remainingHits,
     reflectDamage: Boolean(e2.reflectDamage),
-    reflectDamageMultiplier: Number(e2.reflectDamageMultiplier ?? 0)
+    reflectDamageMultiplier: Number(e2.reflectDamageMultiplier ?? 0),
+    ...String(e2.sourceSkill ?? "").trim() ? { sourceSkill: String(e2.sourceSkill ?? "").trim() } : {},
+    ...String(e2.sourceSkillId ?? "").trim() ? { sourceSkillId: String(e2.sourceSkillId ?? "").trim() } : {},
+    ...Number.isFinite(Number(e2.sourceAttack)) ? { sourceAttack: Number(e2.sourceAttack) } : {},
+    ...String(e2.alterationName ?? "").trim() ? { alterationName: String(e2.alterationName ?? "").trim() } : {},
+    ...Number.isFinite(Number(e2.stacks)) ? { stacks: Math.max(1, Math.floor(Number(e2.stacks ?? 1))) } : {},
+    ...String(e2.tauntTargetName ?? "").trim() ? { tauntTargetName: String(e2.tauntTargetName ?? "").trim() } : {}
   }));
   hero2.quests = save.hero.quests ?? hero2.quests ?? {};
   hero2.enigmes = save.hero.enigmes ?? hero2.enigmes ?? {};
-  hero2.skills = (save.hero.skills || []).map(deserializeSkill);
+  const heroClass = String(save.hero.characterClass ?? hero2.characterClass ?? "").toLowerCase();
+  hero2.skills = (save.hero.skills || []).map((data) => {
+    if (data?.type === "damage" && data.name === "Attaque de base" && (data.skillId === "basic_attack" || data.key === "A")) {
+      return createClassAdjustedSkill("basic_attack", heroClass);
+    }
+    return deserializeSkill(data);
+  });
   hero2.inventory = (save.hero.inventory || []).map(deserializeItem);
   hero2.equipment = {};
   Object.keys(save.hero.equipment || {}).forEach((slot) => {
@@ -88030,6 +88741,7 @@ function applySaveData(hero2, save) {
   }
   hero2.__worldEncounterDefeats = save.hero.worldEncounterDefeats ?? hero2.__worldEncounterDefeats ?? {};
   hero2.__worldMapStates = save.hero.worldMapStates ?? hero2.__worldMapStates ?? {};
+  hero2.__tutorialAudioFlags = save.hero.tutorialAudioFlags ?? hero2.__tutorialAudioFlags ?? {};
   const market = deserializeMarket(save.hero.market);
   if (market)
     hero2.market = market;
@@ -88153,6 +88865,7 @@ var init_save_web = __esm({
     "use strict";
     init_player();
     init_skill();
+    init_skillLibrary();
     init_item();
     SAVE_STORAGE_KEY = "rpg.save.v1";
     SAVE_STORAGE_KEY_PREFIX = "rpg.save.slot.v1";
@@ -88162,30 +88875,249 @@ var init_save_web = __esm({
 });
 
 // dist/newGame.web.js
-function renderBondLabel(bond) {
+function renderNarrativeBondLabel(bond) {
   if (bond === "freres")
-    return "Trois freres";
+    return "trois fr\xE8res";
   if (bond === "amis")
-    return "Trois amis";
+    return "trois amis d'enfance";
   if (bond === "prodiges")
-    return "Trois prodiges choisis par le village";
-  return "Lien non choisi";
+    return "trois prodiges du village";
+  return "trois jeunes du village";
 }
-function renderLeaderLabel(leader) {
-  if (leader === "guerrier")
-    return "Le guerrier";
-  if (leader === "voleur")
-    return "Le voleur";
-  if (leader === "mage")
-    return "Le mage";
-  return "Chef non choisi";
+function renderNarrativeMotiveLabel(motive) {
+  if (motive === "greatest_warrior")
+    return "devenir le plus grand guerrier du royaume";
+  if (motive === "fortune")
+    return "trouver la gloire, la fortune et l\u2019aventure";
+  if (motive === "legendary_source") {
+    return "percer le myst\xE8re de la source l\xE9gendaire dont le doyen murmurait l\u2019existence aux enfants fascin\xE9s";
+  }
+  return "tracer leur propre destin\xE9e";
 }
-function renderGiftLabel(gift) {
-  if (gift === "gold")
-    return "150 argent pour le depart";
-  if (gift === "skill-points")
-    return "1 point de competence pour chaque personnage";
-  return "Don non choisi";
+function buildOpeningNarrativeText(state2) {
+  const companyName = String(state2.companyName ?? "").trim() || "les Sans-Nom";
+  return [
+    "De leur petit village paisible, ils connaissaient chaque pierre, chaque visage, chaque odeur. Une vie simple, tranquille, la seule que presque tout le monde ici ait jamais voulue.",
+    "",
+    `Mais ${renderNarrativeBondLabel(state2.bond)} avaient la t\xEAte ailleurs. Des r\xEAves trop grands pour les ruelles du hameau, berc\xE9s par les r\xE9cits des doyens, aventuriers d\u2019antan.`,
+    "",
+    `Ils s\u2019appellent ${companyName}. De simples aventuriers partis d\u2019un hameau dont personne ne se souvient. R\xE9ussiront-ils \xE0 ${renderNarrativeMotiveLabel(state2.motive)} ?`,
+    "",
+    "Ils l\u2019ignorent encore, mais leur aventure pourrait bien changer le destin du royaume tout entier."
+  ].join("\n");
+}
+function playBlockingCreationCinematic(frames, audioSrc) {
+  return new Promise((resolve) => {
+    const body = document.body;
+    if (!body) {
+      resolve();
+      return;
+    }
+    const safeFrames = frames.length ? frames : CHARACTER_CREATION_INTRO_FRAMES;
+    let frameIndex = 0;
+    let settled = false;
+    let frameTimer = null;
+    const overlay = document.createElement("div");
+    overlay.setAttribute("data-character-creation-cinematic", "1");
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.zIndex = "99999";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.background = "rgba(0, 0, 0, 0.88)";
+    overlay.style.pointerEvents = "auto";
+    overlay.style.cursor = "wait";
+    const panel = document.createElement("div");
+    panel.style.position = "relative";
+    panel.style.width = "100vw";
+    panel.style.height = "100vh";
+    panel.style.overflow = "hidden";
+    panel.style.display = "flex";
+    panel.style.alignItems = "center";
+    panel.style.justifyContent = "center";
+    panel.style.background = "#000";
+    const image = document.createElement("img");
+    image.style.position = "absolute";
+    image.style.inset = "0";
+    image.style.width = "100%";
+    image.style.height = "100%";
+    image.style.objectFit = "contain";
+    image.style.objectPosition = "center center";
+    image.draggable = false;
+    const overlayImage = document.createElement("img");
+    overlayImage.style.position = "absolute";
+    overlayImage.style.left = "50%";
+    overlayImage.style.top = "0";
+    overlayImage.style.width = "20%";
+    overlayImage.style.height = "20%";
+    overlayImage.style.transform = "translateX(-50%)";
+    overlayImage.style.objectFit = "contain";
+    overlayImage.style.objectPosition = "center top";
+    overlayImage.style.pointerEvents = "none";
+    overlayImage.style.display = "none";
+    overlayImage.draggable = false;
+    const veil = document.createElement("div");
+    veil.style.position = "absolute";
+    veil.style.inset = "0";
+    veil.style.pointerEvents = "none";
+    const caption = document.createElement("div");
+    caption.style.position = "absolute";
+    caption.style.left = "50%";
+    caption.style.bottom = "48px";
+    caption.style.transform = "translateX(-50%)";
+    caption.style.maxWidth = "min(760px, calc(100vw - 48px))";
+    caption.style.padding = "14px 18px";
+    caption.style.border = "1px solid rgba(255,255,255,0.18)";
+    caption.style.borderRadius = "16px";
+    caption.style.background = "rgba(8, 10, 18, 0.56)";
+    caption.style.backdropFilter = "blur(6px)";
+    caption.style.color = "#f4ead2";
+    caption.style.fontFamily = "'Cinzel','Georgia',serif";
+    caption.style.fontSize = "1.05rem";
+    caption.style.lineHeight = "1.55";
+    caption.style.textAlign = "center";
+    caption.style.letterSpacing = "0.02em";
+    const continueButton = document.createElement("button");
+    continueButton.type = "button";
+    continueButton.textContent = "Continuer";
+    continueButton.style.position = "absolute";
+    continueButton.style.left = "50%";
+    continueButton.style.bottom = "48px";
+    continueButton.style.transform = "translateX(-50%)";
+    continueButton.style.padding = "12px 24px";
+    continueButton.style.border = "1px solid rgba(255,255,255,0.24)";
+    continueButton.style.borderRadius = "999px";
+    continueButton.style.background = "rgba(12, 16, 28, 0.82)";
+    continueButton.style.color = "#f4ead2";
+    continueButton.style.fontFamily = "'Cinzel','Georgia',serif";
+    continueButton.style.fontSize = "1rem";
+    continueButton.style.fontWeight = "700";
+    continueButton.style.cursor = "pointer";
+    continueButton.style.display = "none";
+    continueButton.style.pointerEvents = "auto";
+    const renderFrame = () => {
+      const frame = safeFrames[Math.max(0, Math.min(frameIndex, safeFrames.length - 1))] ?? DEFAULT_CINEMATIC_FRAME;
+      const isLastFrame = frameIndex >= safeFrames.length - 1;
+      const useOverlay = Boolean(frame.overlayOnPrevious && frameIndex > 0);
+      const baseFrame = useOverlay ? safeFrames[frameIndex - 1] ?? DEFAULT_CINEMATIC_FRAME : frame;
+      image.src = baseFrame.imageSrc;
+      image.alt = baseFrame.alt;
+      if (useOverlay) {
+        overlayImage.src = frame.imageSrc;
+        overlayImage.alt = frame.alt;
+        overlayImage.style.display = "block";
+      } else {
+        overlayImage.removeAttribute("src");
+        overlayImage.alt = "";
+        overlayImage.style.display = "none";
+      }
+      caption.textContent = String(frame.caption ?? "").trim();
+      caption.style.display = String(frame.caption ?? "").trim() ? "block" : "none";
+      continueButton.style.display = isLastFrame ? "block" : "none";
+      continueButton.style.bottom = caption.style.display === "none" ? "48px" : "128px";
+    };
+    const scheduleNextFrame = () => {
+      if (frameTimer != null)
+        window.clearTimeout(frameTimer);
+      if (frameIndex >= safeFrames.length - 1)
+        return;
+      const current = safeFrames[frameIndex] ?? DEFAULT_CINEMATIC_FRAME;
+      const durationMs = Math.max(250, Math.floor(Number(current.durationMs ?? 3100)));
+      frameTimer = window.setTimeout(() => {
+        frameIndex += 1;
+        renderFrame();
+        scheduleNextFrame();
+      }, durationMs);
+    };
+    const audioManager = window.game?.audioManager;
+    const pausedLoopingNames = typeof audioManager?.pauseAllLooping === "function" ? audioManager.pauseAllLooping() : [];
+    const audio = new Audio(audioSrc);
+    audio.volume = 0.95;
+    audio.preload = "auto";
+    const stopEvent = (event) => {
+      const target = event.target;
+      if (target?.closest("button"))
+        return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    const finish = () => {
+      if (settled)
+        return;
+      settled = true;
+      if (frameTimer != null)
+        window.clearTimeout(frameTimer);
+      audio.pause();
+      audio.removeEventListener("ended", finish);
+      audio.removeEventListener("error", finish);
+      overlay.remove();
+      if (typeof audioManager?.resumeMany === "function" && pausedLoopingNames.length) {
+        audioManager.resumeMany(pausedLoopingNames);
+      }
+      resolve();
+    };
+    continueButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (frameIndex < safeFrames.length - 1)
+        return;
+      finish();
+    });
+    overlay.addEventListener("pointerdown", stopEvent, true);
+    overlay.addEventListener("click", stopEvent, true);
+    overlay.addEventListener("mousedown", stopEvent, true);
+    overlay.addEventListener("mouseup", stopEvent, true);
+    renderFrame();
+    scheduleNextFrame();
+    panel.appendChild(image);
+    panel.appendChild(overlayImage);
+    panel.appendChild(veil);
+    panel.appendChild(caption);
+    panel.appendChild(continueButton);
+    overlay.appendChild(panel);
+    body.appendChild(overlay);
+    audio.addEventListener("ended", () => {
+    });
+    audio.addEventListener("error", () => {
+    });
+    audio.play().catch(() => {
+    });
+  });
+}
+function buildOpeningNarrativeScript(state2, options) {
+  return {
+    id: "new_game_opening_narrative",
+    start: "opening",
+    nodes: {
+      opening: {
+        id: "opening",
+        speaker: "Le chroniqueur",
+        side: "left",
+        text: buildOpeningNarrativeText(state2),
+        choices: [
+          {
+            text: "Commencer l\u2019aventure",
+            onSelect: () => {
+              showBoaravenWorldMap({ onBack: options.onBackAfterStart ?? options.onCancel ?? (() => {
+              }) });
+            }
+          }
+        ]
+      }
+    }
+  };
+}
+function askCompanyName(currentName) {
+  const proposed = window.prompt("Quel est le nom de votre compagnie ?", String(currentName ?? "").trim());
+  const value = String(proposed ?? "").trim();
+  if (!value)
+    return null;
+  return value.slice(0, 60);
+}
+function grantStartingEquipment() {
+  const trainingRing = new Equipment("anneau_depart", "Anneau du d\xE9part", "Un anneau confi\xE9 par le village. Il offre un l\xE9ger avantage pour bien commencer.", "ring", 1, 0, 10, 10, 0);
+  hero.inventory.push(trainingRing);
 }
 function resetHeroForNewGame() {
   hero.pv = 0;
@@ -88204,7 +89136,7 @@ function resetHeroForNewGame() {
   hero.skillPoints = 0;
   hero.characteristicPoints = 0;
   hero.skills = [
-    createSkill("basic_attack"),
+    createClassAdjustedSkill("basic_attack", "guerrier"),
     createSkill("block"),
     createSkill("mana_gain"),
     createSkill("missile_magique")
@@ -88234,6 +89166,9 @@ function resetHeroForNewGame() {
   hero.__worldMapStates = {};
   hero.__partyBond = void 0;
   hero.__partyLeader = void 0;
+  hero.__partyMotive = void 0;
+  hero.__partyCompanyName = void 0;
+  hero.__villagePerception = void 0;
   hero.__startingGift = void 0;
   hero.__partyProgress = void 0;
   hero.__hasStartedGame = false;
@@ -88244,6 +89179,9 @@ function applyCreationChoices(state2) {
   resetPartyRuntime();
   hero.__partyBond = state2.bond;
   hero.__partyLeader = state2.leader;
+  hero.__partyMotive = state2.motive;
+  hero.__partyCompanyName = state2.companyName;
+  hero.__villagePerception = state2.villagePerception;
   hero.__startingGift = state2.gift;
   hero.__hasStartedGame = true;
   if (state2.leader === "guerrier")
@@ -88252,14 +89190,26 @@ function applyCreationChoices(state2) {
     addLiberte(hero, 10);
   if (state2.leader === "mage")
     addHumanite(hero, 10);
+  if (state2.villagePerception === "respect")
+    addHonneur(hero, 3);
+  if (state2.villagePerception === "curiosity")
+    addLiberte(hero, 3);
+  if (state2.villagePerception === "affection")
+    addHumanite(hero, 3);
+  if (state2.gift === "equipment") {
+    grantStartingEquipment();
+  }
   if (state2.gift === "gold") {
-    hero.gold = 150;
+    hero.gold = 200;
   }
   const members = getPartyMembers();
   if (state2.gift === "skill-points") {
     for (const member of members) {
       member.skillPoints = Math.max(0, Math.floor(Number(member.skillPoints ?? 0))) + 1;
     }
+  }
+  for (const member of members) {
+    configureCharacterCreationStats(member);
   }
   if (state2.leader === "mage")
     setSelectedPartyIndex(1);
@@ -88274,10 +89224,10 @@ function applyCreationChoices(state2) {
     game2.questManager = new QuestManager(hero, QUEST_DEFS);
   }
 }
-function buildCreationScript(state2, options) {
+function buildCreationScript(state2, options, startNode = "intro") {
   return {
     id: "new_game_character_creation",
-    start: "intro",
+    start: startNode,
     nodes: {
       intro: {
         id: "intro",
@@ -88294,25 +89244,29 @@ function buildCreationScript(state2, options) {
         choicesLayout: "grid-3",
         choices: [
           {
-            text: "3 Fr\xE8res",
+            text: "Trois fr\xE8res",
             onSelect: () => {
               state2.bond = "freres";
             },
             next: "leader"
           },
           {
-            text: "3 Amis",
+            text: "Trois amis d'enfance",
             onSelect: () => {
               state2.bond = "amis";
             },
             next: "leader"
           },
           {
-            text: "3 Prodiges choisis par le village",
+            text: "Trois prodiges choisis par le village",
             onSelect: () => {
               state2.bond = "prodiges";
             },
             next: "leader"
+          },
+          {
+            text: "Retour",
+            next: "intro"
           }
         ]
       },
@@ -88324,25 +89278,125 @@ function buildCreationScript(state2, options) {
         choicesLayout: "grid-3",
         choices: [
           {
-            text: "Le guerrier (+10 Honneur)",
+            text: "Le guerrier \u2014 droit, solide, il parle avec autorit\xE9 (+10 Honneur)",
             onSelect: () => {
               state2.leader = "guerrier";
             },
-            next: "gift"
+            next: "motive"
           },
           {
-            text: "Le voleur (+10 Liberte)",
+            text: "Le voleur \u2014 habile, charmeur, il sait trouver les mots (+10 Libert\xE9)",
             onSelect: () => {
               state2.leader = "voleur";
             },
-            next: "gift"
+            next: "motive"
           },
           {
-            text: "Le mage (+10 Humanite)",
+            text: "Le mage \u2014 sensible, attentif, il \xE9coute avant de parler (+10 Humanit\xE9)",
             onSelect: () => {
               state2.leader = "mage";
             },
+            next: "motive"
+          },
+          {
+            text: "Retour",
+            next: "bond"
+          }
+        ]
+      },
+      motive: {
+        id: "motive",
+        speaker: "Le chroniqueur",
+        side: "left",
+        text: "Pourquoi vous aventurez-vous hors de votre village ? ",
+        choicesLayout: "grid-3",
+        choices: [
+          {
+            text: "Devenir le plus grand guerrier du royaume",
+            onSelect: () => {
+              state2.motive = "greatest_warrior";
+            },
+            next: "company_name"
+          },
+          {
+            text: "Chercher fortune, aventure et gloire",
+            onSelect: () => {
+              state2.motive = "fortune";
+            },
+            next: "company_name"
+          },
+          {
+            text: "Trouver la source l\xE9gendaire dont le doyen murmurait l'existence aux enfants du village",
+            onSelect: () => {
+              state2.motive = "legendary_source";
+            },
+            next: "company_name"
+          },
+          {
+            text: "Retour",
+            next: "leader"
+          }
+        ]
+      },
+      company_name: {
+        id: "company_name",
+        speaker: "Le chroniqueur",
+        side: "left",
+        text: () => `Quel est le nom de votre compagnie ?${state2.companyName ? `
+
+Nom actuel : ${state2.companyName}` : "\n\nAucun nom saisi pour le moment."}`,
+        choices: () => [
+          {
+            text: state2.companyName ? "Modifier le nom" : "Saisir le nom",
+            onSelect: () => {
+              const value = askCompanyName(state2.companyName);
+              if (value)
+                state2.companyName = value;
+            },
+            next: "company_name"
+          },
+          {
+            text: "Continuer",
+            enabled: () => Boolean(String(state2.companyName ?? "").trim()),
+            next: "perception"
+          },
+          {
+            text: "Retour",
+            next: "motive"
+          }
+        ]
+      },
+      perception: {
+        id: "perception",
+        speaker: "Le chroniqueur",
+        side: "left",
+        text: "Comment le village vous per\xE7oit-il ?",
+        choicesLayout: "grid-3",
+        choices: [
+          {
+            text: "Avec respect \u2014 vous \xEAtes droits, fiables, on compte sur vous (+3 Honneur)",
+            onSelect: () => {
+              state2.villagePerception = "respect";
+            },
             next: "gift"
+          },
+          {
+            text: "Avec curiosit\xE9 \u2014 vous \xEAtes impr\xE9visibles, audacieux, on vous regarde partir avec envie (+3 Libert\xE9)",
+            onSelect: () => {
+              state2.villagePerception = "curiosity";
+            },
+            next: "gift"
+          },
+          {
+            text: "Avec affection \u2014 vous \xEAtes bons, g\xE9n\xE9reux, on vous aime sinc\xE8rement (+3 Humanit\xE9)",
+            onSelect: () => {
+              state2.villagePerception = "affection";
+            },
+            next: "gift"
+          },
+          {
+            text: "Retour",
+            next: "company_name"
           }
         ]
       },
@@ -88353,18 +89407,29 @@ function buildCreationScript(state2, options) {
         text: "Que vous a t on confie pour votre depart ?",
         choices: [
           {
-            text: "150 argent",
+            text: "Un \xE9quipement qui vous fera progresser plus vite",
+            onSelect: () => {
+              state2.gift = "equipment";
+            },
+            next: "final"
+          },
+          {
+            text: "Une bourse de 200 pi\xE8ces",
             onSelect: () => {
               state2.gift = "gold";
             },
             next: "final"
           },
           {
-            text: "1 point de competence pour chaque personnage",
+            text: "Un dernier enseignement \u2014 1 point de comp\xE9tence par personnage",
             onSelect: () => {
               state2.gift = "skill-points";
             },
             next: "final"
+          },
+          {
+            text: "Retour",
+            next: "perception"
           }
         ]
       },
@@ -88372,19 +89437,35 @@ function buildCreationScript(state2, options) {
         id: "final",
         speaker: "Le chroniqueur",
         side: "left",
-        text: `${renderBondLabel(state2.bond)}. ${renderLeaderLabel(state2.leader)} guidera la compagnie. Pour le depart : ${renderGiftLabel(state2.gift)}.
-
-Les portes s ouvrent. Boaraven vous attend.`,
+        text: "Tout est pr\xEAt. Il ne reste plus qu\u2019\xE0 r\xE9partir les caract\xE9ristiques de votre groupe avant le d\xE9part.",
         choices: [
           {
-            text: "Entrer dans Boaraven",
+            text: "R\xE9partir les caract\xE9ristiques",
             onSelect: () => {
               applyCreationChoices(state2);
               window.setTimeout(() => {
-                showBoaravenWorldMap({ onBack: options.onBackAfterStart ?? options.onCancel ?? (() => {
-                }) });
+                showCharacterCreationDistributionScreen({
+                  onBack: () => {
+                    startDialogue(buildCreationScript(state2, options, "final"), {
+                      hero,
+                      questManager: window.game?.questManager
+                    });
+                  },
+                  onComplete: () => {
+                    void playBlockingCreationCinematic(CHARACTER_CREATION_INTRO_FRAMES, CHARACTER_CREATION_INTRO_AUDIO).then(() => {
+                      startDialogue(buildOpeningNarrativeScript(state2, options), {
+                        hero,
+                        questManager: window.game?.questManager
+                      });
+                    });
+                  }
+                });
               }, 0);
             }
+          },
+          {
+            text: "Retour",
+            next: "gift"
           }
         ]
       }
@@ -88398,12 +89479,15 @@ function showNewGameCreation(options = {}) {
   const state2 = {
     bond: null,
     leader: null,
+    motive: null,
+    companyName: null,
+    villagePerception: null,
     gift: null
   };
   app2.innerHTML = `
-        <img src="ImagesRPG/imagesfond/fond_saint_michel.avif" class="background" alt="Creation de personnage">
+        <img src="ImagesRPG/imagesfond/creation_personnage.png" class="background" alt="Creation de personnage">
         <div class="centered-content" style="max-width:min(860px, 92vw);">
-            <div style="background:rgba(8,10,18,0.70);border:1px solid rgba(255,255,255,0.16);border-radius:20px;padding:28px 24px;box-shadow:0 24px 70px rgba(0,0,0,0.45);backdrop-filter:blur(5px);">
+            <div style="background:rgba(8,10,18,0);border:1px solid rgba(255,255,255,0.16);border-radius:20px;padding:28px 24px;box-shadow:0 24px 70px rgba(0,0,0,0.45);">
                 <div style="font-size:0.95em;letter-spacing:0.28em;text-transform:uppercase;color:rgba(255,230,170,0.86);margin-bottom:10px;">Nouvelle partie</div>
                 <h1 style="margin:0 0 10px 0;font-family:'Cinzel','Georgia',serif;">Creation du groupe</h1>
                 <p style="margin:0 auto 14px auto;max-width:680px;line-height:1.6;color:#f2eee4;">
@@ -88414,25 +89498,25 @@ function showNewGameCreation(options = {}) {
                     <button class="btn" id="cancelCharacterCreationBtn" style="min-width:220px;">Retour accueil</button>
                 </div>
                 <div style="margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.10);color:#d9d1bc;font-size:0.95em;line-height:1.6;">
-                    <div><b>Questions prevues :</b> lien du groupe, chef de la compagnie, don de depart.</div>
-                    <div><b>Arrivee :</b> la carte de Boaraven, directement apres le dernier choix.</div>
+                    <div><b>Questions pr\xE9vues :</b> lien du groupe, porte-parole, raison du d\xE9part, nom de compagnie, perception du village, don de d\xE9part.</div>
+                    <div><b>Arrivee :</b> repartition des caracteristiques des 3 personnages, puis carte de Boaraven.</div>
                 </div>
             </div>
         </div>
     `;
-  const launchDialogue = () => {
-    startDialogue(buildCreationScript(state2, options), {
+  const launchDialogue = (startNode = "intro") => {
+    startDialogue(buildCreationScript(state2, options, startNode), {
       hero,
       questManager: window.game?.questManager
     });
   };
-  document.getElementById("startCharacterCreationBtn")?.addEventListener("click", launchDialogue);
+  document.getElementById("startCharacterCreationBtn")?.addEventListener("click", () => launchDialogue());
   document.getElementById("cancelCharacterCreationBtn")?.addEventListener("click", () => {
     dialogueManager.close();
     options.onCancel?.();
   });
 }
-var BASE_CHARACTERISTICS;
+var CHARACTER_CREATION_INTRO_AUDIO, CHARACTER_CREATION_INTRO_FRAMES, DEFAULT_CINEMATIC_FRAME, BASE_CHARACTERISTICS;
 var init_newGame_web = __esm({
   "dist/newGame.web.js"() {
     "use strict";
@@ -88444,9 +89528,67 @@ var init_newGame_web = __esm({
     init_quests();
     init_virtues();
     init_titles();
+    init_personnages_web();
+    init_item();
     init_worldMap_web();
+    CHARACTER_CREATION_INTRO_AUDIO = "sounds/VOIX PNJ/VOIX_INTRO.mp3";
+    CHARACTER_CREATION_INTRO_FRAMES = [
+      {
+        imageSrc: "ImagesRPG/imagesfond/cinematique/Intro_cinema3.5.png",
+        alt: "Cin\xE9matique introduction 3",
+        durationMs: 5e3
+      },
+      {
+        imageSrc: "ImagesRPG/imagesfond/cinematique/Intro_Cin\xE9ma1.png",
+        alt: "Cin\xE9matique introduction 1"
+      },
+      {
+        imageSrc: "ImagesRPG/imagesfond/cinematique/Intro_cinema2.png",
+        alt: "Cin\xE9matique introduction 2"
+      },
+      {
+        imageSrc: "ImagesRPG/imagesfond/cinematique/Intro_Cinema3.png",
+        alt: "Cin\xE9matique introduction 4"
+      },
+      {
+        imageSrc: "ImagesRPG/imagesfond/cinematique/Intro_Cinema4.png",
+        alt: "Cin\xE9matique introduction 5",
+        overlayOnPrevious: true,
+        durationMs: 2e3
+      },
+      {
+        imageSrc: "ImagesRPG/imagesfond/cinematique/Intro_Cinema6.png",
+        alt: "Cin\xE9matique introduction 6",
+        durationMs: 5100
+      },
+      {
+        imageSrc: "ImagesRPG/imagesfond/cinematique/Intro_Cinema7.png",
+        alt: "Cin\xE9matique introduction 7",
+        durationMs: 4100
+      },
+      {
+        imageSrc: "ImagesRPG/imagesfond/cinematique/Intro_Cinema8.png",
+        alt: "Cin\xE9matique introduction 8"
+      },
+      {
+        imageSrc: "ImagesRPG/imagesfond/cinematique/Intro_Cinema9.png",
+        alt: "Cin\xE9matique introduction 9"
+      },
+      {
+        imageSrc: "ImagesRPG/imagesfond/cinematique/Intro_Cinema10 (2).png",
+        alt: "Cin\xE9matique introduction 10"
+      },
+      {
+        imageSrc: "ImagesRPG/imagesfond/cinematique/Intro_Cinema11.png",
+        alt: "Cin\xE9matique introduction 11"
+      }
+    ];
+    DEFAULT_CINEMATIC_FRAME = {
+      imageSrc: "ImagesRPG/imagesfond/creation_personnage.png",
+      alt: "Cin\xE9matique"
+    };
     BASE_CHARACTERISTICS = {
-      force: 10,
+      force: 0,
       sante: 10,
       energie: 6,
       vitesse: 2,
@@ -88709,11 +89851,11 @@ var init_index_web = __esm({
     init_item();
     init_pixiBootstrap_web();
     hero = new Player("Hero", 0, 0, 0, [
-      createSkill("basic_attack"),
+      createClassAdjustedSkill("basic_attack", "guerrier"),
       createSkill("block"),
       createSkill("mana_gain"),
       createSkill("missile_magique")
-    ], 0, true, 50, 0, 0, 0, 40, 20, 10, 2, 0, { force: 10, sante: 10, energie: 40, vitesse: 2, magie: 10, critique: 0, defense: 0 });
+    ], 0, true, 50, 0, 0, 0, 40, 20, 10, 2, 0, { force: 0, sante: 10, energie: 40, vitesse: 2, magie: 10, critique: 0, defense: 0 });
     hero.syncDerivedStatsFromCharacteristics({ fillResources: true });
     game = new Game("Merdoum 3", hero);
     window.game = game;
